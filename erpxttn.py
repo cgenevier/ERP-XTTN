@@ -289,14 +289,6 @@ class ERPXTTN(nn.Module):
         # Learned positional embeddings for input patches
         self.pos_embed = nn.Parameter(torch.randn(1, self.N, d_model) * 0.02)
 
-        # Self-attention components
-        self.sa_ln = nn.LayerNorm(d_model)
-        self.sa_W_q = nn.Linear(d_model, d_model)
-        self.sa_W_k = nn.Linear(d_model, d_model)
-        self.sa_W_v = nn.Linear(d_model, d_model)
-        self.sa_out_proj = nn.Linear(d_model, d_model)
-        self.sa_dropout = nn.Dropout(dropout)
-
         # Cross-attention: separate layer norms for Q and K
         self.ln_q = nn.LayerNorm(d_model)
         self.ln_kv = nn.LayerNorm(d_model)
@@ -313,6 +305,14 @@ class ERPXTTN(nn.Module):
         # Prototype buffer — set per fold via set_prototypes()
         self.register_buffer("proto_raw",
                              torch.zeros(self.K, n_channels, n_times))
+
+        # Self-attention components
+        self.sa_ln = nn.LayerNorm(d_model)
+        self.sa_W_q = nn.Linear(d_model, d_model)
+        self.sa_W_k = nn.Linear(d_model, d_model)
+        self.sa_W_v = nn.Linear(d_model, d_model)
+        self.sa_out_proj = nn.Linear(d_model, d_model)
+        self.sa_dropout = nn.Dropout(dropout)
 
         # Prototype center patch indices for PE lookup (set per fold)
         self.register_buffer("proto_center_patch_idx",
