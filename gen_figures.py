@@ -125,14 +125,10 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
             per_fold_windows[subj] = [tuple(w) for w in p['proto_windows_ms']]
 
     # Compute mean windows across folds for aggregate figures
-    if per_fold_windows:
-        all_w = np.array([per_fold_windows[s] for s in subjects])
-        windows = [tuple(np.round(all_w[:, k, :].mean(0), 1))
-                   for k in range(all_w.shape[1])]
-        print(f'  Dynamic windows (mean across {n_subj} folds): {windows}')
-    else:
-        from erpxttn import PROTO_WINDOWS_MS
-        windows = PROTO_WINDOWS_MS
+    all_w = np.array([per_fold_windows[s] for s in subjects])
+    windows = [tuple(np.round(all_w[:, k, :].mean(0), 1))
+               for k in range(all_w.shape[1])]
+    print(f'  Dynamic windows (mean across {n_subj} folds): {windows}')
 
     K = len(windows)
     C = len(channels)

@@ -25,10 +25,6 @@ import torch.nn.functional as F
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 
-# Ferrez & Millan (2008) windows shifted +80 ms for IIR group delay.
-# Used as fallback when dynamic peak detection fails.
-PROTO_WINDOWS_MS = [(230, 305), (305, 365), (365, 465), (465, 630)]
-
 # Canonical detection channel for ERP components
 DETECT_CHANNEL = "Cz"
 
