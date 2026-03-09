@@ -114,7 +114,15 @@ Results are saved to `datasets/<name>/results/tmin0ms_tmax800ms/<variant>/<model
 ### 5. Generate Figures (ERP-XTTN only)
 
 ```bash
-python 05_gen_figures.py
+# Run one configuration
+python 05_gen_figures.py --dataset bnci --channels midline3
+
+# Generate all figure sets (2 datasets × 3 channel configs)
+for dataset in bnci hri; do
+  for channels in midline2 midline3 full; do
+    python 05_gen_figures.py --dataset $dataset --channels $channels
+  done
+done
 ```
 
 Generates per-subject attention routing figures (TP/TN high-confidence and median trials) and aggregate attention analysis plots (prototype visualization, entropy vs. AUROC, attention timecourse, differential overlay, per-subject routing).
@@ -133,9 +141,9 @@ The input epoch (C channels × T time samples) is divided into N = T / w non-ove
 
 A single multi-head self-attention layer (H = 4 heads, d_h = 16) with pre-layer-normalization and residual connection refines the patch embeddings, allowing patches to share temporal context before cross-attention.
 
-**3. Prototype Construction (per fold)**
+**3. Prototype Construction (per fold, per training phase)**
 
-Before training each LOSO fold, K = 4 ERP prototypes are extracted from the grand-average difference wave (error minus correct) on the Cz detection channel:
+For each LOSO fold, K = 4 ERP prototypes are extracted from the grand-average difference wave (error minus correct) on the Cz detection channel. This is done once in Phase 1 (train split) and again in Phase 2 (full training pool):
 
 - The difference wave is Gaussian-smoothed (σ = 2 samples) and an alternating-polarity peak detector finds the P1–Ne–Pe–LateN chain (positive–negative–positive–negative) that maximizes total prominence.
 - Window boundaries expand from each peak to neighboring zero-crossings, clamped to [40, 200] ms width.
@@ -161,6 +169,7 @@ EEGNet (Lawhern et al., 2018) is used as a compact CNN baseline. It applies temp
 - **Two-phase training per fold**:
   - Phase 1: Train on 85% of pooled leave-out data with 15% stratified validation split. Early stopping (patience=15) on validation AUROC determines best epoch count.
   - Phase 2: Retrain from scratch on the full training pool for exactly best_epoch+1 epochs. Evaluate on the held-out test subject.
+  - ERP-XTTN prototype extraction: Run in both phases, using the phase-specific training data.
 - **Optimizer**: AdamW (lr=1e-3, weight_decay=1e-4)
 - **LR schedule**: Linear warmup (5 epochs, from lr/10) + cosine annealing over 100 epochs (to lr/100)
 - **Loss**: BCEWithLogitsLoss with inverse class-frequency pos_weight
@@ -291,7 +300,7 @@ For each ERP-XTTN fold, the following are saved:
 
 | File | Description |
 |------|-------------|
-| `results.json` | Per-subject metrics, detected windows, hyperparameters |
+| `results.json` | Per-subject metrics, detected windows (ERP-XTTN), and run metadata (`args`, `seed`, `device`, elapsed time, aggregate stats) |
 | `predictions_sub-*.npz` | Predicted probabilities and ground-truth labels |
 | `curves_sub-*.npz` | Phase 1 & 2 training loss curves, validation AUROC |
 | `attention_sub-*.npz` | Full attention weight tensors (B, H, N, K) per test trial |
