@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-"""train.py — LOSO cross-validation training for EEGNet and ERP-XTTN.
+"""04_train.py — LOSO cross-validation training for EEGNet and ERP-XTTN.
 
 Usage:
-    python train.py --dataset bnci --channels midline3 --model eegnet
-    python train.py --dataset hri  --channels midline3 --model erpxttn
+    python 04_train.py --dataset bnci --channels midline3 --model eegnet
+    python 04_train.py --dataset hri  --channels midline3 --model erpxttn
 
 Training logs go to: logs/<timestamp>_<dataset>_<channels>_<model>/
 Results go to:       datasets/<name>/results/tmin0ms_tmax800ms/<variant>/<model>/
@@ -13,7 +13,6 @@ import argparse
 import json
 import logging
 import math
-import os
 import sys
 import time
 from datetime import datetime
