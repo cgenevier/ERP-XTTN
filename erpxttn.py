@@ -351,17 +351,12 @@ class ERPXTTN(nn.Module):
         )
 
         if len(peaks) < self.K:
-            logging.warning(
+            raise RuntimeError(
                 f"Dynamic peak detection found only {len(peaks)}/{self.K} "
-                f"peaks; falling back to fixed Ferrez windows.")
-            self.detected_windows_ms = [
-                (float(s), float(e)) for s, e in PROTO_WINDOWS_MS
-            ]
-            windows_samples = [
-                (ms_to_sample(s, self.sfreq, self.tmin),
-                 ms_to_sample(e, self.sfreq, self.tmin))
-                for s, e in PROTO_WINDOWS_MS
-            ]
+                f"peaks on the grand-average difference wave. This suggests "
+                f"the training data does not exhibit the expected ErrP "
+                f"morphology (P1-Ne-Pe-LateN). Check preprocessing and data "
+                f"quality. Detected peaks: {peaks}")
         else:
             peak_indices = [p[0] for p in peaks]
             windows_samples = build_windows_from_zero_crossings(
