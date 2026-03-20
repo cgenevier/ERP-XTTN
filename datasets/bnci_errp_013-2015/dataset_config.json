@@ -1,0 +1,77 @@
+{
+    "dataset_name": "BNCI Horizon 2020 ErrP",
+    "description": "Error-related potentials from a P300-like spelling paradigm. 6 subjects, 2 sessions each.",
+    "citation": "BNCI Horizon 2020 - ErrP dataset",
+    "input_format": "matlab",
+    "file_glob": "Subject*_s*.mat",
+    "filename_regex": "^Subject(?P<sub>\\d+)_s(?P<ses>\\d+)\\.mat$",
+    "channel_type": "eeg",
+    "eog_channels": [],
+    "assume_microvolts": true,
+    "montage": "standard_1005",
+    "bids_task": "errp",
+    "export_mode": "per_run",
+    "event_id": {
+        "1": 1,
+        "2": 2,
+        "4": 4,
+        "correct_5": 5,
+        "error_6": 6,
+        "8": 8,
+        "error_9": 9,
+        "correct_10": 10
+    },
+    "epoching": {
+        "mode": "event_lock",
+        "event_subset": null
+    },
+    "notes": "MAT structure: mat['run'] is a cell-like array. Each run has .eeg (samples x channels) and .header with Subject, Session, SampleRate, Label, EVENT.POS, EVENT.TYP.",
+    "dataset_id": "bnci_errp_013-2015",
+    "subjects": [
+        "sub-01",
+        "sub-02",
+        "sub-03",
+        "sub-04",
+        "sub-05",
+        "sub-06"
+    ],
+    "variants": {
+        "midline2": "noref_midline2_rs256_iir_fwd_bp-1-10",
+        "midline3": "noref_midline3_rs256_iir_fwd_bp-1-10",
+        "full": "noref_rs256_iir_fwd_bp-1-10"
+    },
+    "label_map": {
+        "pos_key": "error",
+        "neg_key": "correct"
+    },
+    "polarity_pattern": [
+        "pos",
+        "neg",
+        "pos",
+        "neg"
+    ],
+    "peak_prominence": 0.02,
+    "channel_presets": {
+        "midline2_bnci": [
+            "FCz",
+            "Cz"
+        ],
+        "midline3": [
+            "Fz",
+            "Cz",
+            "Pz"
+        ],
+        "midline4_bnci": [
+            "FCz",
+            "Cz",
+            "CPz",
+            "Pz"
+        ]
+    },
+    "proto_names": [
+        "P1-diff",
+        "Ne-diff",
+        "Pe-diff",
+        "LateN-diff"
+    ]
+}

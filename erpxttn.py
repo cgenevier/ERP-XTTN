@@ -112,8 +112,8 @@ def detect_alternating_peaks(
     for polarity in polarity_pattern:
         slot_candidates.append(pos_list if polarity == 'pos' else neg_list)
 
-    # Anchor P1 on the earliest positive peak at or after min_latency_ms,
-    # then find the best remaining N-P-N chain via recursive search.
+    # Anchor on the earliest peak (of the first slot's polarity) at or
+    # after min_latency_ms, then find the best chain via recursive search.
     first_candidates = [
         (idx, prom) for idx, prom in slot_candidates[0]
         if idx >= min_latency_sample
@@ -121,7 +121,7 @@ def detect_alternating_peaks(
     if not first_candidates:
         return []
 
-    # Pick the earliest peak for the first slot (P1)
+    # Pick the earliest peak for the first slot
     p1_idx, p1_prom = first_candidates[0]
 
     # Find best chain for remaining slots after P1
@@ -252,8 +252,11 @@ class ERPXTTN(nn.Module):
                  patch_width: int = 8, dropout: float = 0.3,
                  sfreq: float = 256.0, tmin: float = 0.0,
                  n_proto: int = 4,
+                 polarity_pattern: list[str] = None,
+                 peak_prominence: float = 0.1,
                  min_window_ms: float = 40.0,
-                 max_window_ms: float = 200.0):
+                 max_window_ms: float = 200.0,
+                 routing_contrast_weight: float = 0.0):
         super().__init__()
         self.n_channels = n_channels
         self.n_times = n_times
@@ -262,9 +265,12 @@ class ERPXTTN(nn.Module):
         self.d_head = d_model // num_heads
         self.patch_width = patch_width
         self.K = n_proto
+        self.polarity_pattern = polarity_pattern or ['pos', 'neg', 'pos', 'neg']
+        self.peak_prominence = peak_prominence
         self.N = n_times // patch_width
         self.sfreq = sfreq
         self.tmin = tmin
+        self.routing_contrast_weight = routing_contrast_weight
 
         # Resolve detection channel by name
         if channel_names is not None and DETECT_CHANNEL in channel_names:
@@ -339,20 +345,20 @@ class ERPXTTN(nn.Module):
         diff_signal = diff_wave[self.detect_ch].cpu().numpy()
         smoothed = _smooth_signal(diff_signal, sigma=2.0)
 
-        # Detect peaks with alternating P-N-P-N polarity
+        # Detect peaks with expected polarity pattern
         peaks = detect_alternating_peaks(
             diff_signal, self.sfreq,
-            polarity_pattern=['pos', 'neg', 'pos', 'neg'],
+            polarity_pattern=self.polarity_pattern,
+            prominence=self.peak_prominence,
             min_latency_ms=MIN_P1_LATENCY_MS,
         )
 
         if len(peaks) < self.K:
             raise RuntimeError(
                 f"Dynamic peak detection found only {len(peaks)}/{self.K} "
-                f"peaks on the grand-average difference wave. This suggests "
-                f"the training data does not exhibit the expected ErrP "
-                f"morphology (P1-Ne-Pe-LateN). Check preprocessing and data "
-                f"quality. Detected peaks: {peaks}")
+                f"peaks on the grand-average difference wave. Expected "
+                f"polarity pattern {self.polarity_pattern}. Check "
+                f"preprocessing and data quality. Detected peaks: {peaks}")
         else:
             peak_indices = [p[0] for p in peaks]
             windows_samples = build_windows_from_zero_crossings(
@@ -422,12 +428,62 @@ class ERPXTTN(nn.Module):
 
         return z + out
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """Forward pass.
+    def _compute_proto_features(self, attn_avg: torch.Tensor) -> torch.Tensor:
+        """Compute prototype routing summary features from attention map.
+
+        These features characterize how the trial's attention relates to the
+        prototypes: how much each prototype is attended, how peaked/diffuse
+        the attention is, whether it follows a diagonal temporal structure,
+        and where each prototype's attention concentrates in time.
+
+        Args:
+            attn_avg: (B, N, K) head-averaged attention map
 
         Returns:
-            logit: (B, 1)
-            attn_weights: (B, H, N, K) — for analysis/logging
+            (B, 2K+3) feature vector:
+                proto_mass (K) — total attention per prototype
+                proto_confidence (1) — mean max-attention-per-patch
+                proto_entropy (1) — mean per-patch entropy over prototypes
+                proto_diagonality (1) — attention to nearest prototype
+                proto_com (K) — temporal center of mass per prototype
+        """
+        B, N, K = attn_avg.shape
+
+        # Per-prototype mass: total attention each prototype receives
+        proto_mass = attn_avg.sum(dim=1)  # (B, K)
+
+        # Mean confidence: average of max-attention-per-patch
+        proto_confidence = attn_avg.max(dim=-1).values.mean(dim=-1, keepdim=True)  # (B, 1)
+
+        # Mean entropy: average per-patch entropy over prototype dimension
+        proto_entropy = -(attn_avg * (attn_avg + 1e-8).log()).sum(dim=-1).mean(dim=-1, keepdim=True)  # (B, 1)
+
+        # Diagonality: attention to nearest prototype by temporal center
+        proto_centers = self.proto_center_patch_idx.float()  # (K,)
+        patch_indices = torch.arange(N, device=attn_avg.device, dtype=torch.float32)
+        dist = (patch_indices.unsqueeze(1) - proto_centers.unsqueeze(0)).abs()  # (N, K)
+        nearest_proto = dist.argmin(dim=-1)  # (N,)
+        nearest_expanded = nearest_proto.unsqueeze(0).expand(B, -1)  # (B, N)
+        diag_attn = attn_avg.gather(dim=-1, index=nearest_expanded.unsqueeze(-1)).squeeze(-1)
+        proto_diagonality = diag_attn.mean(dim=-1, keepdim=True)  # (B, 1)
+
+        # Per-prototype temporal center of mass
+        patch_pos = torch.arange(N, device=attn_avg.device, dtype=torch.float32)
+        attn_t = attn_avg.transpose(1, 2)  # (B, K, N)
+        proto_com = (attn_t * patch_pos.unsqueeze(0).unsqueeze(0)).sum(dim=-1) / \
+                    (attn_t.sum(dim=-1) + 1e-8)  # (B, K)
+
+        return torch.cat([proto_mass, proto_confidence, proto_entropy,
+                          proto_diagonality, proto_com], dim=-1)
+
+    def forward(self, x: torch.Tensor):
+        """Forward pass.
+
+        Returns (depends on routing_contrast_weight):
+            If routing_contrast_weight == 0 (standard mode):
+                (logit (B, 1), attn_weights (B, H, N, K))
+            If routing_contrast_weight > 0 (RCL mode):
+                (logit (B, 1), proto_features (B, 2K+3), attn_weights (B, H, N, K))
         """
         B = x.shape[0]
         H, d_h = self.num_heads, self.d_head
@@ -462,5 +518,9 @@ class ERPXTTN(nn.Module):
         attn_avg = attn_weights.mean(dim=1)         # (B, N, K)
         attn_flat = attn_avg.reshape(B, -1)         # (B, N*K)
         out = self.head(attn_flat)                   # (B, 1)
+
+        if self.routing_contrast_weight > 0:
+            proto_feat = self._compute_proto_features(attn_avg)
+            return out, proto_feat, attn_weights
 
         return out, attn_weights

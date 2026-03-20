@@ -10,9 +10,9 @@ Each dataset directory must contain:
   - original_data/       (raw source files)
 
 Usage:
-  python 01_convert_data.py datasets/bnci_horizon_2020_ErrP
-  python 01_convert_data.py datasets/hri_cursor
-  python 01_convert_data.py datasets/bnci_horizon_2020_ErrP --export-mode concatenate
+  python 01_convert_data.py datasets/bnci_errp_013-2015
+  python 01_convert_data.py datasets/hri_errp_cursor
+  python 01_convert_data.py datasets/bnci_errp_013-2015 --export-mode concatenate
 
 Requirements:
   pip install mne mne-bids scipy numpy pandas pybv
@@ -74,7 +74,11 @@ def parse_filename(filename: str, regex: str) -> dict[str, str]:
     groups["sub"] = f"{int(groups['sub']):02d}"
     # Pad session if present, else default to "01"
     if "ses" in groups:
-        groups["ses"] = f"{int(groups['ses']):02d}"
+        try:
+            groups["ses"] = f"{int(groups['ses']):02d}"
+        except ValueError:
+            # Non-numeric session (e.g., "ERN", "N170") — use as-is
+            pass
     else:
         groups["ses"] = "01"
     return groups

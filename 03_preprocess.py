@@ -22,10 +22,10 @@ Variant naming:
     noref_2ch_iir_fwd_bp-1-10       noref_3ch_fir_zero_bp-1-10
 
 Usage:
-  python 03_preprocess.py --dataset datasets/bnci_horizon_2020_ErrP --channels full --reference car
-  python 03_preprocess.py --dataset datasets/bnci_horizon_2020_ErrP --channels full --reference car --filter-method fir_zero
-  python 03_preprocess.py --dataset datasets/hri_cursor --channels midline3 --reference none
-  python 03_preprocess.py --dataset datasets/bnci_horizon_2020_ErrP --channels midline2_bnci --reference none --resample 256
+  python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels full --reference car
+  python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels full --reference car --filter-method fir_zero
+  python 03_preprocess.py --dataset datasets/hri_errp_cursor --channels midline3 --reference none
+  python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels midline2_bnci --reference none --resample 256
 """
 
 from __future__ import annotations
@@ -42,12 +42,11 @@ import pandas as pd
 # Channel presets
 # ---------------------------------------------------------------------------
 CHANNEL_PRESETS = {
-    # BNCI-specific (FCz/CPz not available in HRI montage)
-    "midline2_bnci": ["FCz", "Cz"],
-    "midline4_bnci": ["FCz", "Cz", "CPz", "Pz"],
-    # Cross-dataset comparable (all in BNCI ∩ HRI intersection)
+    # Generic cross-dataset presets
     "midline2": ["Fz", "Cz"],
     "midline3": ["Fz", "Cz", "Pz"],
+    # Dataset-specific presets should be defined in dataset_config.json
+    # under "channel_presets". They override these built-in presets.
 }
 
 
@@ -430,9 +429,9 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 Examples:
-  python 03_preprocess.py --dataset datasets/bnci_horizon_2020_ErrP --channels full --reference car
-  python 03_preprocess.py --dataset datasets/hri_cursor --channels midline3 --reference none
-  python 03_preprocess.py --dataset datasets/bnci_horizon_2020_ErrP --channels midline2_bnci --reference none --resample 256
+  python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels full --reference car
+  python 03_preprocess.py --dataset datasets/hri_errp_cursor --channels midline3 --reference none
+  python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels midline2_bnci --reference none --resample 256
 """,
     )
     parser.add_argument(
@@ -523,16 +522,18 @@ Examples:
     epoch_cfg = cfg.get("epoching", {"mode": "event_lock", "event_subset": None})
 
     # ------------------------------------------------------------------
-    # Resolve channel list
+    # Resolve channel list (dataset config overrides built-in presets)
     # ------------------------------------------------------------------
+    dataset_channel_presets = cfg.get("channel_presets", {})
+    all_presets = {**CHANNEL_PRESETS, **dataset_channel_presets}
     if args.channels == "full":
         channel_list = None  # sentinel: pick all EEG channels per file
-    elif args.channels in CHANNEL_PRESETS:
-        channel_list = CHANNEL_PRESETS[args.channels]
+    elif args.channels in all_presets:
+        channel_list = all_presets[args.channels]
     else:
         raise ValueError(
             f"Unknown channel preset: {args.channels!r}. "
-            f"Use 'full' or one of {sorted(CHANNEL_PRESETS.keys())}."
+            f"Use 'full' or one of {sorted(all_presets.keys())}."
         )
 
     # ------------------------------------------------------------------

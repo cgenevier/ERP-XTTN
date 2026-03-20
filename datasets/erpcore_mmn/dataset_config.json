@@ -1,0 +1,98 @@
+{
+    "dataset_name": "ERP CORE MMN",
+    "description": "Mismatch Negativity from passive auditory oddball task. 40 neurotypical adults. Part of the ERP CORE project (Kappenman et al., 2021).",
+    "citation": "Kappenman, E. S., Farrens, J. L., Zhang, W., Stewart, A. X., & Luck, S. J. (2021). ERP CORE: An open resource for human event-related potential research. NeuroImage, 225, 117465.",
+    "input_format": "eeglab",
+    "file_glob": "*/*_eeg.set",
+    "filename_regex": "^sub-(?P<sub>\\d+)_ses-(?P<ses>[^_]+)_task-[^_]+_eeg\\.set$",
+    "channel_type": "eeg",
+    "eog_channels": [
+        "HEOG_left",
+        "HEOG_right",
+        "VEOG_lower"
+    ],
+    "assume_microvolts": false,
+    "montage": "standard_1020",
+    "bids_task": "mmn",
+    "export_mode": "single",
+    "event_id": {
+        "standard": "80",
+        "deviant": "70",
+        "first_standard_stream": "180"
+    },
+    "epoching": {
+        "mode": "event_lock",
+        "event_subset": [
+            "standard",
+            "deviant"
+        ]
+    },
+    "notes": "EEGLAB .set/.fdt format. 33 channels. Passive auditory oddball: standard (80%) and deviant (20%) tones. Code 80 = standard, 70 = deviant, 180 = first stream of standards (excluded). MMN expected at Fz/Cz, 100-250ms post-stimulus, more negative for deviants.",
+    "dataset_id": "erpcore_mmn",
+    "subjects": [
+        "sub-01",
+        "sub-02",
+        "sub-03",
+        "sub-04",
+        "sub-05",
+        "sub-06",
+        "sub-07",
+        "sub-08",
+        "sub-09",
+        "sub-10",
+        "sub-11",
+        "sub-12",
+        "sub-13",
+        "sub-14",
+        "sub-15",
+        "sub-16",
+        "sub-17",
+        "sub-18",
+        "sub-19",
+        "sub-20",
+        "sub-21",
+        "sub-22",
+        "sub-23",
+        "sub-24",
+        "sub-25",
+        "sub-26",
+        "sub-27",
+        "sub-28",
+        "sub-29",
+        "sub-30",
+        "sub-31",
+        "sub-32",
+        "sub-33",
+        "sub-34",
+        "sub-35",
+        "sub-36",
+        "sub-37",
+        "sub-38",
+        "sub-39",
+        "sub-40"
+    ],
+    "variants": {
+        "midline3": "noref_midline3_rs256_iir_fwd_bp-1-10",
+        "full": "noref_rs256_iir_fwd_bp-1-10"
+    },
+    "label_map": {
+        "pos_key": "deviant",
+        "neg_key": "standard"
+    },
+    "polarity_pattern": [
+        "neg",
+        "pos"
+    ],
+    "peak_prominence": 0.005,
+    "channel_presets": {
+        "midline3": [
+            "Fz",
+            "Cz",
+            "Pz"
+        ]
+    },
+    "proto_names": [
+        "MMN-diff",
+        "P3a-diff"
+    ]
+}

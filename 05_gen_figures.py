@@ -27,49 +27,56 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from scipy import stats
 
-PROTO_NAMES = ['P1-diff', 'Ne-diff', 'Pe-diff', 'LateN-diff']
-PROTO_COLORS = ['#e67e22', '#c0392b', '#2980b9', '#27ae60']
+PROTO_COLOR_PALETTE = ['#e67e22', '#c0392b', '#2980b9', '#27ae60', '#8e44ad', '#1abc9c']
 
 REPO_ROOT = Path(__file__).resolve().parent
 DATASETS_DIR = REPO_ROOT / "datasets"
 
-DATASET_CONFIG = {
-    "bnci": {
-        "name": "bnci_horizon_2020_ErrP",
-        "subjects": ["sub-01", "sub-02", "sub-03", "sub-04", "sub-05", "sub-06"],
-        "variants": {
-            "midline2": "noref_midline2_rs256_iir_fwd_bp-1-10",
-            "midline3": "noref_midline3_rs256_iir_fwd_bp-1-10",
-            "full":     "noref_rs256_iir_fwd_bp-1-10",
-        },
-    },
-    "hri": {
-        "name": "hri_cursor",
-        "subjects": [f"sub-{i:02d}" for i in [2,3,4,5,6,7,8,9,10,11,13]],
-        "variants": {
-            "midline2": "noref_midline2_iir_fwd_bp-1-10",
-            "midline3": "noref_midline3_iir_fwd_bp-1-10",
-            "full":     "noref_iir_fwd_bp-1-10",
-        },
-    },
-}
+
+def _discover_datasets() -> list[str]:
+    """Scan datasets/ for directories containing dataset_config.json."""
+    return sorted(d.name for d in DATASETS_DIR.iterdir()
+                  if d.is_dir() and (d / "dataset_config.json").exists())
 
 
-def get_channel_names(dataset_key: str, channel_config: str) -> list[str]:
+def load_dataset_config(dataset_key: str) -> dict:
+    """Load dataset config from JSON."""
+    dataset_dir = DATASETS_DIR / dataset_key
+    cfg_path = dataset_dir / "dataset_config.json"
+    if not cfg_path.exists():
+        raise FileNotFoundError(
+            f"No dataset_config.json found in {dataset_dir}. "
+            f"Available: {_discover_datasets()}")
+    with open(cfg_path) as f:
+        cfg = json.load(f)
+    cfg.setdefault("name", dataset_dir.name)
+    return cfg
+
+
+def get_proto_config(cfg: dict):
+    """Return (proto_names, proto_colors) from dataset config."""
+    names = cfg.get("proto_names", [f"Proto-{i}" for i in range(len(cfg.get("polarity_pattern", [])))])
+    colors = PROTO_COLOR_PALETTE[:len(names)]
+    return names, colors
+
+
+def get_channel_names(cfg: dict, channel_config: str) -> list[str]:
     """Read channel names from the first epoch file."""
-    cfg = DATASET_CONFIG[dataset_key]
     variant = cfg["variants"][channel_config]
     base = DATASETS_DIR / cfg["name"] / "epoched_fif" / "tmin0ms_tmax800ms" / variant
     first_fif = next((base / cfg["subjects"][0]).rglob("*-epo.fif"))
     return mne.read_epochs(str(first_fif), preload=False, verbose=False).ch_names
 
 
-def load_subject_epochs(dataset_key: str, channel_config: str,
+def load_subject_epochs(cfg: dict, channel_config: str,
                         subject: str) -> tuple[np.ndarray, list[str]]:
     """Load raw epoch data for a subject. Returns (X_raw, ch_names)."""
-    cfg = DATASET_CONFIG[dataset_key]
     variant = cfg["variants"][channel_config]
     base = DATASETS_DIR / cfg["name"] / "epoched_fif" / "tmin0ms_tmax800ms" / variant
+
+    pos_key = cfg["label_map"]["pos_key"]
+    neg_key = cfg["label_map"]["neg_key"]
+    label_groups = cfg.get("label_groups")
 
     all_X = []
     subj_dir = base / subject
@@ -79,9 +86,15 @@ def load_subject_epochs(dataset_key: str, channel_config: str,
         if ch_names is None:
             ch_names = epochs.ch_names
         event_id = epochs.event_id
-        error_ids = {v for k, v in event_id.items() if "error" in k.lower()}
-        correct_ids = {v for k, v in event_id.items() if "correct" in k.lower()}
-        keep_ids = error_ids | correct_ids
+        if label_groups:
+            pos_names = set(label_groups.get(pos_key, []))
+            neg_names = set(label_groups.get(neg_key, []))
+            pos_ids = {v for k, v in event_id.items() if k in pos_names}
+            neg_ids = {v for k, v in event_id.items() if k in neg_names}
+        else:
+            pos_ids = {v for k, v in event_id.items() if pos_key in k.lower()}
+            neg_ids = {v for k, v in event_id.items() if neg_key in k.lower()}
+        keep_ids = pos_ids | neg_ids
         if not keep_ids:
             continue
         X = epochs.get_data()
@@ -148,17 +161,20 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
     )
     for col, ch in enumerate(channels):
         axes[0, col].set_title(ch, fontsize=13, fontweight='bold')
+    # Scale per-fold alpha so overlapping traces/shading stay readable
+    trace_alpha = max(0.08, min(0.25, 3.0 / n_subj))
+    span_alpha = max(0.005, min(0.04, 0.5 / n_subj))
     for k in range(K):
         s_ms, e_ms = windows[k]
         for c in range(C):
             ax = axes[k, c]
             traces = np.array([all_protos[s][k, c, :] for s in subjects])
             for ti, t in enumerate(traces):
-                ax.plot(time_ms, t, color=PROTO_COLORS[k], alpha=0.25, lw=0.8)
+                ax.plot(time_ms, t, color=PROTO_COLORS[k], alpha=trace_alpha, lw=0.8)
                 if subjects[ti] in per_fold_windows:
                     fw = per_fold_windows[subjects[ti]]
                     ax.axvspan(fw[k][0], fw[k][1], color=PROTO_COLORS[k],
-                               alpha=0.04)
+                               alpha=span_alpha)
             mean = traces.mean(0)
             std = traces.std(0)
             ax.plot(time_ms, mean, color=PROTO_COLORS[k], lw=2.5)
@@ -431,14 +447,14 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
     print(f'  Saved {fname}')
 
 
-def generate_tp_tn_figures(results_dir, dataset_key, channel_config,
+def generate_tp_tn_figures(results_dir, cfg, channel_config,
                            subject, dataset_label):
     """Generate high-confidence and median-confidence TP vs TN figures.
 
     Args:
         results_dir: path to model results directory
-        dataset_key: "bnci" or "hri"
-        channel_config: "midline2", "midline3", or "full"
+        cfg: dataset config dict (loaded from dataset_config.json)
+        channel_config: channel preset name
         subject: subject ID (e.g. "sub-01")
         dataset_label: display label for figure title
     """
@@ -456,7 +472,7 @@ def generate_tp_tn_figures(results_dir, dataset_key, channel_config,
     proto_windows = [tuple(w) for w in proto_data['proto_windows_ms']]
     sfreq = float(proto_data['sfreq'])
 
-    X_raw, ch_names = load_subject_epochs(dataset_key, channel_config, subject)
+    X_raw, ch_names = load_subject_epochs(cfg, channel_config, subject)
     cz_idx = ch_names.index('Cz') if 'Cz' in ch_names else 1
 
     tp_mask = (labels == 1) & (probs >= 0.5)
@@ -475,7 +491,7 @@ def generate_tp_tn_figures(results_dir, dataset_key, channel_config,
     print(f"  {subject} (AUROC={auroc:.4f})")
     print(f"    High-conf TP: idx={tp_high}, prob={probs[tp_high]:.4f}")
     print(f"    High-conf TN: idx={tn_high}, prob={probs[tn_high]:.4f}")
-    _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
+    _plot_tp_tn(results_dir, cfg, channel_config, subject,
                 dataset_label, tp_high, tn_high, probs, labels, attn,
                 proto_raw, proto_windows, sfreq, X_raw, cz_idx,
                 '', '_highconf')
@@ -487,7 +503,7 @@ def generate_tp_tn_figures(results_dir, dataset_key, channel_config,
     tn_med = tn_sorted[len(tn_sorted) // 2]
     print(f"    Median TP: idx={tp_med}, prob={probs[tp_med]:.4f}")
     print(f"    Median TN: idx={tn_med}, prob={probs[tn_med]:.4f}")
-    _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
+    _plot_tp_tn(results_dir, cfg, channel_config, subject,
                 dataset_label, tp_med, tn_med, probs, labels, attn,
                 proto_raw, proto_windows, sfreq, X_raw, cz_idx,
                 ' (median conf.)', '_median')
@@ -500,29 +516,52 @@ def generate_tp_tn_figures(results_dir, dataset_key, channel_config,
 def main():
     parser = argparse.ArgumentParser(
         description="Generate all ERP-XTTN attention figures")
-    parser.add_argument("--dataset", required=True, choices=["bnci", "hri"])
-    parser.add_argument("--channels", required=True,
-                        choices=["midline2", "midline3", "full"])
+    parser.add_argument("--dataset", required=True,
+                        choices=_discover_datasets())
+    parser.add_argument("--channels", required=True)
+    parser.add_argument("--model", default="erpxttn",
+                        help="Model results directory name (default: erpxttn)")
+    parser.add_argument("--partial", action="store_true",
+                        help="Generate figures from partial results (no results.json needed)")
     args = parser.parse_args()
 
-    cfg = DATASET_CONFIG[args.dataset]
+    cfg = load_dataset_config(args.dataset)
+
+    global PROTO_NAMES, PROTO_COLORS
+    PROTO_NAMES, PROTO_COLORS = get_proto_config(cfg)
+
+    if args.channels not in cfg["variants"]:
+        valid = list(cfg["variants"].keys())
+        parser.error(f"Invalid channels '{args.channels}' for dataset "
+                     f"'{args.dataset}'. Valid: {valid}")
     variant = cfg["variants"][args.channels]
     results_dir = (DATASETS_DIR / cfg["name"] / "results" / "tmin0ms_tmax800ms"
-                   / variant / "erpxttn")
+                   / variant / args.model)
 
     if not results_dir.exists():
         print(f"Results directory not found: {results_dir}")
         return
 
-    channel_names = get_channel_names(args.dataset, args.channels)
-    dataset_label = f'{args.dataset.upper()} \u2014 ERP-XTTN'
+    channel_names = get_channel_names(cfg, args.channels)
+    model_label = args.model.upper().replace("_", " ")
+    dataset_label = f'{args.dataset.upper()} \u2014 {model_label}'
 
-    print(f'=== Attention analysis figures ===')
-    generate_attention_figures(results_dir, dataset_label, channel_names, 256)
+    if args.partial:
+        print(f'=== Partial mode: skipping attention analysis figures (need results.json) ===')
+    else:
+        print(f'=== Attention analysis figures ===')
+        generate_attention_figures(results_dir, dataset_label, channel_names, 256)
 
-    with open(results_dir / 'results.json') as f:
-        results = json.load(f)
-    subjects = [r['test_subject'] for r in results['folds']]
+    if args.partial:
+        # Discover subjects from prediction files
+        import glob
+        pred_files = sorted(glob.glob(str(results_dir / 'predictions_sub-*.npz')))
+        subjects = [Path(p).stem.replace('predictions_', '') for p in pred_files]
+        print(f'  Partial mode: found {len(subjects)} subjects')
+    else:
+        with open(results_dir / 'results.json') as f:
+            results = json.load(f)
+        subjects = [r['test_subject'] for r in results['folds']]
 
     print(f'\n=== TP/TN routing figures ===')
     for subj in subjects:
@@ -530,7 +569,7 @@ def main():
         if not attn_path.exists():
             print(f'  {subj}: attention file not found, skipping')
             continue
-        generate_tp_tn_figures(results_dir, args.dataset, args.channels,
+        generate_tp_tn_figures(results_dir, cfg, args.channels,
                                subj, dataset_label)
 
     print('\nDone!')
