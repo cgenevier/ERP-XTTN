@@ -580,6 +580,8 @@ def main():
     parser.add_argument("--model", required=True, choices=["eegnet", "erpxttn", "xdawn_rg"])
     parser.add_argument("--routing-contrast-weight", type=float, default=0.0,
                         help="Routing contrast loss weight (0=off, >0 adds contrastive proto feature loss)")
+    parser.add_argument("--resume", action="store_true",
+                        help="Skip folds that already have predictions (for resuming interrupted runs)")
     args = parser.parse_args()
 
     # Determine model directory name (appends _rclX.X for routing contrast loss)
@@ -647,6 +649,21 @@ def main():
     results = []
     t0 = time.time()
     for i, test_subj in enumerate(subjects):
+        # --resume: skip folds that already have predictions
+        if args.resume:
+            pred_path = results_dir / f"predictions_{test_subj}.npz"
+            if pred_path.exists():
+                import numpy as _np
+                _d = _np.load(pred_path)
+                fold_result = {
+                    "fold": i, "test_subject": test_subj,
+                    "best_epoch": 0,
+                    "test_auroc": float(_d["auroc"]),
+                    "test_bal_acc": float(_d["bal_acc"]),
+                }
+                logging.info(f"[resume] {test_subj}: AUROC={_d['auroc']:.4f} (cached)")
+                results.append(fold_result)
+                continue
         fold_result = run_fold(i, test_subj, all_data, args.model, srate,
                                device, results_dir,
                                channel_names=channel_names,
