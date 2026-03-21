@@ -129,6 +129,28 @@ python 05_gen_figures.py --dataset erpcore_n400 --channels midline3_n400 --model
 | ERP CORE N2pc | 40 | 30 | 1024 Hz → 256 | Visual search (target laterality) |
 | ERP CORE P3 | 40 | 30 | 1024 Hz → 256 | Oddball (target/non-target) |
 
+## Prototype Configuration
+
+ERPXTTN uses data-driven prototype detection from the training-set grand-average difference wave. The following parameters are configured per dataset in `dataset_config.json`, informed by established ERP morphology:
+
+- **Polarity pattern**: The expected alternating sign pattern of ERP components (e.g., `neg, pos` for a negative-then-positive waveform). Determines the number of prototypes (K).
+- **Peak prominence**: Minimum prominence threshold (in z-scored units) for peak detection. Tuned per dataset to ensure the detector anchors on canonical ERP components rather than small early deflections.
+- **Proto names**: Human-readable labels for each prototype window, corresponding to known ERP components.
+
+Prototype windows are detected automatically per LOSO fold from the training data only — no test-set information is used. The polarity pattern and prominence threshold encode prior neuroscience knowledge about each paradigm's expected waveform morphology.
+
+| Dataset | Pattern | K | Prominence | Prototypes |
+|---------|---------|---|------------|------------|
+| BNCI ErrP | pos, neg, pos, neg | 4 | 0.02 | P1, Ne, Pe, LateN |
+| HRI ErrP | pos, neg, pos, neg | 4 | 0.02 | P1, Ne, Pe, LateN |
+| ERN | neg, pos | 2 | 0.005 | ERN, Pe |
+| LRP | neg, pos, neg, pos | 4 | 0.005 | EarlyN, EarlyP, LRP, LateP |
+| MMN | neg, pos, neg | 3 | 0.005 | MMN, P3a, LateN |
+| N170 | neg, pos, neg | 3 | 0.005 | N170, VPP, LateN |
+| N2pc | neg, pos, neg | 3 | 0.005 | N2pc, SPCN, LateN |
+| N400 | pos, neg, pos, neg | 4 | 0.005 | P2, N400, LPC, LateN |
+| P3 | pos, neg, pos | 3 | 0.10 | P3, SW, LateP |
+
 ## Results Summary
 
 
