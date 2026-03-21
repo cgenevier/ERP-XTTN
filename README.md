@@ -151,6 +151,8 @@ Prototype windows are detected automatically per LOSO fold from the training dat
 | N400 | pos, neg, pos, neg | 4 | 0.005 | P2, N400, LPC, LateN |
 | P3 | pos, neg, pos | 3 | 0.10 | P3, SW, LateP |
 
+Additionally, prototype windows are clamped to a maximum width of 200ms (`max_window_ms` in `erpxttn.py`). This prevents late, broad components (e.g., LPC, LateP) from dominating the prototype representation. A future direction is to make this configurable per-dataset, as late ERP components naturally span wider temporal windows than early ones.
+
 ## Results Summary
 
 
