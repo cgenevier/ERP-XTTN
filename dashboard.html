@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERP-XTTN Benchmarking Dashboard</title>
+<style>
+:root {
+  --bg-primary: #1a1a2e;
+  --bg-panel: #16213e;
+  --bg-panel-alt: #1a2744;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0b0;
+  --accent: #4fc3f7;
+  --accent-hover: #81d4fa;
+  --border: #2a3a5e;
+  --row-odd: #16213e;
+  --row-even: #1a2744;
+  --row-hover: #1e3050;
+  --radius: 8px;
+  --transition: 0.2s ease;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.header h1 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+button {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 8px 18px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  white-space: nowrap;
+}
+button:hover {
+  background: var(--accent);
+  color: var(--bg-primary);
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+button.btn-solid {
+  background: var(--accent);
+  color: var(--bg-primary);
+  font-weight: 600;
+}
+button.btn-solid:hover {
+  background: var(--accent-hover);
+}
+button.btn-small {
+  padding: 4px 12px;
+  font-size: 0.78rem;
+}
+button.btn-active {
+  background: var(--accent);
+  color: var(--bg-primary);
+}
+.tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 24px;
+  background: var(--bg-panel);
+  border-bottom: 2px solid var(--border);
+}
+.tab-btn {
+  padding: 12px 24px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition);
+}
+.tab-btn:hover {
+  color: var(--text-primary);
+  background: transparent;
+}
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.main {
+  padding: 20px 24px;
+  max-width: 1800px;
+  margin: 0 auto;
+}
+.tab-panel {
+  display: none;
+}
+.tab-panel.active {
+  display: block;
+}
+.loading-overlay {
+  display: none;
+  padding: 32px;
+  text-align: center;
+}
+.loading-overlay.active {
+  display: block;
+}
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.progress-list {
+  list-style: none;
+  max-width: 500px;
+  margin: 16px auto;
+  text-align: left;
+}
+.progress-list li {
+  padding: 4px 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.progress-list li.done { color: #66bb6a; }
+.progress-list li.done::before { content: "\2713 "; }
+.progress-list li.scanning { color: var(--accent); }
+.progress-list li.scanning::before { content: "\25B6 "; }
+.table-container {
+  overflow-x: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #0f1a30;
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--accent);
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody tr:nth-child(odd) { background: var(--row-odd); }
+tbody tr:nth-child(even) { background: var(--row-even); }
+tbody tr:hover { background: var(--row-hover); }
+tbody tr.clickable { cursor: pointer; }
+.cell-missing {
+  color: #666;
+  font-style: italic;
+}
+.cell-best {
+  font-weight: 700;
+}
+.auroc-cell {
+  border-radius: 4px;
+  padding: 4px 10px;
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+}
+.detail-row td {
+  padding: 0;
+  background: #0f1528 !important;
+}
+.detail-inner {
+  padding: 12px 20px 16px;
+  overflow-x: auto;
+}
+.detail-inner table {
+  font-size: 0.82rem;
+}
+.detail-inner thead th {
+  background: #0f1a30;
+}
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.filter-bar label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-right: 4px;
+}
+.controls-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.control-group label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.control-group select {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  min-width: 180px;
+}
+.fig-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 16px;
+}
+.fig-card {
+  background: var(--bg-panel-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+.fig-card:hover {
+  border-color: var(--accent);
+}
+.fig-card img {
+  width: 100%;
+  display: block;
+  background: #111;
+}
+.fig-card .fig-label {
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+}
+.fig-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.no-fig {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  background: var(--bg-panel-alt);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 16px;
+}
+.compare-panel {
+  background: var(--bg-panel-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.compare-panel .panel-header {
+  padding: 8px 14px;
+  background: #0f1a30;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+}
+.compare-panel img {
+  width: 100%;
+  display: block;
+  background: #111;
+}
+.lightbox {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.88);
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+}
+.lightbox.active {
+  display: flex;
+}
+.lightbox img {
+  max-width: 95vw;
+  max-height: 92vh;
+  border-radius: 4px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+}
+.lightbox-close {
+  position: fixed;
+  top: 16px;
+  right: 24px;
+  z-index: 1001;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 2rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px 12px;
+}
+.lightbox-close:hover {
+  color: var(--accent);
+  background: transparent;
+}
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.status-running { background: rgba(79,195,247,0.2); color: #4fc3f7; }
+.status-completed { background: rgba(102,187,106,0.2); color: #66bb6a; }
+.status-stale { background: rgba(255,167,38,0.2); color: #ffa726; }
+.progress-bar-bg {
+  background: var(--border);
+  border-radius: 4px;
+  height: 6px;
+  width: 100px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 8px;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+@media (max-width: 900px) {
+  .fig-grid {
+    grid-template-columns: 1fr;
+  }
+  .fig-pair, .compare-grid {
+    grid-template-columns: 1fr;
+  }
+  .header { padding: 12px 16px; }
+  .main { padding: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>ERP-XTTN Benchmarking Dashboard</h1>
+  <div class="header-actions">
+    <button id="btnRefresh" class="btn-solid" disabled>Refresh</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="overview">Overview</button>
+  <button class="tab-btn" data-tab="figures">Figures</button>
+  <button class="tab-btn" data-tab="compare">Compare</button>
+  <button class="tab-btn" data-tab="running">Running</button>
+</div>
+
+<div class="main">
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <div>Scanning datasets...</div>
+    <ul id="progressList" class="progress-list"></ul>
+  </div>
+
+  <div id="panelOverview" class="tab-panel active">
+    <div id="filterBar" class="filter-bar"></div>
+    <div id="overviewContent"></div>
+  </div>
+
+  <div id="panelFigures" class="tab-panel">
+    <div id="figControls" class="controls-row"></div>
+    <div id="figContent"></div>
+  </div>
+
+  <div id="panelCompare" class="tab-panel">
+    <div id="compareControls" class="controls-row"></div>
+    <div id="compareContent"></div>
+  </div>
+
+  <div id="panelRunning" class="tab-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div id="runningStatus" style="font-size:0.85rem;color:var(--text-secondary);"></div>
+      <button class="btn-small" id="btnRefreshRunning" onclick="scanLogs()">Refresh</button>
+    </div>
+    <div id="runningContent"></div>
+  </div>
+</div>
+
+<div id="lightbox" class="lightbox">
+  <button class="lightbox-close" id="lightboxClose">&times;</button>
+  <img id="lightboxImg" src="" alt="Full-size figure">
+</div>
+
+<script>
+/* ── State ── */
+let allData = [];
+
+// Jupyter auth: extract token from URL and append to all fetch/img requests
+const _urlParams = new URLSearchParams(window.location.search);
+const _jupyterToken = _urlParams.get('token') || '';
+function authUrl(path) {
+  const sep = path.includes('?') ? '&' : '?';
+  return _jupyterToken ? path + sep + 'token=' + _jupyterToken : path;
+}
+
+const KNOWN_MODELS = ['eegnet', 'erpxttn', 'erpxttn_rcl0.3', 'xdawn_rg'];
+const MODEL_DISPLAY = {
+  'eegnet': 'EEGNet',
+  'erpxttn': 'ERP-XTTN',
+  'erpxttn_rcl0.3': 'ERP-XTTN RCL',
+  'xdawn_rg': 'xDAWN+RG'
+};
+const AGGREGATE_FIGS = [
+  'fig_prototypes.png',
+  'fig_entropy_vs_auroc.png',
+  'fig_attn_timecourse.png',
+  'fig_attn_diff_overlay.png',
+  'fig_per_subject_routing.png'
+];
+
+/* ── Tabs ── */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel' + capitalize(btn.dataset.tab)).classList.add('active');
+    if (btn.dataset.tab === 'running') scanLogs();
+  });
+});
+
+function capitalize(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/* ── Loading ── */
+function showLoading(on) {
+  document.getElementById('loadingOverlay').classList.toggle('active', on);
+}
+
+/* ── Lightbox ── */
+function openLightbox(url) {
+  const lb = document.getElementById('lightbox');
+  document.getElementById('lightboxImg').src = url;
+  lb.classList.add('active');
+}
+
+document.getElementById('lightboxClose').addEventListener('click', () => {
+  document.getElementById('lightbox').classList.remove('active');
+  document.getElementById('lightboxImg').src = '';
+});
+
+document.getElementById('lightbox').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) {
+    document.getElementById('lightbox').classList.remove('active');
+    document.getElementById('lightboxImg').src = '';
+  }
+});
+
+/* ── Data Loading via direct file probing ── */
+
+// All known dataset directory names
+const KNOWN_DATASETS = [
+  'bnci_errp_013-2015',
+  'hri_errp_cursor',
+  'erpcore_ern',
+  'erpcore_lrp',
+  'erpcore_mmn',
+  'erpcore_n170',
+  'erpcore_n2pc',
+  'erpcore_n400',
+  'erpcore_p300'
+];
+
+// Derive base path from dashboard URL
+const _dashPath = window.location.pathname;
+const _baseUrl = _dashPath.substring(0, _dashPath.lastIndexOf('/') + 1);
+
+function fileUrl(relPath) {
+  return authUrl(_baseUrl + relPath);
+}
+
+async function fetchJson(relPath) {
+  try {
+    const resp = await fetch(fileUrl(relPath));
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch { return null; }
+}
+
+
+async function scanDatasets() {
+  showLoading(true);
+  const progressList = document.getElementById('progressList');
+  progressList.innerHTML = '<li class="scanning">Scanning datasets...</li>';
+
+  allData = [];
+
+  // Probe all known datasets for dataset_config.json in parallel
+  const configResults = await Promise.all(
+    KNOWN_DATASETS.map(async name => ({
+      name,
+      config: await fetchJson('datasets/' + name + '/dataset_config.json')
+    }))
+  );
+
+  const foundDatasets = configResults.filter(r => r.config !== null);
+
+  progressList.querySelector('li').className = 'done';
+  progressList.querySelector('li').textContent = 'Found ' + foundDatasets.length + ' datasets';
+
+  for (const { name: dirName, config } of foundDatasets) {
+    const li = document.createElement('li');
+    li.className = 'scanning';
+    li.textContent = 'Scanning ' + (config.dataset_name || dirName) + '...';
+    progressList.appendChild(li);
+
+    const ds = {
+      dirName: dirName,
+      config: config,
+      datasetName: config.dataset_name || dirName,
+      subjects: config.subjects || [],
+      variants: config.variants || {},
+      protoNames: config.proto_names || [],
+      results: {}
+    };
+
+    // For each variant, probe all known models in parallel
+    const variants = config.variants || {};
+    const variantProbes = Object.entries(variants).map(async ([variantKey, variantDirName]) => {
+      const variantPath = 'datasets/' + dirName + '/results/tmin0ms_tmax800ms/' + variantDirName;
+
+      // Probe all 4 models for results.json in parallel
+      const ERPXTTN_FAMILY = ['erpxttn', 'erpxttn_rcl0.3'];
+      const modelProbes = await Promise.all(KNOWN_MODELS.map(async modelName => {
+        const modelPath = variantPath + '/' + modelName;
+        const results = await fetchJson(modelPath + '/results.json');
+        if (!results) return null;
+
+        const modelData = { results: results, figures: {}, basePath: modelPath };
+
+        // Only ERPXTTN-family models have figures — construct URLs directly (no probing)
+        if (ERPXTTN_FAMILY.includes(modelName)) {
+          const subjects = config.subjects || [];
+          const figNames = [
+            ...AGGREGATE_FIGS,
+            ...subjects.flatMap(s => [
+              'fig_tp_tn_routing_' + s + '_highconf.png',
+              'fig_tp_tn_routing_' + s + '_median.png'
+            ])
+          ];
+          for (const fn of figNames) {
+            modelData.figures[fn] = fileUrl(modelPath + '/' + fn);
+          }
+        }
+
+        return { modelName, modelData };
+      }));
+
+      const validModels = modelProbes.filter(m => m !== null);
+      if (validModels.length > 0) {
+        ds.results[variantKey] = {};
+        for (const { modelName, modelData } of validModels) {
+          ds.results[variantKey][modelName] = modelData;
+        }
+      }
+    });
+
+    await Promise.all(variantProbes);
+    allData.push(ds);
+    li.className = 'done';
+    li.textContent = ds.datasetName;
+  }
+
+  showLoading(false);
+  document.getElementById('btnRefresh').disabled = false;
+  renderAll();
+}
+
+document.getElementById('btnRefresh').addEventListener('click', () => {
+  document.getElementById('btnRefresh').disabled = true;
+  scanDatasets();
+});
+
+/* ── Helpers ── */
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function aurocColor(val) {
+  if (val == null) return '';
+  // Red (0.5) -> Yellow (0.7) -> Green (0.9+)
+  const t = Math.max(0, Math.min(1, (val - 0.5) / 0.4));
+  const r = Math.round(255 * (1 - t * 0.7));
+  const g = Math.round(100 + 155 * t);
+  const b = Math.round(60 + 40 * (1 - Math.abs(t - 0.5) * 2));
+  return 'rgba(' + r + ',' + g + ',' + b + ',0.25)';
+}
+
+function fmt(val, digits) {
+  if (val == null) return null;
+  return val.toFixed(digits === undefined ? 3 : digits);
+}
+
+function getMeanAuroc(modelData) {
+  if (!modelData || !modelData.results || !modelData.results.folds) return null;
+  const aurocs = modelData.results.folds.map(f => f.test_auroc).filter(v => v != null);
+  if (aurocs.length === 0) return null;
+  return aurocs.reduce((a, b) => a + b, 0) / aurocs.length;
+}
+
+function getMeanBalAcc(modelData) {
+  if (!modelData || !modelData.results || !modelData.results.folds) return null;
+  const vals = modelData.results.folds.map(f => f.test_bal_acc).filter(v => v != null);
+  if (vals.length === 0) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+function getSubjectAuroc(modelData, subj) {
+  if (!modelData || !modelData.results || !modelData.results.folds) return null;
+  const fold = modelData.results.folds.find(f => f.test_subject === subj);
+  return fold ? fold.test_auroc : null;
+}
+
+function getSubjectBalAcc(modelData, subj) {
+  if (!modelData || !modelData.results || !modelData.results.folds) return null;
+  const fold = modelData.results.folds.find(f => f.test_subject === subj);
+  return fold ? fold.test_bal_acc : null;
+}
+
+/* ── Rendering ── */
+function renderAll() {
+  renderOverview();
+  renderFigControls();
+  renderCompareControls();
+}
+
+/* ── Overview ── */
+function renderOverview() {
+  const container = document.getElementById('overviewContent');
+  const filterBar = document.getElementById('filterBar');
+
+  if (allData.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-secondary);padding:40px 0;text-align:center;">No datasets with results found.</p>';
+    filterBar.innerHTML = '';
+    return;
+  }
+
+  // Filter bar: All / 3ch / Full
+  filterBar.innerHTML = '<label>Variant filter:</label>';
+  for (const [label, filter] of [['All', null], ['3ch', '3ch'], ['Full', 'full']]) {
+    const btn = document.createElement('button');
+    btn.className = 'btn-small' + (filter === null ? ' btn-active' : '');
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#filterBar button').forEach(b => b.classList.remove('btn-active'));
+      btn.classList.add('btn-active');
+      renderOverviewTable(filter);
+    });
+    filterBar.appendChild(btn);
+  }
+
+  renderOverviewTable(null);
+}
+
+function classifyVariant(variantKey) {
+  if (variantKey === 'full') return 'full';
+  return '3ch';
+}
+
+function renderOverviewTable(filterCategory) {
+  const container = document.getElementById('overviewContent');
+  const nModels = KNOWN_MODELS.length;
+  const colSpan = 2 + nModels + 1; // Dataset, Variant, models, Time
+
+  // Build rows: one per dataset+variant
+  let rows = [];
+  for (const ds of allData) {
+    for (const vk of Object.keys(ds.results).sort()) {
+      if (filterCategory && classifyVariant(vk) !== filterCategory) continue;
+      rows.push({ ds, vk, modelMap: ds.results[vk] || {} });
+    }
+  }
+
+  if (rows.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-secondary);padding:40px 0;text-align:center;">No results match the current filter.</p>';
+    return;
+  }
+
+  let html = '<div class="table-container"><table><thead><tr>';
+  html += '<th>Dataset</th><th>Variant</th>';
+  for (const m of KNOWN_MODELS) html += '<th>' + (MODEL_DISPLAY[m] || m) + '</th>';
+  html += '<th>Time (s)</th></tr></thead><tbody>';
+
+  for (let ri = 0; ri < rows.length; ri++) {
+    const { ds, vk, modelMap } = rows[ri];
+    const rowId = ds.dirName + '|' + vk;
+
+    // Find best AUROC across models for this row
+    let bestAuroc = -1;
+    let bestModel = null;
+    for (const m of KNOWN_MODELS) {
+      const r = modelMap[m]?.results;
+      if (r && r.mean_auroc != null && r.mean_auroc > bestAuroc) {
+        bestAuroc = r.mean_auroc;
+        bestModel = m;
+      }
+    }
+
+    // Main summary row
+    html += '<tr class="clickable" data-row-id="' + escapeHtml(rowId) + '">';
+    html += '<td>' + escapeHtml(ds.datasetName) + '</td>';
+    html += '<td>' + escapeHtml(vk) + '</td>';
+    for (const m of KNOWN_MODELS) {
+      const r = modelMap[m]?.results;
+      if (r && r.mean_auroc != null) {
+        const isBest = m === bestModel;
+        html += '<td><span class="auroc-cell' + (isBest ? ' cell-best' : '') + '" style="background:' + aurocColor(r.mean_auroc) + '">' + fmt(r.mean_auroc) + ' &plusmn; ' + fmt(r.std_auroc) + '</span></td>';
+      } else {
+        html += '<td><span class="cell-missing">&mdash;</span></td>';
+      }
+    }
+    // Time column
+    const formatTime = (s) => {
+      if (s == null) return '';
+      if (s < 3600) return Math.round(s / 60) + 'min';
+      return (s / 3600).toFixed(1) + 'hr';
+    };
+    const times = KNOWN_MODELS.map(m => {
+      const e = modelMap[m]?.results?.elapsed_seconds;
+      return e != null ? formatTime(e) : '';
+    }).filter(Boolean);
+    html += '<td style="color:var(--text-secondary);font-size:0.78rem">' + (times.length ? times.join(' / ') : '&mdash;') + '</td>';
+    html += '</tr>';
+
+    // Expandable per-subject detail row
+    html += '<tr class="detail-row" data-detail-for="' + escapeHtml(rowId) + '" style="display:none;"><td colspan="' + colSpan + '"><div class="detail-inner"><table><thead><tr><th>Subject</th>';
+    for (const m of KNOWN_MODELS) html += '<th>' + (MODEL_DISPLAY[m] || m) + '</th>';
+    html += '</tr></thead><tbody>';
+
+    const subjects = ds.subjects || [];
+    for (const sub of subjects) {
+      html += '<tr><td>' + escapeHtml(sub) + '</td>';
+      // Find best for this subject
+      let bestSubVal = -1;
+      let bestSubModel = null;
+      for (const m of KNOWN_MODELS) {
+        const val = getSubjectAuroc(modelMap[m], sub);
+        if (val != null && val > bestSubVal) { bestSubVal = val; bestSubModel = m; }
+      }
+      for (const m of KNOWN_MODELS) {
+        const val = getSubjectAuroc(modelMap[m], sub);
+        if (val != null) {
+          const isBest = m === bestSubModel;
+          html += '<td><span class="auroc-cell' + (isBest ? ' cell-best' : '') + '" style="background:' + aurocColor(val) + '">' + fmt(val) + '</span></td>';
+        } else {
+          html += '<td><span class="cell-missing">&mdash;</span></td>';
+        }
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table></div></td></tr>';
+  }
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+
+  // Click handlers for expanding detail rows
+  container.querySelectorAll('tr.clickable[data-row-id]').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const rowId = tr.dataset.rowId;
+      const detail = container.querySelector('tr.detail-row[data-detail-for="' + CSS.escape(rowId) + '"]');
+      if (detail) {
+        detail.style.display = detail.style.display === 'none' ? '' : 'none';
+      }
+    });
+  });
+}
+
+/* ── Figures Tab ── */
+function renderFigControls() {
+  const container = document.getElementById('figControls');
+  if (allData.length === 0) {
+    container.innerHTML = '';
+    document.getElementById('figContent').innerHTML = '';
+    return;
+  }
+
+  let html = '';
+
+  // Dataset selector
+  html += '<div class="control-group"><label>Dataset</label><select id="figDataset">';
+  for (const ds of allData) {
+    html += '<option value="' + ds.dirName + '">' + escapeHtml(ds.datasetName) + '</option>';
+  }
+  html += '</select></div>';
+
+  // Variant selector
+  html += '<div class="control-group"><label>Variant</label><select id="figVariant"></select></div>';
+
+  // Model selector
+  html += '<div class="control-group"><label>Model</label><select id="figModel"></select></div>';
+
+  // Figure type tabs
+  html += '<div class="control-group"><label>View</label><div id="figViewBtns" style="display:flex;gap:4px;">';
+  html += '<button class="btn-small btn-active" data-view="aggregate">Aggregate</button>';
+  html += '<button class="btn-small" data-view="per-subject">Per Subject</button>';
+  html += '</div></div>';
+
+  container.innerHTML = html;
+
+  const figDs = document.getElementById('figDataset');
+  const figVar = document.getElementById('figVariant');
+  const figModel = document.getElementById('figModel');
+
+  function updateVariants() {
+    const ds = allData.find(d => d.dirName === figDs.value);
+    if (!ds) return;
+    const variants = Object.keys(ds.results).sort();
+    figVar.innerHTML = variants.map(v => '<option value="' + v + '">' + v + '</option>').join('');
+    updateModels();
+  }
+
+  function updateModels() {
+    const ds = allData.find(d => d.dirName === figDs.value);
+    if (!ds) return;
+    const vk = figVar.value;
+    const modelMap = ds.results[vk] || {};
+    const models = KNOWN_MODELS.filter(m => modelMap[m]);
+    figModel.innerHTML = models.map(m => '<option value="' + m + '">' + (MODEL_DISPLAY[m] || m) + '</option>').join('');
+    renderFigures();
+  }
+
+  figDs.addEventListener('change', updateVariants);
+  figVar.addEventListener('change', updateModels);
+  figModel.addEventListener('change', renderFigures);
+
+  document.getElementById('figViewBtns').addEventListener('click', (e) => {
+    if (e.target.dataset.view) {
+      document.querySelectorAll('#figViewBtns button').forEach(b => b.classList.remove('btn-active'));
+      e.target.classList.add('btn-active');
+      renderFigures();
+    }
+  });
+
+  updateVariants();
+}
+
+function renderFigures() {
+  const figDs = document.getElementById('figDataset');
+  const figVar = document.getElementById('figVariant');
+  const figModel = document.getElementById('figModel');
+  const container = document.getElementById('figContent');
+
+  if (!figDs || !figVar || !figModel) return;
+
+  const ds = allData.find(d => d.dirName === figDs.value);
+  if (!ds) { container.innerHTML = ''; return; }
+
+  const vk = figVar.value;
+  const model = figModel.value;
+  const modelData = ds.results[vk] && ds.results[vk][model];
+
+  if (!modelData) {
+    container.innerHTML = '<div class="no-fig">No data for this selection.</div>';
+    return;
+  }
+
+  const activeView = document.querySelector('#figViewBtns button.btn-active');
+  const view = activeView ? activeView.dataset.view : 'aggregate';
+
+  if (view === 'aggregate') {
+    renderAggregateFigs(ds, vk, model, modelData, container);
+  } else {
+    renderPerSubjectFigs(ds, vk, model, modelData, container);
+  }
+}
+
+function renderAggregateFigs(ds, vk, model, modelData, container) {
+  let html = '<div class="fig-grid">';
+  let found = 0;
+
+  for (const figName of AGGREGATE_FIGS) {
+    const url = modelData.figures[figName];
+    if (!url) continue;
+    found++;
+    html += '<div class="fig-card" data-fig-url="' + escapeHtml(url) + '">';
+    html += '<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(figName) + '" loading="lazy">';
+    html += '<div class="fig-label">' + escapeHtml(figName.replace('fig_', '').replace('.png', '')) + '</div>';
+    html += '</div>';
+  }
+
+  html += '</div>';
+
+  if (found === 0) {
+    html = '<div class="no-fig">No aggregate figures available for this model.</div>';
+  }
+
+  container.innerHTML = html;
+
+  // Click-to-lightbox via event delegation
+  container.querySelectorAll('.fig-card[data-fig-url]').forEach(card => {
+    card.addEventListener('click', () => {
+      openLightbox(card.dataset.figUrl);
+    });
+  });
+}
+
+function renderPerSubjectFigs(ds, vk, model, modelData, container) {
+  let html = '';
+  const subjects = ds.subjects;
+
+  if (subjects.length === 0) {
+    container.innerHTML = '<div class="no-fig">No subjects defined for this dataset.</div>';
+    return;
+  }
+
+  for (const subj of subjects) {
+    const medianFig = 'fig_tp_tn_routing_' + subj + '_median.png';
+    const highconfFig = 'fig_tp_tn_routing_' + subj + '_highconf.png';
+    const medianUrl = modelData.figures[medianFig];
+    const highconfUrl = modelData.figures[highconfFig];
+
+    if (!medianUrl && !highconfUrl) continue;
+
+    const auroc = getSubjectAuroc(modelData, subj);
+    const aurocStr = auroc != null ? ' (AUROC: ' + fmt(auroc) + ')' : '';
+
+    html += '<h4 style="margin:16px 0 8px;color:var(--text-primary);">' + escapeHtml(subj) + escapeHtml(aurocStr) + '</h4>';
+    html += '<div class="fig-pair">';
+
+    if (medianUrl) {
+      html += '<div class="fig-card" data-fig-url="' + escapeHtml(medianUrl) + '">';
+      html += '<img src="' + escapeHtml(medianUrl) + '" alt="' + escapeHtml(subj + ' median') + '" loading="lazy">';
+      html += '<div class="fig-label">Median routing</div>';
+      html += '</div>';
+    } else {
+      html += '<div class="no-fig">No median figure</div>';
+    }
+
+    if (highconfUrl) {
+      html += '<div class="fig-card" data-fig-url="' + escapeHtml(highconfUrl) + '">';
+      html += '<img src="' + escapeHtml(highconfUrl) + '" alt="' + escapeHtml(subj + ' highconf') + '" loading="lazy">';
+      html += '<div class="fig-label">High-confidence routing</div>';
+      html += '</div>';
+    } else {
+      html += '<div class="no-fig">No high-confidence figure</div>';
+    }
+
+    html += '</div>';
+  }
+
+  if (!html) {
+    html = '<div class="no-fig">No per-subject figures available for this model.</div>';
+  }
+
+  container.innerHTML = html;
+
+  // Click-to-lightbox via event delegation
+  container.querySelectorAll('.fig-card[data-fig-url]').forEach(card => {
+    card.addEventListener('click', () => {
+      openLightbox(card.dataset.figUrl);
+    });
+  });
+}
+
+/* ── Compare Tab ── */
+function renderCompareControls() {
+  const container = document.getElementById('compareControls');
+  if (allData.length === 0) {
+    container.innerHTML = '';
+    document.getElementById('compareContent').innerHTML = '';
+    return;
+  }
+
+  let html = '';
+  html += '<div class="control-group"><label>Dataset</label><select id="cmpDataset">';
+  for (const ds of allData) {
+    html += '<option value="' + ds.dirName + '">' + escapeHtml(ds.datasetName) + '</option>';
+  }
+  html += '</select></div>';
+
+  html += '<div class="control-group"><label>Variant</label><select id="cmpVariant"></select></div>';
+
+  html += '<div class="control-group"><label>Figure</label><select id="cmpFigure">';
+  for (const fig of AGGREGATE_FIGS) {
+    html += '<option value="' + fig + '">' + fig.replace('fig_', '').replace('.png', '') + '</option>';
+  }
+  html += '</select></div>';
+
+  html += '<div class="control-group"><label>Subject (per-subj figs)</label><select id="cmpSubject"></select></div>';
+
+  container.innerHTML = html;
+
+  const cmpDs = document.getElementById('cmpDataset');
+  const cmpVar = document.getElementById('cmpVariant');
+  const cmpFig = document.getElementById('cmpFigure');
+  const cmpSubj = document.getElementById('cmpSubject');
+
+  function updateCmpVariants() {
+    const ds = allData.find(d => d.dirName === cmpDs.value);
+    if (!ds) return;
+    const variants = Object.keys(ds.results).sort();
+    cmpVar.innerHTML = variants.map(v => '<option value="' + v + '">' + v + '</option>').join('');
+    updateCmpSubjects();
+  }
+
+  function updateCmpSubjects() {
+    const ds = allData.find(d => d.dirName === cmpDs.value);
+    if (!ds) return;
+    let opts = '<option value="">(aggregate only)</option>';
+    for (const subj of ds.subjects) {
+      opts += '<option value="' + subj + '">' + subj + '</option>';
+    }
+    cmpSubj.innerHTML = opts;
+    renderCompare();
+  }
+
+  cmpDs.addEventListener('change', updateCmpVariants);
+  cmpVar.addEventListener('change', renderCompare);
+  cmpFig.addEventListener('change', renderCompare);
+  cmpSubj.addEventListener('change', renderCompare);
+
+  updateCmpVariants();
+}
+
+function renderCompare() {
+  const container = document.getElementById('compareContent');
+  const cmpDs = document.getElementById('cmpDataset');
+  const cmpVar = document.getElementById('cmpVariant');
+  const cmpFig = document.getElementById('cmpFigure');
+  const cmpSubj = document.getElementById('cmpSubject');
+
+  if (!cmpDs || !cmpVar) return;
+
+  const ds = allData.find(d => d.dirName === cmpDs.value);
+  if (!ds) { container.innerHTML = ''; return; }
+
+  const vk = cmpVar.value;
+  const modelMap = ds.results[vk] || {};
+  const models = KNOWN_MODELS.filter(m => modelMap[m]);
+  const subj = cmpSubj.value;
+
+  let figName;
+  if (subj) {
+    // Per-subject: show median + highconf for selected subject
+    figName = null; // we'll show both
+  } else {
+    figName = cmpFig.value;
+  }
+
+  let html = '<div class="compare-grid">';
+
+  for (const m of models) {
+    const md = modelMap[m];
+    if (!md) continue;
+
+    if (subj) {
+      // Show median figure for this subject
+      const medFig = 'fig_tp_tn_routing_' + subj + '_median.png';
+      const url = md.figures[medFig];
+      html += '<div class="compare-panel">';
+      html += '<div class="panel-header">' + (MODEL_DISPLAY[m] || m) + ' - ' + escapeHtml(subj) + ' (median)</div>';
+      if (url) {
+        html += '<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(m + ' ' + subj) + '" loading="lazy" data-fig-url="' + escapeHtml(url) + '" class="compare-img">';
+      } else {
+        html += '<div class="no-fig" style="min-height:150px;">No figure</div>';
+      }
+      html += '</div>';
+    } else {
+      const url = md.figures[figName];
+      html += '<div class="compare-panel">';
+      html += '<div class="panel-header">' + (MODEL_DISPLAY[m] || m) + '</div>';
+      if (url) {
+        html += '<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(m) + '" loading="lazy" data-fig-url="' + escapeHtml(url) + '" class="compare-img">';
+      } else {
+        html += '<div class="no-fig" style="min-height:150px;">No figure</div>';
+      }
+      html += '</div>';
+    }
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+
+  // Click-to-lightbox via event delegation on images
+  container.querySelectorAll('.compare-img[data-fig-url]').forEach(img => {
+    img.style.cursor = 'pointer';
+    img.addEventListener('click', () => {
+      openLightbox(img.dataset.figUrl);
+    });
+  });
+}
+
+/* ── Running Tab ── */
+
+// Map of short names to log file prefixes
+const LOG_DATASETS = {
+  'bnci': 'bnci_errp_013-2015',
+  'hri': 'hri_errp_cursor',
+  'ern': 'erpcore_ern',
+  'lrp': 'erpcore_lrp',
+  'mmn': 'erpcore_mmn',
+  'n170': 'erpcore_n170',
+  'n2pc': 'erpcore_n2pc',
+  'n400': 'erpcore_n400',
+  'p300': 'erpcore_p300'
+};
+
+const LOG_MODELS = {
+  'eegnet': 'EEGNet',
+  'erpxttn': 'ERP-XTTN',
+  'rcl': 'ERP-XTTN RCL',
+  'xdawn': 'xDAWN+RG'
+};
+
+function buildLogNames() {
+  const names = [];
+  for (const dsShort of Object.keys(LOG_DATASETS)) {
+    for (const model of Object.keys(LOG_MODELS)) {
+      names.push(dsShort + '_' + model);
+      names.push(dsShort + '_full_' + model);
+    }
+  }
+  return names;
+}
+
+function parseLogText(text) {
+  const info = {
+    folds: 0,
+    currentSubject: null,
+    currentEpoch: null,
+    phase: null,
+    bestValAuroc: null,
+    lastValAuroc: null,
+    lastTimestamp: null,
+    completed: false
+  };
+
+  // Count folds
+  const foldMatches = text.match(/Fold \d+: test=\S+/g);
+  info.folds = foldMatches ? foldMatches.length : 0;
+
+  // Last fold subject
+  const lastFold = text.match(/Fold \d+: test=(\S+)/g);
+  if (lastFold) {
+    const m = lastFold[lastFold.length - 1].match(/test=(\S+)/);
+    if (m) info.currentSubject = m[1];
+  }
+
+  // Last epoch line
+  const epochLines = text.match(/(\d{2}:\d{2}:\d{2})\s+Epoch\s+(\d+)\s+loss=[\d.]+(?:\s+val_auroc=([\d.]+)\s+val_bal_acc=[\d.]+\s+best=([\d.]+)@\d+)?/g);
+  if (epochLines) {
+    const last = epochLines[epochLines.length - 1];
+    const m = last.match(/(\d{2}:\d{2}:\d{2})\s+Epoch\s+(\d+)\s+loss=[\d.]+(?:\s+val_auroc=([\d.]+)\s+val_bal_acc=[\d.]+\s+best=([\d.]+)@\d+)?/);
+    if (m) {
+      info.lastTimestamp = m[1];
+      info.currentEpoch = parseInt(m[2]);
+      if (m[3]) {
+        info.lastValAuroc = parseFloat(m[3]);
+        info.bestValAuroc = parseFloat(m[4]);
+        info.phase = 'Phase 1';
+      } else {
+        info.phase = 'Phase 2';
+      }
+    }
+  }
+
+  // Check for completion markers
+  if (text.includes('Done!') || text.match(/results\.json/)) {
+    info.completed = true;
+  }
+
+  return info;
+}
+
+function getSubjectCount(dsShort) {
+  const fullName = LOG_DATASETS[dsShort];
+  if (!fullName) return null;
+  const ds = allData.find(d => d.dirName === fullName);
+  if (ds) return ds.subjects.length;
+  // Fallback for datasets not yet loaded
+  return null;
+}
+
+async function fetchLogText(logName) {
+  try {
+    const resp = await fetch(fileUrl('logs/' + logName + '.log'));
+    if (!resp.ok) return null;
+    return await resp.text();
+  } catch { return null; }
+}
+
+async function scanLogs() {
+  const container = document.getElementById('runningContent');
+  const statusEl = document.getElementById('runningStatus');
+  statusEl.textContent = 'Scanning logs...';
+
+  const logNames = buildLogNames();
+
+  // Fetch all logs in parallel
+  const results = await Promise.all(logNames.map(async name => {
+    const text = await fetchLogText(name);
+    if (!text || text.length < 10) return null;
+    const info = parseLogText(text);
+    if (info.folds === 0) return null;
+
+    // Parse dataset short name, variant, model from log name
+    const parts = name.split('_');
+    let dsShort, variant, modelKey;
+    if (parts.includes('full')) {
+      dsShort = parts.slice(0, parts.indexOf('full')).join('_');
+      variant = 'full';
+      modelKey = parts.slice(parts.indexOf('full') + 1).join('_');
+    } else {
+      // Last part is model
+      modelKey = parts[parts.length - 1];
+      dsShort = parts.slice(0, -1).join('_');
+      variant = '3ch';
+    }
+
+    const total = getSubjectCount(dsShort);
+
+    return {
+      dsShort,
+      dataset: LOG_DATASETS[dsShort] || dsShort,
+      variant,
+      model: LOG_MODELS[modelKey] || modelKey,
+      total,
+      info
+    };
+  }));
+
+  const jobs = results.filter(r => r !== null);
+
+  // Sort: running first, then completed; within each group sort by dataset then variant
+  jobs.sort((a, b) => {
+    if (a.info.completed !== b.info.completed) return a.info.completed ? 1 : -1;
+    const da = a.dataset.localeCompare(b.dataset);
+    if (da !== 0) return da;
+    if (a.variant !== b.variant) return a.variant === '3ch' ? -1 : 1;
+    return (a.model || '').localeCompare(b.model || '');
+  });
+
+  const running = jobs.filter(j => !j.info.completed);
+  const completed = jobs.filter(j => j.info.completed);
+
+  statusEl.textContent = running.length + ' running, ' + completed.length + ' completed';
+
+  let html = '<div class="table-container"><table><thead><tr>';
+  html += '<th>Dataset</th><th>Variant</th><th>Model</th><th>Status</th>';
+  html += '<th>Folds</th><th>Progress</th><th>Epoch</th><th>Phase</th>';
+  html += '<th>Best Val AUROC</th><th>Last Update</th>';
+  html += '</tr></thead><tbody>';
+
+  for (const job of jobs) {
+    const i = job.info;
+    const foldsDisplay = i.completed ? (job.total || i.folds) : Math.max(0, i.folds - 1);
+    const totalDisplay = job.total || '?';
+    const pct = job.total ? Math.round((foldsDisplay / job.total) * 100) : 0;
+
+    let statusClass, statusText;
+    if (i.completed) {
+      statusClass = 'status-completed';
+      statusText = 'Done';
+    } else {
+      statusClass = 'status-running';
+      statusText = 'Running';
+    }
+
+    html += '<tr>';
+    html += '<td>' + escapeHtml(job.dataset) + '</td>';
+    html += '<td>' + escapeHtml(job.variant) + '</td>';
+    html += '<td>' + escapeHtml(job.model) + '</td>';
+    html += '<td><span class="status-badge ' + statusClass + '">' + statusText + '</span></td>';
+    html += '<td>' + foldsDisplay + '/' + totalDisplay + '</td>';
+    html += '<td><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div></td>';
+    html += '<td>' + (i.currentEpoch != null && !i.completed ? i.currentEpoch : '&mdash;') + '</td>';
+    html += '<td>' + (i.phase && !i.completed ? i.phase : '&mdash;') + '</td>';
+    html += '<td>' + (i.bestValAuroc != null ? fmt(i.bestValAuroc, 4) : '&mdash;') + '</td>';
+    html += '<td style="color:var(--text-secondary);font-size:0.78rem">' + (i.lastTimestamp || '&mdash;') + '</td>';
+    html += '</tr>';
+  }
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+/* ── Auto-load ── */
+document.addEventListener('DOMContentLoaded', () => scanDatasets());
+</script>
+</body>
+</html>

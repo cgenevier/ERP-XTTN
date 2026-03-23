@@ -35,7 +35,7 @@ from xdawn_rg import XDawnRG
 # Constants
 # ──────────────────────────────────────────────────────────────────────
 SEED = 42
-BATCH_SIZE = 32
+BATCH_SIZE = 128
 MAX_EPOCHS = 250
 PATIENCE = 15
 LR = 1e-3
