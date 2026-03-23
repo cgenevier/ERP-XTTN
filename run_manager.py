@@ -148,6 +148,19 @@ def get_variant_dir(dataset_id, channel_preset):
     return cfg.get("variants", {}).get(channel_preset)
 
 
+def _parse_train_cmdline(line):
+    """Parse a 04_train.py command line into (dataset, channels, model, rcl_weight)."""
+    import re
+    ds = re.search(r"--dataset\s+(\S+)", line)
+    ch = re.search(r"--channels\s+(\S+)", line)
+    model = re.search(r"--model\s+(\S+)", line)
+    rcl = re.search(r"--routing-contrast-weight\s+(\S+)", line)
+    rcl_weight = float(rcl.group(1)) if rcl else 0.0
+    if ds and ch and model:
+        return ds.group(1), ch.group(1), model.group(1), rcl_weight
+    return None, None, None, None
+
+
 def _is_process_running(dataset_id, channel_preset, model_dir_name):
     """Check if a training process is already running for this combo."""
     try:
@@ -155,16 +168,21 @@ def _is_process_running(dataset_id, channel_preset, model_dir_name):
             ["pgrep", "-af", "python.*04_train"],
             capture_output=True, text=True, timeout=10
         )
+        # Build expected model name and rcl_weight from model_dir_name
+        import re
+        rcl_match = re.match(r"erpxttn_rcl(.+)", model_dir_name)
+        if rcl_match:
+            expected_model = "erpxttn"
+            expected_rcl = float(rcl_match.group(1))
+        else:
+            expected_model = model_dir_name
+            expected_rcl = 0.0
+
         for line in result.stdout.splitlines():
-            if dataset_id in line and channel_preset in line:
-                if model_dir_name.startswith("erpxttn_rcl"):
-                    if "routing-contrast-weight" in line:
-                        return True
-                elif model_dir_name == "erpxttn":
-                    if "routing-contrast-weight" not in line and "erpxttn" in line:
-                        return True
-                elif model_dir_name in line:
-                    return True
+            ds, ch, model, rcl_weight = _parse_train_cmdline(line)
+            if ds == dataset_id and ch == channel_preset \
+               and model == expected_model and rcl_weight == expected_rcl:
+                return True
         return False
     except Exception:
         return False
