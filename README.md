@@ -23,7 +23,7 @@ ERP-XTTN/
 │   ├── erpcore_n170/               # ERP CORE — N170
 │   ├── erpcore_n2pc/               # ERP CORE — N2pc
 │   ├── erpcore_n400/               # ERP CORE — N400
-│   ├── erpcore_p3/                 # ERP CORE — P3
+│   ├── erpcore_p300/               # ERP CORE — P300
 └── logs/
     └── <timestamp>_<dataset>_<channels>_<model>/
         └── train.log
@@ -127,7 +127,7 @@ python 05_gen_figures.py --dataset erpcore_n400 --channels midline3_n400 --model
 | ERP CORE MMN | 40 | 30 | 1024 Hz → 256 | Oddball (standard/deviant) |
 | ERP CORE N170 | 40 | 30 | 1024 Hz → 256 | Face/car categorization |
 | ERP CORE N2pc | 40 | 30 | 1024 Hz → 256 | Visual search (target laterality) |
-| ERP CORE P3 | 40 | 30 | 1024 Hz → 256 | Oddball (target/non-target) |
+| ERP CORE P300 | 40 | 30 | 1024 Hz → 256 | Oddball (target/non-target) |
 
 ## Prototype Configuration
 
@@ -155,27 +155,45 @@ Additionally, prototype windows are clamped to a maximum width of 200ms (`max_wi
 
 ## Results Summary
 
-
-### 3-Channel Results (Mean AUROC)
-
-| Model | BNCI ErrP | HRI ErrP | N400 |
-|-------|-----------|----------|------|
-| **EEGNet** | **0.806** | **0.864** | **0.582** |
-| **xDAWN+RG** | 0.785 | 0.837 | 0.580 |
-| **ERPXTTN** | 0.782 | 0.837 | 0.570 |
-| **ERPXTTN (RCL 0.3)** | 0.782 | 0.834 | 0.565 |
-
-### Full-Channel Results (Mean AUROC)
-
-| Model | BNCI ErrP | HRI ErrP | N400 |
-|-------|-----------|----------|------|
-| **EEGNet** | **0.842** | **0.884** | **0.763** |
-| **xDAWN+RG** | 0.821 | 0.869 | 0.712 |
-| **ERPXTTN** | 0.805 | 0.834 | 0.725 |
+Results are in progress — see the dashboard for current numbers. Run `python run_manager.py` to check experiment status, or `python run_manager.py --daemon --include-full` to auto-launch pending runs.
 
 ## Hardware
 
-Experiments run on NVIDIA GeForce RTX 4070 Laptop GPU (8 GB VRAM).
+Current training runs on **NVIDIA RTX PRO 6000 Blackwell Server Edition** (98 GB VRAM) via RunPod, with 128 CPU cores and 1.5 TB RAM. Previous results (now superseded) were on an NVIDIA GeForce RTX 4070 Laptop GPU (8 GB VRAM).
+
+### Training configuration
+
+- **Batch size**: 128 (increased from 32 on the old GPU — validated against old results, deltas within noise)
+- **Parallel jobs**: Up to 10 GPU jobs + CPU-only xDAWN jobs concurrently
+- **Thread limiting**: When running multiple jobs in parallel, set `OMP_NUM_THREADS=8 MKL_NUM_THREADS=8` to prevent CPU over-subscription. PyTorch defaults to spawning ~193 threads per process (one per CPU core). With 10+ concurrent jobs, this causes severe contention and can make runs slower than a weaker GPU running serially. The `run_manager.py --daemon` mode handles this automatically.
+- **Resume support**: Use `--resume` flag to skip completed folds after interruption. Prediction files are saved per-fold, so partial runs are recoverable.
+
+### Run Manager
+
+`run_manager.py` manages the experiment queue:
+
+```bash
+python run_manager.py                      # Status check
+python run_manager.py --launch             # Launch next batch
+python run_manager.py --launch-all         # Fill all GPU slots
+python run_manager.py --daemon             # Loop: auto-launch as slots free up
+python run_manager.py --include-full       # Include full-channel runs in queue
+```
+
+For overnight runs:
+```bash
+nohup python run_manager.py --daemon --include-full > logs/run_manager.log 2>&1 &
+```
+
+### Dashboard
+
+A browser-based dashboard is available at `dashboard.html`. When running on RunPod with JupyterLab:
+
+```
+https://<POD_ID>-8888.proxy.runpod.net/files/workspace/ERP-XTTN/dashboard.html?token=<JUPYTER_TOKEN>
+```
+
+Get the token with: `ps aux | grep -oP '(?<=token=)\S+' | head -1`
 
 ## License
 

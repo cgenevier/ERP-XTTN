@@ -1194,9 +1194,10 @@ function parseLogText(text) {
     completed: false
   };
 
-  // Count folds
+  // Count folds (including resumed/cached folds)
   const foldMatches = text.match(/Fold \d+: test=\S+/g);
-  info.folds = foldMatches ? foldMatches.length : 0;
+  const resumeMatches = text.match(/\[resume\] sub-\S+/g);
+  info.folds = (foldMatches ? foldMatches.length : 0) + (resumeMatches ? resumeMatches.length : 0);
 
   // Last fold subject
   const lastFold = text.match(/Fold \d+: test=(\S+)/g);

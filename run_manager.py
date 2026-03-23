@@ -23,7 +23,7 @@ DATASETS_DIR = REPO_ROOT / "datasets"
 LOGS_DIR = REPO_ROOT / "logs"
 TRAIN_SCRIPT = REPO_ROOT / "04_train.py"
 PYTHON = sys.executable
-MAX_GPU_JOBS = 10
+MAX_GPU_JOBS = 20
 DAEMON_INTERVAL = 300  # seconds between daemon checks
 
 # Thread limit for launched processes
