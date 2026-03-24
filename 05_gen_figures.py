@@ -53,8 +53,54 @@ def load_dataset_config(dataset_key: str) -> dict:
     return cfg
 
 
-def get_proto_config(cfg: dict):
-    """Return (proto_names, proto_colors) from dataset config."""
+def get_proto_config(cfg: dict, results_dir=None):
+    """Return (proto_names, proto_colors) from dataset config or prototype data.
+
+    For auto-mode results, generates P1/N1/P2/N2 names from prototype polarity.
+    """
+    # If results_dir provided, try to infer names from prototype data
+    if results_dir is not None:
+        results_dir = Path(results_dir)
+        # Check if this is an auto-mode run by looking at the dir name
+        if '_auto' in results_dir.name:
+            # Load first prototype file to get K and window info
+            proto_files = sorted(results_dir.glob("prototypes_sub-*.npz"))
+            if proto_files:
+                p = np.load(proto_files[0])
+                proto_raw = p['proto_raw']  # (K, C, T)
+                windows = p['proto_windows_ms']
+                K = proto_raw.shape[0]
+                # Determine polarity from detection channel signal within each window
+                det_ch = cfg.get('detection_channel', 'Cz')
+                ch_names_cfg = None
+                try:
+                    ch_names_cfg = get_channel_names(cfg, list(cfg['variants'].keys())[0])
+                except:
+                    pass
+                det_idx = 1
+                if ch_names_cfg and det_ch in ch_names_cfg:
+                    det_idx = ch_names_cfg.index(det_ch)
+
+                pos_count, neg_count = 0, 0
+                names = []
+                for k in range(K):
+                    s_samp = int(round(windows[k][0] / 1000 * 256))
+                    e_samp = int(round(windows[k][1] / 1000 * 256))
+                    segment = proto_raw[k, det_idx, s_samp:e_samp]
+                    if len(segment) > 0:
+                        peak_idx = int(np.argmax(np.abs(segment)))
+                        peak_val = segment[peak_idx]
+                    else:
+                        peak_val = 0
+                    if peak_val >= 0:
+                        pos_count += 1
+                        names.append(f'P{pos_count}')
+                    else:
+                        neg_count += 1
+                        names.append(f'N{neg_count}')
+                colors = PROTO_COLOR_PALETTE[:K]
+                return names, colors
+
     names = cfg.get("proto_names", [f"Proto-{i}" for i in range(len(cfg.get("polarity_pattern", [])))])
     colors = PROTO_COLOR_PALETTE[:len(names)]
     return names, colors
@@ -345,7 +391,8 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
 def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
                 dataset_label, tp_trial, tn_trial, probs, labels, attn,
                 proto_raw, proto_windows, sfreq, X_raw, cz_idx,
-                title_suffix, output_suffix):
+                title_suffix, output_suffix, detect_ch_name='Cz',
+                pos_label='Error', neg_label='Correct'):
     """Shared plotting logic for TP vs TN routing figures."""
     K = proto_raw.shape[0]
     T = proto_raw.shape[2]
@@ -381,17 +428,38 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
         ax_proto.plot(time_ms[s_samp:e_samp], proto_cz[k, s_samp:e_samp],
                       color=PROTO_COLORS[k], lw=2.5, zorder=3,
                       label=f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)')
+    # Mark peak within each prototype's window
+    for k in range(K):
+        s_ms, e_ms = proto_windows[k]
+        s_samp = int(round(s_ms / 1000 * sfreq))
+        e_samp = int(round(e_ms / 1000 * sfreq))
+        window_signal = proto_cz[k, s_samp:e_samp]
+        if len(window_signal) > 0:
+            peak_offset = int(np.argmax(np.abs(window_signal)))
+            peak_samp = s_samp + peak_offset
+            peak_ms = time_ms[peak_samp]
+            peak_val = proto_cz[k, peak_samp]
+            ax_proto.plot(peak_ms, peak_val, 'o',
+                          color=PROTO_COLORS[k], markersize=7, zorder=5,
+                          markeredgecolor='white', markeredgewidth=1.0)
+            ax_proto.annotate(PROTO_NAMES[k],
+                              (peak_ms, peak_val),
+                              textcoords="offset points",
+                              xytext=(0, 10 if peak_val >= 0 else -14),
+                              ha='center', fontsize=8, fontweight='bold',
+                              color=PROTO_COLORS[k])
+
     ax_proto.axhline(0, color='gray', lw=0.5, ls='--')
     ax_proto.set_xlim(0, time_ms[-1])
-    ax_proto.set_ylabel('Prototype Cz (z-score)', fontsize=11)
-    ax_proto.set_title('Diff-Wave Prototypes (Cz channel)', fontsize=12,
+    ax_proto.set_ylabel(f'Prototype {detect_ch_name} (z-score)', fontsize=11)
+    ax_proto.set_title(f'Diff-Wave Prototypes ({detect_ch_name} channel)', fontsize=12,
                        fontweight='bold')
     ax_proto.legend(fontsize=9, loc='upper right', ncol=K)
 
     # Trial rows
     trials = [
-        (tp_cz, tp_attn, probs[tp_trial], 'Error trial (TP)', 0),
-        (tn_cz, tn_attn, probs[tn_trial], 'Correct trial (TN)', 1),
+        (tp_cz, tp_attn, probs[tp_trial], f'{pos_label} trial (TP)', 0),
+        (tn_cz, tn_attn, probs[tn_trial], f'{neg_label} trial (TN)', 1),
     ]
 
     ymax_cz = max(np.abs(tp_cz).max(), np.abs(tn_cz).max()) * 1.15
@@ -417,9 +485,9 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
                      color=PROTO_COLORS[dominant_k], lw=2.5, zorder=3,
                      solid_capstyle='round')
         ax1.axhline(0, color='gray', lw=0.5, ls='--', zorder=2)
-        ax1.set_title(f'{title}\np(error) = {prob:.3f}', fontsize=12,
+        ax1.set_title(f'{title}\np({pos_label.lower()}) = {prob:.3f}', fontsize=12,
                       fontweight='bold')
-        ax1.set_ylabel('Cz amplitude (\u00b5V)', fontsize=11)
+        ax1.set_ylabel(f'{detect_ch_name} amplitude (\u00b5V)', fontsize=11)
         ax1.set_xlim(0, time_ms[-1])
         ax1.set_ylim(-ymax_cz, ymax_cz)
 
@@ -473,7 +541,12 @@ def generate_tp_tn_figures(results_dir, cfg, channel_config,
     sfreq = float(proto_data['sfreq'])
 
     X_raw, ch_names = load_subject_epochs(cfg, channel_config, subject)
-    cz_idx = ch_names.index('Cz') if 'Cz' in ch_names else 1
+    detect_ch_name = cfg.get('detection_channel', 'Cz')
+    cz_idx = ch_names.index(detect_ch_name) if detect_ch_name in ch_names else 1
+
+    # Class labels for figure titles
+    pos_label = cfg.get('label_map', {}).get('pos_key', 'error').replace('_', ' ').title()
+    neg_label = cfg.get('label_map', {}).get('neg_key', 'correct').replace('_', ' ').title()
 
     tp_mask = (labels == 1) & (probs >= 0.5)
     tn_mask = (labels == 0) & (probs < 0.5)
@@ -494,7 +567,8 @@ def generate_tp_tn_figures(results_dir, cfg, channel_config,
     _plot_tp_tn(results_dir, cfg, channel_config, subject,
                 dataset_label, tp_high, tn_high, probs, labels, attn,
                 proto_raw, proto_windows, sfreq, X_raw, cz_idx,
-                '', '_highconf')
+                '', '_highconf', detect_ch_name=detect_ch_name,
+                pos_label=pos_label, neg_label=neg_label)
 
     # Median confidence
     tp_sorted = tp_indices[np.argsort(probs[tp_indices])]
@@ -506,7 +580,8 @@ def generate_tp_tn_figures(results_dir, cfg, channel_config,
     _plot_tp_tn(results_dir, cfg, channel_config, subject,
                 dataset_label, tp_med, tn_med, probs, labels, attn,
                 proto_raw, proto_windows, sfreq, X_raw, cz_idx,
-                ' (median conf.)', '_median')
+                ' (median conf.)', '_median', detect_ch_name=detect_ch_name,
+                pos_label=pos_label, neg_label=neg_label)
 
 
 # =====================================================================
@@ -527,9 +602,6 @@ def main():
 
     cfg = load_dataset_config(args.dataset)
 
-    global PROTO_NAMES, PROTO_COLORS
-    PROTO_NAMES, PROTO_COLORS = get_proto_config(cfg)
-
     if args.channels not in cfg["variants"]:
         valid = list(cfg["variants"].keys())
         parser.error(f"Invalid channels '{args.channels}' for dataset "
@@ -537,6 +609,9 @@ def main():
     variant = cfg["variants"][args.channels]
     results_dir = (DATASETS_DIR / cfg["name"] / "results" / "tmin0ms_tmax800ms"
                    / variant / args.model)
+
+    global PROTO_NAMES, PROTO_COLORS
+    PROTO_NAMES, PROTO_COLORS = get_proto_config(cfg, results_dir=results_dir)
 
     if not results_dir.exists():
         print(f"Results directory not found: {results_dir}")
