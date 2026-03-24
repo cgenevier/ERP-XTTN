@@ -236,17 +236,26 @@ def make_model(model_name: str, n_channels: int, n_times: int,
                channel_names: list[str] = None,
                polarity_pattern: list[str] = None,
                peak_prominence: float = 0.1,
-               routing_contrast_weight: float = 0.0):
+               routing_contrast_weight: float = 0.0,
+               detection_channel: str = None,
+               peak_mode: str = 'constrained',
+               max_k: int = 4):
     if model_name == "eegnet":
         return EEGNet(n_channels, n_times, srate=srate).to(device)
     elif model_name == "erpxttn":
-        n_proto = len(polarity_pattern) if polarity_pattern else 4
+        if peak_mode == 'auto':
+            n_proto = max_k  # will be adjusted in set_prototypes
+        else:
+            n_proto = len(polarity_pattern) if polarity_pattern else 4
         return ERPXTTN(
             n_channels, n_times, channel_names=channel_names,
             sfreq=float(srate), n_proto=n_proto,
             polarity_pattern=polarity_pattern,
             peak_prominence=peak_prominence,
             routing_contrast_weight=routing_contrast_weight,
+            detection_channel=detection_channel,
+            peak_mode=peak_mode,
+            max_k=max_k,
         ).to(device)
     elif model_name == "xdawn_rg":
         return XDawnRG(nfilter=4)
@@ -338,7 +347,10 @@ def run_fold(fold_idx: int, test_subj: str,
              polarity_pattern: list[str] = None,
              peak_prominence: float = 0.1,
              pos_key: str = "error", neg_key: str = "correct",
-             routing_contrast_weight: float = 0.0) -> dict:
+             routing_contrast_weight: float = 0.0,
+             detection_channel: str = None,
+             peak_mode: str = 'constrained',
+             max_k: int = 4) -> dict:
     """Run one LOSO fold: Phase 1 (find best epoch) + Phase 2 (retrain)."""
 
     logging.info(f"\n{'='*60}")
@@ -369,7 +381,8 @@ def run_fold(fold_idx: int, test_subj: str,
         X_test_n = (X_test - mean) / std
 
         model = make_model(model_name, n_channels, n_times, srate, device,
-                           channel_names=channel_names)
+                           channel_names=channel_names,
+                           detection_channel=detection_channel)
         model.fit(X_pool_n, y_train_pool)
         probs = model.predict_proba(X_test_n)[:, 1]
         labels = y_test
@@ -429,7 +442,9 @@ def run_fold(fold_idx: int, test_subj: str,
                        channel_names=channel_names,
                        polarity_pattern=polarity_pattern,
                        peak_prominence=peak_prominence,
-                       routing_contrast_weight=routing_contrast_weight)
+                       routing_contrast_weight=routing_contrast_weight,
+                       detection_channel=detection_channel,
+                       peak_mode=peak_mode, max_k=max_k)
 
     if model_name in XTTN_MODELS:
         model.set_prototypes(torch.from_numpy(X_train_n), torch.from_numpy(y_train))
@@ -497,7 +512,9 @@ def run_fold(fold_idx: int, test_subj: str,
     model2 = make_model(model_name, n_channels, n_times, srate, device,
                         channel_names=channel_names,
                         polarity_pattern=polarity_pattern,
-                        peak_prominence=peak_prominence)
+                        peak_prominence=peak_prominence,
+                        detection_channel=detection_channel,
+                        peak_mode=peak_mode, max_k=max_k)
 
     if model_name in XTTN_MODELS:
         model2.set_prototypes(torch.from_numpy(X_pool_n),
@@ -582,13 +599,22 @@ def main():
                         help="Routing contrast loss weight (0=off, >0 adds contrastive proto feature loss)")
     parser.add_argument("--resume", action="store_true",
                         help="Skip folds that already have predictions (for resuming interrupted runs)")
+    parser.add_argument("--peak-mode", choices=["constrained", "auto"], default="constrained",
+                        help="Peak detection mode: 'constrained' (polarity pattern) or 'auto' (data-driven)")
+    parser.add_argument("--max-k", type=int, default=4,
+                        help="Max number of prototypes in auto mode (default: 4)")
     args = parser.parse_args()
 
-    # Determine model directory name (appends _rclX.X for routing contrast loss)
+    # Determine model directory name (appends _rclX.X for routing contrast loss, _auto for auto peak mode)
     model_dir_name = args.model
     if args.routing_contrast_weight > 0 and args.model == "erpxttn":
         rcl_str = f"{args.routing_contrast_weight:g}"
         model_dir_name = f"erpxttn_rcl{rcl_str}"
+    if args.peak_mode == "auto" and args.model == "erpxttn":
+        if args.max_k != 4:
+            model_dir_name += f"_auto{args.max_k}"
+        else:
+            model_dir_name += "_auto"
 
     # Setup logging
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -670,7 +696,10 @@ def main():
                                polarity_pattern=polarity_pattern,
                                peak_prominence=peak_prominence,
                                pos_key=pos_key, neg_key=neg_key,
-                               routing_contrast_weight=args.routing_contrast_weight)
+                               routing_contrast_weight=args.routing_contrast_weight,
+                               detection_channel=cfg.get("detection_channel"),
+                               peak_mode=args.peak_mode,
+                               max_k=args.max_k)
         results.append(fold_result)
 
     elapsed = time.time() - t0

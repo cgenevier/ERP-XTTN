@@ -256,7 +256,10 @@ class ERPXTTN(nn.Module):
                  peak_prominence: float = 0.1,
                  min_window_ms: float = 40.0,
                  max_window_ms: float = 200.0,
-                 routing_contrast_weight: float = 0.0):
+                 routing_contrast_weight: float = 0.0,
+                 detection_channel: str = None,
+                 peak_mode: str = 'constrained',
+                 max_k: int = 4):
         super().__init__()
         self.n_channels = n_channels
         self.n_times = n_times
@@ -267,19 +270,22 @@ class ERPXTTN(nn.Module):
         self.K = n_proto
         self.polarity_pattern = polarity_pattern or ['pos', 'neg', 'pos', 'neg']
         self.peak_prominence = peak_prominence
+        self.peak_mode = peak_mode
+        self.max_k = max_k
         self.N = n_times // patch_width
         self.sfreq = sfreq
         self.tmin = tmin
         self.routing_contrast_weight = routing_contrast_weight
 
         # Resolve detection channel by name
-        if channel_names is not None and DETECT_CHANNEL in channel_names:
-            self.detect_ch = channel_names.index(DETECT_CHANNEL)
+        detect_name = detection_channel or DETECT_CHANNEL
+        if channel_names is not None and detect_name in channel_names:
+            self.detect_ch = channel_names.index(detect_name)
         else:
             self.detect_ch = min(1, n_channels - 1)
             if channel_names is not None:
                 logging.warning(
-                    f"Detection channel '{DETECT_CHANNEL}' not found in "
+                    f"Detection channel '{detect_name}' not found in "
                     f"{channel_names}; falling back to index {self.detect_ch}")
 
         # Dynamic window parameters
@@ -324,14 +330,45 @@ class ERPXTTN(nn.Module):
         self.register_buffer("proto_center_patch_idx",
                              torch.zeros(self.K, dtype=torch.long))
 
-    def set_prototypes(self, X_train: torch.Tensor, y_train: torch.Tensor):
-        """Detect ERP peaks (P-N-P-N) and compute diff-wave prototypes.
+    def _auto_detect_peaks(self, diff_signal, sfreq):
+        """Auto-detect prominent peaks without a polarity pattern.
 
-        Peak detection enforces the characteristic ErrP polarity sequence:
-        positive (P1) -> negative (Ne) -> positive (Pe) -> negative (LateN).
-        Window widths are determined by zero-crossings of the smoothed
-        difference wave. Prototype center patch indices are computed for
-        positional encoding lookup.
+        Finds all positive and negative peaks above the prominence threshold,
+        enforces sign constraint (pos peaks > 0, neg peaks < 0), ranks by
+        prominence, and takes top max_k. Returns list of (sample_idx, polarity).
+        """
+        from scipy.signal import find_peaks as _find_peaks
+
+        AUTO_PROMINENCE = 0.02
+        min_distance = max(1, int(round(80.0 / 1000.0 * sfreq)))
+        min_latency_sample = int(round(MIN_P1_LATENCY_MS / 1000.0 * sfreq))
+        smoothed = _smooth_signal(diff_signal, sigma=2.0)
+
+        pos_peaks, pos_props = _find_peaks(smoothed, prominence=AUTO_PROMINENCE,
+                                            distance=min_distance)
+        neg_peaks, neg_props = _find_peaks(-smoothed, prominence=AUTO_PROMINENCE,
+                                            distance=min_distance)
+
+        all_peaks = []
+        for idx, prom in zip(pos_peaks, pos_props['prominences']):
+            if idx >= min_latency_sample and smoothed[idx] > 0:
+                all_peaks.append((int(idx), 'pos', float(prom)))
+        for idx, prom in zip(neg_peaks, neg_props['prominences']):
+            if idx >= min_latency_sample and smoothed[idx] < 0:
+                all_peaks.append((int(idx), 'neg', float(prom)))
+
+        all_peaks.sort(key=lambda x: x[2], reverse=True)
+        selected = all_peaks[:self.max_k]
+        selected.sort(key=lambda x: x[0])
+
+        return [(idx, pol) for idx, pol, _ in selected]
+
+    def set_prototypes(self, X_train: torch.Tensor, y_train: torch.Tensor):
+        """Detect ERP peaks and compute diff-wave prototypes.
+
+        Supports two modes:
+        - 'constrained': enforces polarity pattern chain (original method)
+        - 'auto': data-driven, finds top-K peaks by prominence
 
         Args:
             X_train: (N_train, C, T) normalized training epochs
@@ -345,33 +382,82 @@ class ERPXTTN(nn.Module):
         diff_signal = diff_wave[self.detect_ch].cpu().numpy()
         smoothed = _smooth_signal(diff_signal, sigma=2.0)
 
-        # Detect peaks with expected polarity pattern
-        peaks = detect_alternating_peaks(
-            diff_signal, self.sfreq,
-            polarity_pattern=self.polarity_pattern,
-            prominence=self.peak_prominence,
-            min_latency_ms=MIN_P1_LATENCY_MS,
+        if self.peak_mode == 'auto':
+            peaks = self._auto_detect_peaks(diff_signal, self.sfreq)
+            if len(peaks) == 0:
+                raise RuntimeError(
+                    f"Auto peak detection found no peaks above prominence "
+                    f"{self.peak_prominence}. Check preprocessing and data quality.")
+            # Update K to match actual number of peaks found
+            actual_k = len(peaks)
+            if actual_k != self.K:
+                logging.info(f"  Auto-detect: adjusting K from {self.K} to {actual_k}")
+                self.K = actual_k
+                # Resize buffers
+                self.proto_raw = nn.Parameter(
+                    torch.zeros(self.K, self.n_channels, self.n_times),
+                    requires_grad=False)
+                self.proto_center_patch_idx = nn.Parameter(
+                    torch.zeros(self.K, dtype=torch.long),
+                    requires_grad=False)
+                # Resize head: input is N_patches * K
+                self.head = nn.Linear(self.N * self.K, 1)
+                self.to(next(self.parameters()).device)
+        else:
+            peaks = detect_alternating_peaks(
+                diff_signal, self.sfreq,
+                polarity_pattern=self.polarity_pattern,
+                prominence=self.peak_prominence,
+                min_latency_ms=MIN_P1_LATENCY_MS,
+            )
+            if len(peaks) < self.K:
+                raise RuntimeError(
+                    f"Dynamic peak detection found only {len(peaks)}/{self.K} "
+                    f"peaks on the grand-average difference wave. Expected "
+                    f"polarity pattern {self.polarity_pattern}. Check "
+                    f"preprocessing and data quality. Detected peaks: {peaks}")
+
+        peak_indices = [p[0] for p in peaks]
+
+        # Build windows from zero-crossings
+        raw_windows = build_windows_from_zero_crossings(
+            peak_indices, smoothed,
+            min_window_ms=self.min_window_ms,
+            max_window_ms=self.max_window_ms,
+            sfreq=self.sfreq,
         )
 
-        if len(peaks) < self.K:
-            raise RuntimeError(
-                f"Dynamic peak detection found only {len(peaks)}/{self.K} "
-                f"peaks on the grand-average difference wave. Expected "
-                f"polarity pattern {self.polarity_pattern}. Check "
-                f"preprocessing and data quality. Detected peaks: {peaks}")
-        else:
-            peak_indices = [p[0] for p in peaks]
-            windows_samples = build_windows_from_zero_crossings(
-                peak_indices, smoothed,
-                min_window_ms=self.min_window_ms,
-                max_window_ms=self.max_window_ms,
-                sfreq=self.sfreq,
-            )
-            self.detected_windows_ms = [
-                (round(s / self.sfreq * 1000 + self.tmin * 1000, 1),
-                 round(e / self.sfreq * 1000 + self.tmin * 1000, 1))
-                for s, e in windows_samples
-            ]
+        # In auto mode, drop peaks whose windows don't contain them
+        if self.peak_mode == 'auto':
+            valid = [(p, w) for p, w in zip(peaks, raw_windows)
+                     if w[0] <= p[0] <= w[1]]
+            if len(valid) < len(peaks):
+                dropped = len(peaks) - len(valid)
+                logging.info(f"  Auto-detect: dropped {dropped} peak(s) with invalid windows")
+                peaks = [v[0] for v in valid]
+                raw_windows = [v[1] for v in valid]
+                actual_k = len(peaks)
+                if actual_k != self.K:
+                    self.K = actual_k
+                    self.proto_raw = nn.Parameter(
+                        torch.zeros(self.K, self.n_channels, self.n_times),
+                        requires_grad=False)
+                    self.proto_center_patch_idx = nn.Parameter(
+                        torch.zeros(self.K, dtype=torch.long),
+                        requires_grad=False)
+                    in_features = self.N * self.K
+                    self.classifier = nn.Sequential(
+                        nn.Dropout(0.3),
+                        nn.Linear(in_features, 1),
+                    )
+                    self.to(next(self.parameters()).device)
+
+        windows_samples = raw_windows
+        self.detected_windows_ms = [
+            (round(s / self.sfreq * 1000 + self.tmin * 1000, 1),
+             round(e / self.sfreq * 1000 + self.tmin * 1000, 1))
+            for s, e in windows_samples
+        ]
 
         # Extract diff-wave within detected windows
         proto = torch.zeros(self.K, self.n_channels, self.n_times)
