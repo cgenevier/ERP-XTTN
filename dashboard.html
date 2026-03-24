@@ -458,13 +458,16 @@ function authUrl(path) {
   return _jupyterToken ? path + sep + 'token=' + _jupyterToken : path;
 }
 
-const KNOWN_MODELS = ['eegnet', 'erpxttn', 'erpxttn_rcl0.3', 'xdawn_rg'];
-const MODEL_DISPLAY = {
-  'eegnet': 'EEGNet',
-  'erpxttn': 'ERP-XTTN',
-  'erpxttn_rcl0.3': 'ERP-XTTN RCL',
-  'xdawn_rg': 'xDAWN+RG'
-};
+const KNOWN_MODELS = ['xdawn_rg', 'eegnet', 'erpxttn', 'erpxttn_rcl0.3', 'erpxttn_rcl0.5', 'erpxttn_rcl1'];
+function modelDisplay(m) {
+  if (m === 'eegnet') return 'EEGNet';
+  if (m === 'erpxttn') return 'ERP-XTTN';
+  if (m === 'xdawn_rg') return 'xDAWN+RG';
+  const rclMatch = m.match(/^erpxttn_rcl(.+)$/);
+  if (rclMatch) return 'ERP-XTTN RCL ' + rclMatch[1];
+  return m;
+}
+const MODEL_DISPLAY = Object.fromEntries(KNOWN_MODELS.map(m => [m, modelDisplay(m)]));
 const AGGREGATE_FIGS = [
   'fig_prototypes.png',
   'fig_entropy_vs_auroc.png',
@@ -586,7 +589,7 @@ async function scanDatasets() {
       const variantPath = 'datasets/' + dirName + '/results/tmin0ms_tmax800ms/' + variantDirName;
 
       // Probe all 4 models for results.json in parallel
-      const ERPXTTN_FAMILY = ['erpxttn', 'erpxttn_rcl0.3'];
+      const ERPXTTN_FAMILY = KNOWN_MODELS.filter(m => m.startsWith('erpxttn'));
       const modelProbes = await Promise.all(KNOWN_MODELS.map(async modelName => {
         const modelPath = variantPath + '/' + modelName;
         const results = await fetchJson(modelPath + '/results.json');
@@ -1106,38 +1109,48 @@ function renderCompare() {
     figName = cmpFig.value;
   }
 
-  let html = '<div class="compare-grid">';
+  let html = '';
 
-  for (const m of models) {
-    const md = modelMap[m];
-    if (!md) continue;
-
-    if (subj) {
-      // Show median figure for this subject
+  if (subj) {
+    // High-conf grid first, then median grid
+    let highHtml = '';
+    let medHtml = '';
+    for (const m of models) {
+      const md = modelMap[m];
+      if (!md) continue;
+      const highFig = 'fig_tp_tn_routing_' + subj + '_highconf.png';
       const medFig = 'fig_tp_tn_routing_' + subj + '_median.png';
-      const url = md.figures[medFig];
-      html += '<div class="compare-panel">';
-      html += '<div class="panel-header">' + (MODEL_DISPLAY[m] || m) + ' - ' + escapeHtml(subj) + ' (median)</div>';
-      if (url) {
-        html += '<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(m + ' ' + subj) + '" loading="lazy" data-fig-url="' + escapeHtml(url) + '" class="compare-img">';
-      } else {
-        html += '<div class="no-fig" style="min-height:150px;">No figure</div>';
+      const highUrl = md.figures[highFig];
+      const medUrl = md.figures[medFig];
+      if (highUrl) {
+        highHtml += '<div class="compare-panel">';
+        highHtml += '<div class="panel-header">' + (MODEL_DISPLAY[m] || m) + ' - ' + escapeHtml(subj) + ' (high conf)</div>';
+        highHtml += '<img src="' + escapeHtml(highUrl) + '" alt="' + escapeHtml(m + ' ' + subj + ' high') + '" loading="lazy" data-fig-url="' + escapeHtml(highUrl) + '" class="compare-img">';
+        highHtml += '</div>';
       }
-      html += '</div>';
-    } else {
+      if (medUrl) {
+        medHtml += '<div class="compare-panel">';
+        medHtml += '<div class="panel-header">' + (MODEL_DISPLAY[m] || m) + ' - ' + escapeHtml(subj) + ' (median)</div>';
+        medHtml += '<img src="' + escapeHtml(medUrl) + '" alt="' + escapeHtml(m + ' ' + subj + ' median') + '" loading="lazy" data-fig-url="' + escapeHtml(medUrl) + '" class="compare-img">';
+        medHtml += '</div>';
+      }
+    }
+    if (highHtml) html += '<div class="compare-grid">' + highHtml + '</div>';
+    if (medHtml) html += '<div class="compare-grid">' + medHtml + '</div>';
+  } else {
+    html += '<div class="compare-grid">';
+    for (const m of models) {
+      const md = modelMap[m];
+      if (!md) continue;
       const url = md.figures[figName];
+      if (!url) continue;
       html += '<div class="compare-panel">';
       html += '<div class="panel-header">' + (MODEL_DISPLAY[m] || m) + '</div>';
-      if (url) {
-        html += '<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(m) + '" loading="lazy" data-fig-url="' + escapeHtml(url) + '" class="compare-img">';
-      } else {
-        html += '<div class="no-fig" style="min-height:150px;">No figure</div>';
-      }
+      html += '<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(m) + '" loading="lazy" data-fig-url="' + escapeHtml(url) + '" class="compare-img">';
       html += '</div>';
     }
+    html += '</div>';
   }
-
-  html += '</div>';
   container.innerHTML = html;
 
   // Click-to-lightbox via event delegation on images
@@ -1167,7 +1180,9 @@ const LOG_DATASETS = {
 const LOG_MODELS = {
   'eegnet': 'EEGNet',
   'erpxttn': 'ERP-XTTN',
-  'rcl': 'ERP-XTTN RCL',
+  'rcl': 'ERP-XTTN RCL 0.3',
+  'rcl0.5': 'ERP-XTTN RCL 0.5',
+  'rcl1.0': 'ERP-XTTN RCL 1',
   'xdawn': 'xDAWN+RG'
 };
 

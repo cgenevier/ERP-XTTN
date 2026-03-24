@@ -164,8 +164,8 @@ Current training runs on **NVIDIA RTX PRO 6000 Blackwell Server Edition** (98 GB
 ### Training configuration
 
 - **Batch size**: 128 (increased from 32 on the old GPU — validated against old results, deltas within noise)
-- **Parallel jobs**: Up to 10 GPU jobs + CPU-only xDAWN jobs concurrently
-- **Thread limiting**: When running multiple jobs in parallel, set `OMP_NUM_THREADS=8 MKL_NUM_THREADS=8` to prevent CPU over-subscription. PyTorch defaults to spawning ~193 threads per process (one per CPU core). With 10+ concurrent jobs, this causes severe contention and can make runs slower than a weaker GPU running serially. The `run_manager.py --daemon` mode handles this automatically.
+- **Parallel jobs**: Up to 20 GPU jobs + CPU-only xDAWN jobs concurrently
+- **Thread limiting**: When running multiple jobs in parallel, set `OMP_NUM_THREADS=8 MKL_NUM_THREADS=8` to prevent CPU over-subscription. PyTorch defaults to one thread per CPU core, so with many concurrent jobs this causes severe contention and can make runs slower than a weaker GPU running serially. The `run_manager.py --daemon` mode handles this automatically.
 - **Resume support**: Use `--resume` flag to skip completed folds after interruption. Prediction files are saved per-fold, so partial runs are recoverable.
 
 ### Run Manager
