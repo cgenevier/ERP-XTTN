@@ -414,6 +414,27 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
                            height_ratios=[0.7, 1.2, 1],
                            hspace=0.35, wspace=0.25)
 
+    # Compute per-fold proto names from actual polarity on detection channel
+    fold_names = list(PROTO_NAMES)  # default
+    if '_auto' in str(results_dir):
+        pos_count, neg_count = 0, 0
+        fold_names = []
+        for k in range(K):
+            s_ms, e_ms = proto_windows[k]
+            s_samp = int(round(s_ms / 1000 * sfreq))
+            e_samp = int(round(e_ms / 1000 * sfreq))
+            seg = proto_cz[k, s_samp:e_samp]
+            if len(seg) > 0:
+                peak_val = seg[int(np.argmax(np.abs(seg)))]
+            else:
+                peak_val = 0
+            if peak_val >= 0:
+                pos_count += 1
+                fold_names.append(f'P{pos_count}')
+            else:
+                neg_count += 1
+                fold_names.append(f'N{neg_count}')
+
     # Row 0: Prototype reference
     ax_proto = fig.add_subplot(gs[0, :])
     for k in range(K):
@@ -427,7 +448,7 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
                       lw=0.6, alpha=0.3, zorder=2)
         ax_proto.plot(time_ms[s_samp:e_samp], proto_cz[k, s_samp:e_samp],
                       color=PROTO_COLORS[k], lw=2.5, zorder=3,
-                      label=f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)')
+                      label=f'{fold_names[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)')
     # Mark peak within each prototype's window
     for k in range(K):
         s_ms, e_ms = proto_windows[k]
@@ -442,7 +463,7 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
             ax_proto.plot(peak_ms, peak_val, 'o',
                           color=PROTO_COLORS[k], markersize=7, zorder=5,
                           markeredgecolor='white', markeredgewidth=1.0)
-            ax_proto.annotate(PROTO_NAMES[k],
+            ax_proto.annotate(fold_names[k],
                               (peak_ms, peak_val),
                               textcoords="offset points",
                               xytext=(0, 10 if peak_val >= 0 else -14),
@@ -495,7 +516,7 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
         for k in range(K):
             ax2.plot(patch_centers_ms, trial_attn[:, k],
                      color=PROTO_COLORS[k], lw=2.0,
-                     label=PROTO_NAMES[k] if col == 0 else None,
+                     label=fold_names[k] if col == 0 else None,
                      zorder=3)
         ax2.set_xlabel('Time (ms)', fontsize=11)
         ax2.set_ylabel('Attention weight', fontsize=11)

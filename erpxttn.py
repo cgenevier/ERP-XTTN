@@ -445,11 +445,7 @@ class ERPXTTN(nn.Module):
                     self.proto_center_patch_idx = nn.Parameter(
                         torch.zeros(self.K, dtype=torch.long),
                         requires_grad=False)
-                    in_features = self.N * self.K
-                    self.classifier = nn.Sequential(
-                        nn.Dropout(0.3),
-                        nn.Linear(in_features, 1),
-                    )
+                    self.head = nn.Linear(self.N * self.K, 1)
                     self.to(next(self.parameters()).device)
 
         windows_samples = raw_windows
