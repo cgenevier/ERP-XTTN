@@ -63,10 +63,15 @@ def get_proto_config(cfg: dict, results_dir=None):
         results_dir = Path(results_dir)
         # Check if this is an auto-mode run by looking at the dir name
         if '_auto' in results_dir.name:
-            # Load first prototype file to get K and window info
+            # Load prototype file with the most prototypes (K varies across folds)
             proto_files = sorted(results_dir.glob("prototypes_sub-*.npz"))
             if proto_files:
-                p = np.load(proto_files[0])
+                best_file, best_K = None, 0
+                for pf in proto_files:
+                    pK = np.load(pf)['proto_raw'].shape[0]
+                    if pK > best_K:
+                        best_K, best_file = pK, pf
+                p = np.load(best_file)
                 proto_raw = p['proto_raw']  # (K, C, T)
                 windows = p['proto_windows_ms']
                 K = proto_raw.shape[0]
@@ -184,12 +189,18 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
             per_fold_windows[subj] = [tuple(w) for w in p['proto_windows_ms']]
 
     # Compute mean windows across folds for aggregate figures
-    all_w = np.array([per_fold_windows[s] for s in subjects])
-    windows = [tuple(np.round(all_w[:, k, :].mean(0), 1))
-               for k in range(all_w.shape[1])]
-    print(f'  Dynamic windows (mean across {n_subj} folds): {windows}')
-
-    K = len(windows)
+    # Handle variable K across folds (auto mode may detect different peak counts)
+    fold_K = {s: len(per_fold_windows[s]) for s in subjects}
+    K = max(fold_K.values())
+    windows = []
+    for k in range(K):
+        k_windows = [per_fold_windows[s][k] for s in subjects if fold_K[s] > k]
+        mean_win = np.round(np.mean(k_windows, axis=0), 1)
+        windows.append(tuple(mean_win))
+    n_with_max_K = sum(1 for v in fold_K.values() if v == K)
+    if n_with_max_K < n_subj:
+        print(f'  Note: {n_subj - n_with_max_K}/{n_subj} folds have fewer than {K} prototypes')
+    print(f'  Dynamic windows (mean across folds): {windows}')
     C = len(channels)
     N_patches = all_attn[subjects[0]].shape[2]
     T = all_protos[subjects[0]].shape[2]
@@ -212,13 +223,15 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
     span_alpha = max(0.005, min(0.04, 0.5 / n_subj))
     for k in range(K):
         s_ms, e_ms = windows[k]
+        k_subjects = [s for s in subjects if fold_K[s] > k]
         for c in range(C):
             ax = axes[k, c]
-            traces = np.array([all_protos[s][k, c, :] for s in subjects])
+            traces = np.array([all_protos[s][k, c, :] for s in k_subjects])
             for ti, t in enumerate(traces):
                 ax.plot(time_ms, t, color=PROTO_COLORS[k], alpha=trace_alpha, lw=0.8)
-                if subjects[ti] in per_fold_windows:
-                    fw = per_fold_windows[subjects[ti]]
+                subj = k_subjects[ti]
+                if subj in per_fold_windows:
+                    fw = per_fold_windows[subj]
                     ax.axvspan(fw[k][0], fw[k][1], color=PROTO_COLORS[k],
                                alpha=span_alpha)
             mean = traces.mean(0)
@@ -228,9 +241,11 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
                             color=PROTO_COLORS[k], alpha=0.15)
             ax.axvspan(s_ms, e_ms, color='gray', alpha=0.15)
             ax.axhline(0, color='gray', lw=0.5, ls='--')
+            n_k = len(k_subjects)
+            count_note = f' [n={n_k}]' if n_k < n_subj else ''
             if c == 0:
                 ax.set_ylabel(
-                    f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)\n(z-score)',
+                    f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms){count_note}\n(z-score)',
                     fontsize=10,
                 )
     for c in range(C):
@@ -278,15 +293,17 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
     for k in range(K):
         ax = axes[k]
         s_ms, e_ms = windows[k]
+        k_subjects = [s for s in subjects if fold_K[s] > k]
+        n_k = len(k_subjects)
         err_tr, cor_tr = [], []
-        for subj in subjects:
+        for subj in k_subjects:
             attn = all_attn[subj].mean(axis=1)
             lab = all_labels[subj]
             err_tr.append(attn[lab == 1, :, k].mean(0) if (lab == 1).sum() else np.zeros(N_patches))
             cor_tr.append(attn[lab == 0, :, k].mean(0) if (lab == 0).sum() else np.zeros(N_patches))
         err_tr, cor_tr = np.array(err_tr), np.array(cor_tr)
         em, cm = err_tr.mean(0), cor_tr.mean(0)
-        es, cs = err_tr.std(0) / np.sqrt(n_subj), cor_tr.std(0) / np.sqrt(n_subj)
+        es, cs = err_tr.std(0) / np.sqrt(n_k), cor_tr.std(0) / np.sqrt(n_k)
         ax.plot(patch_ms, em, 'r-', lw=2, label='Error trials')
         ax.fill_between(patch_ms, em - es, em + es, color='red', alpha=0.2)
         ax.plot(patch_ms, cm, 'b-', lw=2, label='Correct trials')
@@ -306,8 +323,10 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
     # ── Fig 4: Attention difference overlay ──
     fig, ax = plt.subplots(figsize=(8, 5.5))
     for k in range(K):
+        k_subjects = [s for s in subjects if fold_K[s] > k]
+        n_k = len(k_subjects)
         diffs = []
-        for subj in subjects:
+        for subj in k_subjects:
             attn = all_attn[subj].mean(axis=1)
             lab = all_labels[subj]
             em = attn[lab == 1, :, k].mean(0) if (lab == 1).sum() else np.zeros(N_patches)
@@ -315,7 +334,7 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
             diffs.append(em - cm)
         diffs = np.array(diffs)
         dm = diffs.mean(0)
-        ds = diffs.std(0) / np.sqrt(n_subj)
+        ds = diffs.std(0) / np.sqrt(n_k)
         s_ms, e_ms = windows[k]
         ax.plot(patch_ms, dm, color=PROTO_COLORS[k], lw=2.5,
                 label=f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)')
@@ -354,14 +373,19 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
         attn = all_attn[subj].mean(axis=1)
         lab = all_labels[subj]
         auroc = aurocs[subj]
+        subj_K = fold_K[subj]
         for k in range(K):
-            em = attn[lab == 1, :, k].mean(0) if (lab == 1).sum() else np.zeros(N_patches)
-            cm = attn[lab == 0, :, k].mean(0) if (lab == 0).sum() else np.zeros(N_patches)
+            if k < subj_K:
+                em = attn[lab == 1, :, k].mean(0) if (lab == 1).sum() else np.zeros(N_patches)
+                cm = attn[lab == 0, :, k].mean(0) if (lab == 0).sum() else np.zeros(N_patches)
+                vals = em - cm
+            else:
+                vals = np.full(N_patches, np.nan)
             kw = {}
             if i == 0:
                 s_ms, e_ms = windows[k]
                 kw['label'] = f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)'
-            ax.plot(patch_ms, em - cm, color=PROTO_COLORS[k], lw=1.8, **kw)
+            ax.plot(patch_ms, vals, color=PROTO_COLORS[k], lw=1.8, **kw)
         ax.axhline(0, color='gray', lw=0.5, ls='--')
         for b in boundaries:
             ax.axvline(b, color='gray', lw=0.5, ls=':')
