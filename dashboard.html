@@ -1272,13 +1272,14 @@ function parseLogText(text) {
   }
 
   // Detect stale runs: if last timestamp is >30 min old, likely dead
+  // Log timestamps are UTC, so compare against UTC time
   if (!info.completed && !info.crashed && info.lastTimestamp) {
     const now = new Date();
     const [h, m, s] = info.lastTimestamp.split(':').map(Number);
     const logTime = new Date(now);
-    logTime.setHours(h, m, s, 0);
+    logTime.setUTCHours(h, m, s, 0);
     // Handle day boundary
-    if (logTime > now) logTime.setDate(logTime.getDate() - 1);
+    if (logTime > now) logTime.setUTCDate(logTime.getUTCDate() - 1);
     const minutesAgo = (now - logTime) / 60000;
     if (minutesAgo > 30) info.stale = true;
   }
