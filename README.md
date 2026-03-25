@@ -12,7 +12,7 @@ ERP-XTTN/
 ├── 04_train.py             # LOSO cross-validation training
 ├── 05_gen_figures.py       # Attention & TP/TN figure generation
 ├── eegnet.py               # EEGNet baseline (Lawhern et al., 2018)
-├── erpxttn.py              # ERP-XTTN model + dynamic peak detection + RCL
+├── erpxttn.py              # ERP-XTTN model + dynamic peak detection
 ├── xdawn_rg.py             # xDAWN + Riemannian Geometry baseline
 ├── datasets/
 │   ├── bnci_errp_013-2015/         # BNCI Horizon 2020 ErrP (feedback)
@@ -44,17 +44,6 @@ Each dataset directory contains:
 | **EEGNet** | Lawhern et al. (2018) compact CNN baseline |
 | **xDAWN+RG** | xDAWN spatial filtering + Riemannian geometry classifier (classical ML baseline) |
 | **ERPXTTN** | Cross-attention prototype model with dynamic peak detection |
-| **ERPXTTN (RCL)** | ERPXTTN with routing contrast loss — contrastive regularizer that encourages class-discriminative attention routing |
-
-### Routing Contrast Loss (RCL)
-
-ERPXTTN supports an optional routing contrast loss controlled by `--routing-contrast-weight`:
-- **Weight = 0** (default): Standard ERPXTTN — no auxiliary loss
-- **Weight > 0** (e.g., 0.3): Adds a contrastive loss that maximizes the distance between prototype routing features across classes
-
-The RCL computes summary features from the attention map (prototype mass, confidence, entropy, diagonality, center-of-mass) and penalizes when these features are similar between positive and negative classes. This encourages the model to learn class-discriminative routing patterns without adding any learnable parameters.
-
-Results directories are automatically suffixed: `erpxttn` for standard, `erpxttn_rcl0.3` for RCL with weight 0.3.
 
 ## Requirements
 
@@ -104,15 +93,12 @@ python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model xdawn
 # Standard ERPXTTN
 python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn
 
-# ERPXTTN with routing contrast loss
-python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn --routing-contrast-weight 0.3
 ```
 
 ### 5. Generate Figures
 
 ```bash
 python 05_gen_figures.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn
-python 05_gen_figures.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn_rcl0.3
 ```
 
 ## Datasets

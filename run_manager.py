@@ -33,94 +33,74 @@ THREAD_ENV = {
 }
 
 # ── Run queue ──────────────────────────────────────────────────────────
-# Each entry: (label, dataset_id, channel_preset, model, rcl_weight)
+# Each entry: (label, dataset_id, channel_preset, model)
 # Ordered by priority. Within each model group, datasets are ordered
 # fastest (fewest epochs × subjects) to slowest.
 
 QUEUE_3CH = [
     # ── 3ch EEGNet, fastest to slowest ───────────────────────────────
-    ("BNCI 3ch EEGNet",  "bnci_errp_013-2015", "midline3",          "eegnet",  0.0),
-    ("HRI 3ch EEGNet",   "hri_errp_cursor",    "midline3",          "eegnet",  0.0),
-    ("N400 3ch EEGNet",  "erpcore_n400",        "midline3_n400",     "eegnet",  0.0),
-    ("P300 3ch EEGNet",  "erpcore_p300",        "midline3",          "eegnet",  0.0),
-    ("N2pc 3ch EEGNet",  "erpcore_n2pc",        "posterior3_n2pc",   "eegnet",  0.0),
-    ("LRP 3ch EEGNet",   "erpcore_lrp",         "lateral3_lrp",     "eegnet",  0.0),
-    ("ERN 3ch EEGNet",   "erpcore_ern",         "midline3_ern",     "eegnet",  0.0),
-    ("N170 3ch EEGNet",  "erpcore_n170",        "occipital3_n170",  "eegnet",  0.0),
-    ("MMN 3ch EEGNet",   "erpcore_mmn",         "midline3",          "eegnet",  0.0),
-    # ── 3ch RCL, fastest to slowest ──────────────────────────────────
-    ("BNCI 3ch RCL",     "bnci_errp_013-2015",  "midline3",          "erpxttn", 0.3),
-    ("HRI 3ch RCL",      "hri_errp_cursor",     "midline3",          "erpxttn", 0.3),
-    ("N400 3ch RCL",     "erpcore_n400",         "midline3_n400",     "erpxttn", 0.3),
-    ("P300 3ch RCL",     "erpcore_p300",         "midline3",          "erpxttn", 0.3),
-    ("N2pc 3ch RCL",     "erpcore_n2pc",         "posterior3_n2pc",   "erpxttn", 0.3),
-    ("LRP 3ch RCL",      "erpcore_lrp",          "lateral3_lrp",     "erpxttn", 0.3),
-    ("ERN 3ch RCL",      "erpcore_ern",          "midline3_ern",     "erpxttn", 0.3),
-    ("N170 3ch RCL",     "erpcore_n170",         "occipital3_n170",  "erpxttn", 0.3),
-    ("MMN 3ch RCL",      "erpcore_mmn",          "midline3",          "erpxttn", 0.3),
-    # ── 3ch ERPXTTN (no RCL), fastest to slowest ────────────────────
-    ("BNCI 3ch ERPXTTN", "bnci_errp_013-2015",  "midline3",          "erpxttn", 0.0),
-    ("HRI 3ch ERPXTTN",  "hri_errp_cursor",     "midline3",          "erpxttn", 0.0),
-    ("N400 3ch ERPXTTN", "erpcore_n400",         "midline3_n400",     "erpxttn", 0.0),
-    ("P300 3ch ERPXTTN", "erpcore_p300",         "midline3",          "erpxttn", 0.0),
-    ("N2pc 3ch ERPXTTN", "erpcore_n2pc",         "posterior3_n2pc",   "erpxttn", 0.0),
-    ("LRP 3ch ERPXTTN",  "erpcore_lrp",          "lateral3_lrp",     "erpxttn", 0.0),
-    ("ERN 3ch ERPXTTN",  "erpcore_ern",          "midline3_ern",     "erpxttn", 0.0),
-    ("N170 3ch ERPXTTN", "erpcore_n170",         "occipital3_n170",  "erpxttn", 0.0),
-    ("MMN 3ch ERPXTTN",  "erpcore_mmn",          "midline3",          "erpxttn", 0.0),
+    ("BNCI 3ch EEGNet",  "bnci_errp_013-2015", "midline3",          "eegnet"),
+    ("HRI 3ch EEGNet",   "hri_errp_cursor",    "midline3",          "eegnet"),
+    ("N400 3ch EEGNet",  "erpcore_n400",        "midline3_n400",     "eegnet"),
+    ("P300 3ch EEGNet",  "erpcore_p300",        "midline3",          "eegnet"),
+    ("N2pc 3ch EEGNet",  "erpcore_n2pc",        "posterior3_n2pc",   "eegnet"),
+    ("LRP 3ch EEGNet",   "erpcore_lrp",         "lateral3_lrp",     "eegnet"),
+    ("ERN 3ch EEGNet",   "erpcore_ern",         "midline3_ern",     "eegnet"),
+    ("N170 3ch EEGNet",  "erpcore_n170",        "occipital3_n170",  "eegnet"),
+    ("MMN 3ch EEGNet",   "erpcore_mmn",         "midline3",          "eegnet"),
+    # ── 3ch ERPXTTN, fastest to slowest ─────────────────────────────
+    ("BNCI 3ch ERPXTTN", "bnci_errp_013-2015",  "midline3",          "erpxttn"),
+    ("HRI 3ch ERPXTTN",  "hri_errp_cursor",     "midline3",          "erpxttn"),
+    ("N400 3ch ERPXTTN", "erpcore_n400",         "midline3_n400",     "erpxttn"),
+    ("P300 3ch ERPXTTN", "erpcore_p300",         "midline3",          "erpxttn"),
+    ("N2pc 3ch ERPXTTN", "erpcore_n2pc",         "posterior3_n2pc",   "erpxttn"),
+    ("LRP 3ch ERPXTTN",  "erpcore_lrp",          "lateral3_lrp",     "erpxttn"),
+    ("ERN 3ch ERPXTTN",  "erpcore_ern",          "midline3_ern",     "erpxttn"),
+    ("N170 3ch ERPXTTN", "erpcore_n170",         "occipital3_n170",  "erpxttn"),
+    ("MMN 3ch ERPXTTN",  "erpcore_mmn",          "midline3",          "erpxttn"),
     # ── 3ch xDAWN+RG (CPU-only, does not consume GPU slots) ─────────
-    ("BNCI 3ch xDAWN",   "bnci_errp_013-2015",  "midline3",          "xdawn_rg", 0.0),
-    ("HRI 3ch xDAWN",    "hri_errp_cursor",     "midline3",          "xdawn_rg", 0.0),
-    ("N400 3ch xDAWN",   "erpcore_n400",         "midline3_n400",     "xdawn_rg", 0.0),
-    ("P300 3ch xDAWN",   "erpcore_p300",         "midline3",          "xdawn_rg", 0.0),
-    ("N2pc 3ch xDAWN",   "erpcore_n2pc",         "posterior3_n2pc",   "xdawn_rg", 0.0),
-    ("LRP 3ch xDAWN",    "erpcore_lrp",          "lateral3_lrp",     "xdawn_rg", 0.0),
-    ("ERN 3ch xDAWN",    "erpcore_ern",          "midline3_ern",     "xdawn_rg", 0.0),
-    ("N170 3ch xDAWN",   "erpcore_n170",         "occipital3_n170",  "xdawn_rg", 0.0),
-    ("MMN 3ch xDAWN",    "erpcore_mmn",          "midline3",          "xdawn_rg", 0.0),
+    ("BNCI 3ch xDAWN",   "bnci_errp_013-2015",  "midline3",          "xdawn_rg"),
+    ("HRI 3ch xDAWN",    "hri_errp_cursor",     "midline3",          "xdawn_rg"),
+    ("N400 3ch xDAWN",   "erpcore_n400",         "midline3_n400",     "xdawn_rg"),
+    ("P300 3ch xDAWN",   "erpcore_p300",         "midline3",          "xdawn_rg"),
+    ("N2pc 3ch xDAWN",   "erpcore_n2pc",         "posterior3_n2pc",   "xdawn_rg"),
+    ("LRP 3ch xDAWN",    "erpcore_lrp",          "lateral3_lrp",     "xdawn_rg"),
+    ("ERN 3ch xDAWN",    "erpcore_ern",          "midline3_ern",     "xdawn_rg"),
+    ("N170 3ch xDAWN",   "erpcore_n170",         "occipital3_n170",  "xdawn_rg"),
+    ("MMN 3ch xDAWN",    "erpcore_mmn",          "midline3",          "xdawn_rg"),
 ]
 
 QUEUE_FULL = [
     # ── Full EEGNet, fastest to slowest ──────────────────────────────
-    ("BNCI full EEGNet",  "bnci_errp_013-2015", "full", "eegnet",  0.0),
-    ("HRI full EEGNet",   "hri_errp_cursor",    "full", "eegnet",  0.0),
-    ("N400 full EEGNet",  "erpcore_n400",        "full", "eegnet",  0.0),
-    ("P300 full EEGNet",  "erpcore_p300",        "full", "eegnet",  0.0),
-    ("N2pc full EEGNet",  "erpcore_n2pc",        "full", "eegnet",  0.0),
-    ("LRP full EEGNet",   "erpcore_lrp",         "full", "eegnet",  0.0),
-    ("ERN full EEGNet",   "erpcore_ern",         "full", "eegnet",  0.0),
-    ("N170 full EEGNet",  "erpcore_n170",        "full", "eegnet",  0.0),
-    ("MMN full EEGNet",   "erpcore_mmn",         "full", "eegnet",  0.0),
-    # ── Full RCL, fastest to slowest ─────────────────────────────────
-    ("BNCI full RCL",     "bnci_errp_013-2015",  "full", "erpxttn", 0.3),
-    ("HRI full RCL",      "hri_errp_cursor",     "full", "erpxttn", 0.3),
-    ("N400 full RCL",     "erpcore_n400",         "full", "erpxttn", 0.3),
-    ("P300 full RCL",     "erpcore_p300",         "full", "erpxttn", 0.3),
-    ("N2pc full RCL",     "erpcore_n2pc",         "full", "erpxttn", 0.3),
-    ("LRP full RCL",      "erpcore_lrp",          "full", "erpxttn", 0.3),
-    ("ERN full RCL",      "erpcore_ern",          "full", "erpxttn", 0.3),
-    ("N170 full RCL",     "erpcore_n170",         "full", "erpxttn", 0.3),
-    ("MMN full RCL",      "erpcore_mmn",          "full", "erpxttn", 0.3),
-    # ── Full ERPXTTN (no RCL), fastest to slowest ───────────────────
-    ("BNCI full ERPXTTN", "bnci_errp_013-2015",  "full", "erpxttn", 0.0),
-    ("HRI full ERPXTTN",  "hri_errp_cursor",     "full", "erpxttn", 0.0),
-    ("N400 full ERPXTTN", "erpcore_n400",         "full", "erpxttn", 0.0),
-    ("P300 full ERPXTTN", "erpcore_p300",         "full", "erpxttn", 0.0),
-    ("N2pc full ERPXTTN", "erpcore_n2pc",         "full", "erpxttn", 0.0),
-    ("LRP full ERPXTTN",  "erpcore_lrp",          "full", "erpxttn", 0.0),
-    ("ERN full ERPXTTN",  "erpcore_ern",          "full", "erpxttn", 0.0),
-    ("N170 full ERPXTTN", "erpcore_n170",         "full", "erpxttn", 0.0),
-    ("MMN full ERPXTTN",  "erpcore_mmn",          "full", "erpxttn", 0.0),
+    ("BNCI full EEGNet",  "bnci_errp_013-2015", "full", "eegnet"),
+    ("HRI full EEGNet",   "hri_errp_cursor",    "full", "eegnet"),
+    ("N400 full EEGNet",  "erpcore_n400",        "full", "eegnet"),
+    ("P300 full EEGNet",  "erpcore_p300",        "full", "eegnet"),
+    ("N2pc full EEGNet",  "erpcore_n2pc",        "full", "eegnet"),
+    ("LRP full EEGNet",   "erpcore_lrp",         "full", "eegnet"),
+    ("ERN full EEGNet",   "erpcore_ern",         "full", "eegnet"),
+    ("N170 full EEGNet",  "erpcore_n170",        "full", "eegnet"),
+    ("MMN full EEGNet",   "erpcore_mmn",         "full", "eegnet"),
+    # ── Full ERPXTTN, fastest to slowest ─────────────────────────────
+    ("BNCI full ERPXTTN", "bnci_errp_013-2015",  "full", "erpxttn"),
+    ("HRI full ERPXTTN",  "hri_errp_cursor",     "full", "erpxttn"),
+    ("N400 full ERPXTTN", "erpcore_n400",         "full", "erpxttn"),
+    ("P300 full ERPXTTN", "erpcore_p300",         "full", "erpxttn"),
+    ("N2pc full ERPXTTN", "erpcore_n2pc",         "full", "erpxttn"),
+    ("LRP full ERPXTTN",  "erpcore_lrp",          "full", "erpxttn"),
+    ("ERN full ERPXTTN",  "erpcore_ern",          "full", "erpxttn"),
+    ("N170 full ERPXTTN", "erpcore_n170",         "full", "erpxttn"),
+    ("MMN full ERPXTTN",  "erpcore_mmn",          "full", "erpxttn"),
     # ── Full xDAWN+RG (CPU-only) ────────────────────────────────────
-    ("BNCI full xDAWN",   "bnci_errp_013-2015",  "full", "xdawn_rg", 0.0),
-    ("HRI full xDAWN",    "hri_errp_cursor",     "full", "xdawn_rg", 0.0),
-    ("N400 full xDAWN",   "erpcore_n400",         "full", "xdawn_rg", 0.0),
-    ("P300 full xDAWN",   "erpcore_p300",         "full", "xdawn_rg", 0.0),
-    ("N2pc full xDAWN",   "erpcore_n2pc",         "full", "xdawn_rg", 0.0),
-    ("LRP full xDAWN",    "erpcore_lrp",          "full", "xdawn_rg", 0.0),
-    ("ERN full xDAWN",    "erpcore_ern",          "full", "xdawn_rg", 0.0),
-    ("N170 full xDAWN",   "erpcore_n170",         "full", "xdawn_rg", 0.0),
-    ("MMN full xDAWN",    "erpcore_mmn",          "full", "xdawn_rg", 0.0),
+    ("BNCI full xDAWN",   "bnci_errp_013-2015",  "full", "xdawn_rg"),
+    ("HRI full xDAWN",    "hri_errp_cursor",     "full", "xdawn_rg"),
+    ("N400 full xDAWN",   "erpcore_n400",         "full", "xdawn_rg"),
+    ("P300 full xDAWN",   "erpcore_p300",         "full", "xdawn_rg"),
+    ("N2pc full xDAWN",   "erpcore_n2pc",         "full", "xdawn_rg"),
+    ("LRP full xDAWN",    "erpcore_lrp",          "full", "xdawn_rg"),
+    ("ERN full xDAWN",    "erpcore_ern",          "full", "xdawn_rg"),
+    ("N170 full xDAWN",   "erpcore_n170",         "full", "xdawn_rg"),
+    ("MMN full xDAWN",    "erpcore_mmn",          "full", "xdawn_rg"),
 ]
 
 # Models that don't need a GPU slot
@@ -132,10 +112,8 @@ def log(msg):
     print(f"[{ts}] {msg}", flush=True)
 
 
-def get_model_dir_name(model, rcl_weight):
-    """Determine the results directory name for a model + rcl weight."""
-    if rcl_weight > 0 and model == "erpxttn":
-        return f"erpxttn_rcl{rcl_weight:g}"
+def get_model_dir_name(model):
+    """Determine the results directory name for a model."""
     return model
 
 
@@ -149,16 +127,14 @@ def get_variant_dir(dataset_id, channel_preset):
 
 
 def _parse_train_cmdline(line):
-    """Parse a 04_train.py command line into (dataset, channels, model, rcl_weight)."""
+    """Parse a 04_train.py command line into (dataset, channels, model)."""
     import re
     ds = re.search(r"--dataset\s+(\S+)", line)
     ch = re.search(r"--channels\s+(\S+)", line)
     model = re.search(r"--model\s+(\S+)", line)
-    rcl = re.search(r"--routing-contrast-weight\s+(\S+)", line)
-    rcl_weight = float(rcl.group(1)) if rcl else 0.0
     if ds and ch and model:
-        return ds.group(1), ch.group(1), model.group(1), rcl_weight
-    return None, None, None, None
+        return ds.group(1), ch.group(1), model.group(1)
+    return None, None, None
 
 
 def _is_process_running(dataset_id, channel_preset, model_dir_name):
@@ -168,20 +144,10 @@ def _is_process_running(dataset_id, channel_preset, model_dir_name):
             ["pgrep", "-af", "python.*04_train"],
             capture_output=True, text=True, timeout=10
         )
-        # Build expected model name and rcl_weight from model_dir_name
-        import re
-        rcl_match = re.match(r"erpxttn_rcl(.+)", model_dir_name)
-        if rcl_match:
-            expected_model = "erpxttn"
-            expected_rcl = float(rcl_match.group(1))
-        else:
-            expected_model = model_dir_name
-            expected_rcl = 0.0
-
         for line in result.stdout.splitlines():
-            ds, ch, model, rcl_weight = _parse_train_cmdline(line)
+            ds, ch, model = _parse_train_cmdline(line)
             if ds == dataset_id and ch == channel_preset \
-               and model == expected_model and rcl_weight == expected_rcl:
+               and model == model_dir_name:
                 return True
         return False
     except Exception:
@@ -204,7 +170,7 @@ def count_running_gpu_jobs():
         return 0
 
 
-def get_run_status(dataset_id, channel_preset, model, rcl_weight):
+def get_run_status(dataset_id, channel_preset, model):
     """
     Returns (status, n_done, n_total, auroc).
     status: 'done' | 'running' | 'not_started' | 'no_config' | 'no_variant'
@@ -217,7 +183,7 @@ def get_run_status(dataset_id, channel_preset, model, rcl_weight):
     if not variant_dir:
         return ("no_variant", 0, 0, None)
 
-    model_dir = get_model_dir_name(model, rcl_weight)
+    model_dir = get_model_dir_name(model)
     results_path = (DATASETS_DIR / dataset_id / "results" /
                     "tmin0ms_tmax800ms" / variant_dir / model_dir)
     results_json = results_path / "results.json"
@@ -249,8 +215,7 @@ def make_log_name(dataset_id, channel_preset, model_dir):
                        .replace("hri_errp_cursor", "hri") \
                        .replace("erpcore_", "")
     variant = "full" if channel_preset == "full" else ""
-    model_short = model_dir.replace("erpxttn_rcl0.3", "rcl") \
-                           .replace("xdawn_rg", "xdawn")
+    model_short = model_dir.replace("xdawn_rg", "xdawn")
     parts = [short]
     if variant:
         parts.append(variant)
@@ -258,9 +223,9 @@ def make_log_name(dataset_id, channel_preset, model_dir):
     return "_".join(parts) + ".log"
 
 
-def launch_run(dataset_id, channel_preset, model, rcl_weight):
+def launch_run(dataset_id, channel_preset, model):
     """Launch a training run as a background process with thread limits."""
-    model_dir = get_model_dir_name(model, rcl_weight)
+    model_dir = get_model_dir_name(model)
     log_name = make_log_name(dataset_id, channel_preset, model_dir)
     log_path = LOGS_DIR / log_name
 
@@ -269,8 +234,6 @@ def launch_run(dataset_id, channel_preset, model, rcl_weight):
            "--channels", channel_preset,
            "--model", model,
            "--resume"]
-    if rcl_weight > 0:
-        cmd += ["--routing-contrast-weight", str(rcl_weight)]
 
     env = os.environ.copy()
     env.update(THREAD_ENV)
@@ -283,11 +246,11 @@ def launch_run(dataset_id, channel_preset, model, rcl_weight):
 GEN_FIGURES_SCRIPT = REPO_ROOT / "05_gen_figures.py"
 
 
-def generate_figures_if_needed(dataset_id, channel_preset, model, rcl_weight):
+def generate_figures_if_needed(dataset_id, channel_preset, model):
     """Generate figures for a completed ERPXTTN-family run if not already done."""
     if model not in ("erpxttn",):
         return
-    model_dir = get_model_dir_name(model, rcl_weight)
+    model_dir = get_model_dir_name(model)
     variant_dir = get_variant_dir(dataset_id, channel_preset)
     if not variant_dir:
         return
@@ -320,20 +283,20 @@ def run_status_check(queue):
     pending_runs = []
     error_runs = []
 
-    for label, ds, ch, model, rcl in queue:
-        status, n_done, n_total, auroc = get_run_status(ds, ch, model, rcl)
+    for label, ds, ch, model in queue:
+        status, n_done, n_total, auroc = get_run_status(ds, ch, model)
         if status == "done":
             print(f"  [DONE]    {label:30s}  AUROC={auroc:.4f}")
-            done_runs.append((label, ds, ch, model, rcl))
+            done_runs.append((label, ds, ch, model))
         elif status == "running":
             print(f"  [RUN]     {label:30s}  {n_done}/{n_total}")
-            running_runs.append((label, ds, ch, model, rcl))
+            running_runs.append((label, ds, ch, model))
         elif status == "not_started":
             print(f"  [PENDING] {label:30s}")
-            pending_runs.append((label, ds, ch, model, rcl))
+            pending_runs.append((label, ds, ch, model))
         else:
             print(f"  [ERROR]   {label:30s}  {status}")
-            error_runs.append((label, ds, ch, model, rcl))
+            error_runs.append((label, ds, ch, model))
 
     return done_runs, running_runs, pending_runs, error_runs
 
@@ -348,16 +311,16 @@ def launch_pending(queue, done_runs, running_runs, pending_runs):
         return 0
 
     # Generate figures for completed ERPXTTN-family runs
-    for label, ds, ch, model, rcl in done_runs:
-        generate_figures_if_needed(ds, ch, model, rcl)
+    for label, ds, ch, model in done_runs:
+        generate_figures_if_needed(ds, ch, model)
 
     launched = 0
-    for label, ds, ch, model, rcl in queue:
+    for label, ds, ch, model in queue:
         if model not in CPU_ONLY_MODELS and launched >= slots:
             break
-        status, _, _, _ = get_run_status(ds, ch, model, rcl)
+        status, _, _, _ = get_run_status(ds, ch, model)
         if status == "not_started":
-            launch_run(ds, ch, model, rcl)
+            launch_run(ds, ch, model)
             if model not in CPU_ONLY_MODELS:
                 launched += 1
 

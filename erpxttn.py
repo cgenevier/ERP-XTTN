@@ -256,7 +256,6 @@ class ERPXTTN(nn.Module):
                  peak_prominence: float = 0.1,
                  min_window_ms: float = 40.0,
                  max_window_ms: float = 200.0,
-                 routing_contrast_weight: float = 0.0,
                  detection_channel: str = None,
                  peak_mode: str = 'constrained',
                  max_k: int = 4):
@@ -275,8 +274,6 @@ class ERPXTTN(nn.Module):
         self.N = n_times // patch_width
         self.sfreq = sfreq
         self.tmin = tmin
-        self.routing_contrast_weight = routing_contrast_weight
-
         # Resolve detection channel by name
         detect_name = detection_channel or DETECT_CHANNEL
         if channel_names is not None and detect_name in channel_names:
@@ -510,62 +507,11 @@ class ERPXTTN(nn.Module):
 
         return z + out
 
-    def _compute_proto_features(self, attn_avg: torch.Tensor) -> torch.Tensor:
-        """Compute prototype routing summary features from attention map.
-
-        These features characterize how the trial's attention relates to the
-        prototypes: how much each prototype is attended, how peaked/diffuse
-        the attention is, whether it follows a diagonal temporal structure,
-        and where each prototype's attention concentrates in time.
-
-        Args:
-            attn_avg: (B, N, K) head-averaged attention map
-
-        Returns:
-            (B, 2K+3) feature vector:
-                proto_mass (K) — total attention per prototype
-                proto_confidence (1) — mean max-attention-per-patch
-                proto_entropy (1) — mean per-patch entropy over prototypes
-                proto_diagonality (1) — attention to nearest prototype
-                proto_com (K) — temporal center of mass per prototype
-        """
-        B, N, K = attn_avg.shape
-
-        # Per-prototype mass: total attention each prototype receives
-        proto_mass = attn_avg.sum(dim=1)  # (B, K)
-
-        # Mean confidence: average of max-attention-per-patch
-        proto_confidence = attn_avg.max(dim=-1).values.mean(dim=-1, keepdim=True)  # (B, 1)
-
-        # Mean entropy: average per-patch entropy over prototype dimension
-        proto_entropy = -(attn_avg * (attn_avg + 1e-8).log()).sum(dim=-1).mean(dim=-1, keepdim=True)  # (B, 1)
-
-        # Diagonality: attention to nearest prototype by temporal center
-        proto_centers = self.proto_center_patch_idx.float()  # (K,)
-        patch_indices = torch.arange(N, device=attn_avg.device, dtype=torch.float32)
-        dist = (patch_indices.unsqueeze(1) - proto_centers.unsqueeze(0)).abs()  # (N, K)
-        nearest_proto = dist.argmin(dim=-1)  # (N,)
-        nearest_expanded = nearest_proto.unsqueeze(0).expand(B, -1)  # (B, N)
-        diag_attn = attn_avg.gather(dim=-1, index=nearest_expanded.unsqueeze(-1)).squeeze(-1)
-        proto_diagonality = diag_attn.mean(dim=-1, keepdim=True)  # (B, 1)
-
-        # Per-prototype temporal center of mass
-        patch_pos = torch.arange(N, device=attn_avg.device, dtype=torch.float32)
-        attn_t = attn_avg.transpose(1, 2)  # (B, K, N)
-        proto_com = (attn_t * patch_pos.unsqueeze(0).unsqueeze(0)).sum(dim=-1) / \
-                    (attn_t.sum(dim=-1) + 1e-8)  # (B, K)
-
-        return torch.cat([proto_mass, proto_confidence, proto_entropy,
-                          proto_diagonality, proto_com], dim=-1)
-
     def forward(self, x: torch.Tensor):
         """Forward pass.
 
-        Returns (depends on routing_contrast_weight):
-            If routing_contrast_weight == 0 (standard mode):
-                (logit (B, 1), attn_weights (B, H, N, K))
-            If routing_contrast_weight > 0 (RCL mode):
-                (logit (B, 1), proto_features (B, 2K+3), attn_weights (B, H, N, K))
+        Returns:
+            (logit (B, 1), attn_weights (B, H, N, K))
         """
         B = x.shape[0]
         H, d_h = self.num_heads, self.d_head
@@ -600,9 +546,5 @@ class ERPXTTN(nn.Module):
         attn_avg = attn_weights.mean(dim=1)         # (B, N, K)
         attn_flat = attn_avg.reshape(B, -1)         # (B, N*K)
         out = self.head(attn_flat)                   # (B, 1)
-
-        if self.routing_contrast_weight > 0:
-            proto_feat = self._compute_proto_features(attn_avg)
-            return out, proto_feat, attn_weights
 
         return out, attn_weights
