@@ -366,6 +366,8 @@ tbody tr.clickable { cursor: pointer; }
   font-weight: 600;
 }
 .status-running { background: rgba(79,195,247,0.2); color: #4fc3f7; }
+.status-error { background: rgba(231,76,60,0.2); color: #e74c3c; }
+.status-stale { background: rgba(241,196,15,0.2); color: #f1c40f; }
 .status-completed { background: rgba(102,187,106,0.2); color: #66bb6a; }
 .status-stale { background: rgba(255,167,38,0.2); color: #ffa726; }
 .progress-bar-bg {
@@ -1262,6 +1264,25 @@ function parseLogText(text) {
     info.completed = true;
   }
 
+  // Check for error/crash (traceback at end of log, no completion)
+  const lastLines = text.slice(-500);
+  if (!info.completed && (lastLines.includes('Traceback (most recent call last)') ||
+      lastLines.includes('Error:') || lastLines.includes('Killed'))) {
+    info.crashed = true;
+  }
+
+  // Detect stale runs: if last timestamp is >30 min old, likely dead
+  if (!info.completed && !info.crashed && info.lastTimestamp) {
+    const now = new Date();
+    const [h, m, s] = info.lastTimestamp.split(':').map(Number);
+    const logTime = new Date(now);
+    logTime.setHours(h, m, s, 0);
+    // Handle day boundary
+    if (logTime > now) logTime.setDate(logTime.getDate() - 1);
+    const minutesAgo = (now - logTime) / 60000;
+    if (minutesAgo > 30) info.stale = true;
+  }
+
   return info;
 }
 
@@ -1331,19 +1352,30 @@ async function scanLogs() {
 
   const jobs = results.filter(r => r !== null);
 
-  // Sort: running first, then completed; within each group sort by dataset then variant
+  // Sort: running first, then errors/stale, then completed
+  function sortPriority(info) {
+    if (!info.completed && !info.crashed && !info.stale) return 0; // running
+    if (info.crashed || info.stale) return 1; // error/stale
+    return 2; // completed
+  }
   jobs.sort((a, b) => {
-    if (a.info.completed !== b.info.completed) return a.info.completed ? 1 : -1;
+    const pa = sortPriority(a.info), pb = sortPriority(b.info);
+    if (pa !== pb) return pa - pb;
     const da = a.dataset.localeCompare(b.dataset);
     if (da !== 0) return da;
     if (a.variant !== b.variant) return a.variant === '3ch' ? -1 : 1;
     return (a.model || '').localeCompare(b.model || '');
   });
 
-  const running = jobs.filter(j => !j.info.completed);
+  const running = jobs.filter(j => !j.info.completed && !j.info.crashed && !j.info.stale);
+  const errored = jobs.filter(j => j.info.crashed || j.info.stale);
   const completed = jobs.filter(j => j.info.completed);
 
-  statusEl.textContent = running.length + ' running, ' + completed.length + ' completed';
+  let statusParts = [];
+  if (running.length) statusParts.push(running.length + ' running');
+  if (errored.length) statusParts.push(errored.length + ' error/stale');
+  if (completed.length) statusParts.push(completed.length + ' completed');
+  statusEl.textContent = statusParts.join(', ');
 
   let html = '<div class="table-container"><table><thead><tr>';
   html += '<th>Dataset</th><th>Variant</th><th>Model</th><th>Status</th>';
@@ -1361,6 +1393,12 @@ async function scanLogs() {
     if (i.completed) {
       statusClass = 'status-completed';
       statusText = 'Done';
+    } else if (i.crashed) {
+      statusClass = 'status-error';
+      statusText = 'Error';
+    } else if (i.stale) {
+      statusClass = 'status-stale';
+      statusText = 'Stale';
     } else {
       statusClass = 'status-running';
       statusText = 'Running';
