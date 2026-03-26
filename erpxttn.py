@@ -336,14 +336,13 @@ class ERPXTTN(nn.Module):
         """
         from scipy.signal import find_peaks as _find_peaks
 
-        AUTO_PROMINENCE = 0.02
         min_distance = max(1, int(round(80.0 / 1000.0 * sfreq)))
         min_latency_sample = int(round(MIN_P1_LATENCY_MS / 1000.0 * sfreq))
         smoothed = _smooth_signal(diff_signal, sigma=2.0)
 
-        pos_peaks, pos_props = _find_peaks(smoothed, prominence=AUTO_PROMINENCE,
+        pos_peaks, pos_props = _find_peaks(smoothed, prominence=self.peak_prominence,
                                             distance=min_distance)
-        neg_peaks, neg_props = _find_peaks(-smoothed, prominence=AUTO_PROMINENCE,
+        neg_peaks, neg_props = _find_peaks(-smoothed, prominence=self.peak_prominence,
                                             distance=min_distance)
 
         all_peaks = []
