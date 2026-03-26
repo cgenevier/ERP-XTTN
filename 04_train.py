@@ -582,13 +582,17 @@ def main():
                         help="Max number of prototypes in auto mode (default: 4)")
     args = parser.parse_args()
 
-    # Determine model directory name (appends _auto for auto peak mode)
+    # Fixed ERPXTTN results now live in erpxttn_fixed/ to distinguish them
+    # from auto mode runs in erpxttn_auto/.
     model_dir_name = args.model
-    if args.peak_mode == "auto" and args.model == "erpxttn":
-        if args.max_k != 4:
-            model_dir_name += f"_auto{args.max_k}"
+    if args.model == "erpxttn":
+        if args.peak_mode == "auto":
+            if args.max_k != 4:
+                model_dir_name = f"erpxttn_auto{args.max_k}"
+            else:
+                model_dir_name = "erpxttn_auto"
         else:
-            model_dir_name += "_auto"
+            model_dir_name = "erpxttn_fixed"
 
     # Setup logging
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

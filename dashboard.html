@@ -469,10 +469,15 @@ function authUrl(path) {
   return _jupyterToken ? path + sep + 'token=' + _jupyterToken : path;
 }
 
-const KNOWN_MODELS = ['xdawn_rg', 'eegnet', 'erpxttn', 'erpxttn_auto'];
+const KNOWN_MODELS = ['xdawn_rg', 'eegnet', 'erpxttn_fixed', 'erpxttn_auto'];
 function modelDisplay(m) {
   if (m === 'eegnet') return 'EEGNet';
-  if (m === 'erpxttn') return 'ERP-XTTN';
+  if (m === 'erpxttn_auto') return 'ERP-XTTN Auto';
+  const xttnAutoKMatch = m.match(/^erpxttn_auto(\d+)$/);
+  if (xttnAutoKMatch) {
+    return 'ERP-XTTN Auto K=' + xttnAutoKMatch[1];
+  }
+  if (m === 'erpxttn' || m === 'erpxttn_fixed') return 'ERP-XTTN Fixed';
   if (m === 'xdawn_rg') return 'xDAWN+RG';
   const autoKMatch = m.match(/^(.+)_auto(\d+)$/);
   if (autoKMatch) {
@@ -1197,7 +1202,7 @@ const LOG_DATASETS = {
 
 const LOG_MODELS = {
   'eegnet': 'EEGNet',
-  'erpxttn': 'ERP-XTTN',
+  'erpxttn_fixed': 'ERP-XTTN Fixed',
   'erpxttn_auto': 'ERP-XTTN Auto',
   'xdawn': 'xDAWN+RG'
 };

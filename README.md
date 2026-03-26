@@ -90,7 +90,7 @@ python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model eegne
 # xDAWN+RG classical baseline
 python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model xdawn_rg
 
-# Standard ERPXTTN
+# Fixed-pattern ERPXTTN
 python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn
 
 ```
@@ -98,7 +98,7 @@ python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxt
 ### 5. Generate Figures
 
 ```bash
-python 05_gen_figures.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn
+python 05_gen_figures.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn_fixed
 ```
 
 ## Datasets

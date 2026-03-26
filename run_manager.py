@@ -49,15 +49,15 @@ QUEUE_3CH = [
     ("N170 3ch EEGNet",  "erpcore_n170",        "occipital3_n170",  "eegnet"),
     ("MMN 3ch EEGNet",   "erpcore_mmn",         "midline3",          "eegnet"),
     # ── 3ch ERPXTTN, fastest to slowest ─────────────────────────────
-    ("BNCI 3ch ERPXTTN", "bnci_errp_013-2015",  "midline3",          "erpxttn"),
-    ("HRI 3ch ERPXTTN",  "hri_errp_cursor",     "midline3",          "erpxttn"),
-    ("N400 3ch ERPXTTN", "erpcore_n400",         "midline3_n400",     "erpxttn"),
-    ("P300 3ch ERPXTTN", "erpcore_p300",         "midline3",          "erpxttn"),
-    ("N2pc 3ch ERPXTTN", "erpcore_n2pc",         "posterior3_n2pc",   "erpxttn"),
-    ("LRP 3ch ERPXTTN",  "erpcore_lrp",          "lateral3_lrp",     "erpxttn"),
-    ("ERN 3ch ERPXTTN",  "erpcore_ern",          "midline3_ern",     "erpxttn"),
-    ("N170 3ch ERPXTTN", "erpcore_n170",         "occipital3_n170",  "erpxttn"),
-    ("MMN 3ch ERPXTTN",  "erpcore_mmn",          "midline3",          "erpxttn"),
+    ("BNCI 3ch ERPXTTN Fixed", "bnci_errp_013-2015",  "midline3",          "erpxttn"),
+    ("HRI 3ch ERPXTTN Fixed",  "hri_errp_cursor",     "midline3",          "erpxttn"),
+    ("N400 3ch ERPXTTN Fixed", "erpcore_n400",         "midline3_n400",     "erpxttn"),
+    ("P300 3ch ERPXTTN Fixed", "erpcore_p300",         "midline3",          "erpxttn"),
+    ("N2pc 3ch ERPXTTN Fixed", "erpcore_n2pc",         "posterior3_n2pc",   "erpxttn"),
+    ("LRP 3ch ERPXTTN Fixed",  "erpcore_lrp",          "lateral3_lrp",     "erpxttn"),
+    ("ERN 3ch ERPXTTN Fixed",  "erpcore_ern",          "midline3_ern",     "erpxttn"),
+    ("N170 3ch ERPXTTN Fixed", "erpcore_n170",         "occipital3_n170",  "erpxttn"),
+    ("MMN 3ch ERPXTTN Fixed",  "erpcore_mmn",          "midline3",          "erpxttn"),
     # ── 3ch xDAWN+RG (CPU-only, does not consume GPU slots) ─────────
     ("BNCI 3ch xDAWN",   "bnci_errp_013-2015",  "midline3",          "xdawn_rg"),
     ("HRI 3ch xDAWN",    "hri_errp_cursor",     "midline3",          "xdawn_rg"),
@@ -82,15 +82,15 @@ QUEUE_FULL = [
     ("N170 full EEGNet",  "erpcore_n170",        "full", "eegnet"),
     ("MMN full EEGNet",   "erpcore_mmn",         "full", "eegnet"),
     # ── Full ERPXTTN, fastest to slowest ─────────────────────────────
-    ("BNCI full ERPXTTN", "bnci_errp_013-2015",  "full", "erpxttn"),
-    ("HRI full ERPXTTN",  "hri_errp_cursor",     "full", "erpxttn"),
-    ("N400 full ERPXTTN", "erpcore_n400",         "full", "erpxttn"),
-    ("P300 full ERPXTTN", "erpcore_p300",         "full", "erpxttn"),
-    ("N2pc full ERPXTTN", "erpcore_n2pc",         "full", "erpxttn"),
-    ("LRP full ERPXTTN",  "erpcore_lrp",          "full", "erpxttn"),
-    ("ERN full ERPXTTN",  "erpcore_ern",          "full", "erpxttn"),
-    ("N170 full ERPXTTN", "erpcore_n170",         "full", "erpxttn"),
-    ("MMN full ERPXTTN",  "erpcore_mmn",          "full", "erpxttn"),
+    ("BNCI full ERPXTTN Fixed", "bnci_errp_013-2015",  "full", "erpxttn"),
+    ("HRI full ERPXTTN Fixed",  "hri_errp_cursor",     "full", "erpxttn"),
+    ("N400 full ERPXTTN Fixed", "erpcore_n400",         "full", "erpxttn"),
+    ("P300 full ERPXTTN Fixed", "erpcore_p300",         "full", "erpxttn"),
+    ("N2pc full ERPXTTN Fixed", "erpcore_n2pc",         "full", "erpxttn"),
+    ("LRP full ERPXTTN Fixed",  "erpcore_lrp",          "full", "erpxttn"),
+    ("ERN full ERPXTTN Fixed",  "erpcore_ern",          "full", "erpxttn"),
+    ("N170 full ERPXTTN Fixed", "erpcore_n170",         "full", "erpxttn"),
+    ("MMN full ERPXTTN Fixed",  "erpcore_mmn",          "full", "erpxttn"),
     # ── Full xDAWN+RG (CPU-only) ────────────────────────────────────
     ("BNCI full xDAWN",   "bnci_errp_013-2015",  "full", "xdawn_rg"),
     ("HRI full xDAWN",    "hri_errp_cursor",     "full", "xdawn_rg"),
@@ -114,6 +114,8 @@ def log(msg):
 
 def get_model_dir_name(model):
     """Determine the results directory name for a model."""
+    if model == "erpxttn":
+        return "erpxttn_fixed"
     return model
 
 
@@ -127,17 +129,27 @@ def get_variant_dir(dataset_id, channel_preset):
 
 
 def _parse_train_cmdline(line):
-    """Parse a 04_train.py command line into (dataset, channels, model)."""
+    """Parse a 04_train.py command line into (dataset, channels, logical_model)."""
     import re
     ds = re.search(r"--dataset\s+(\S+)", line)
     ch = re.search(r"--channels\s+(\S+)", line)
     model = re.search(r"--model\s+(\S+)", line)
     if ds and ch and model:
-        return ds.group(1), ch.group(1), model.group(1)
+        logical_model = model.group(1)
+        if logical_model == "erpxttn":
+            peak_mode = re.search(r"--peak-mode\s+(\S+)", line)
+            if peak_mode and peak_mode.group(1) == "auto":
+                max_k = re.search(r"--max-k\s+(\d+)", line)
+                logical_model = (
+                    f"erpxttn_auto{max_k.group(1)}"
+                    if max_k and max_k.group(1) != "4"
+                    else "erpxttn_auto"
+                )
+        return ds.group(1), ch.group(1), logical_model
     return None, None, None
 
 
-def _is_process_running(dataset_id, channel_preset, model_dir_name):
+def _is_process_running(dataset_id, channel_preset, model):
     """Check if a training process is already running for this combo."""
     try:
         result = subprocess.run(
@@ -145,9 +157,9 @@ def _is_process_running(dataset_id, channel_preset, model_dir_name):
             capture_output=True, text=True, timeout=10
         )
         for line in result.stdout.splitlines():
-            ds, ch, model = _parse_train_cmdline(line)
+            ds, ch, logical_model = _parse_train_cmdline(line)
             if ds == dataset_id and ch == channel_preset \
-               and model == model_dir_name:
+               and logical_model == model:
                 return True
         return False
     except Exception:
@@ -202,7 +214,7 @@ def get_run_status(dataset_id, channel_preset, model):
     if n > 0:
         return ("running", n, total, None)
 
-    if _is_process_running(dataset_id, channel_preset, model_dir):
+    if _is_process_running(dataset_id, channel_preset, model):
         return ("running", 0, total, None)
 
     return ("not_started", 0, total, None)
