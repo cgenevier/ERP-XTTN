@@ -639,8 +639,8 @@ def main():
     parser.add_argument("--dataset", required=True,
                         choices=_discover_datasets())
     parser.add_argument("--channels", required=True)
-    parser.add_argument("--model", default="erpxttn_fixed",
-                        help="Model results directory name (default: erpxttn_fixed)")
+    parser.add_argument("--model", default="erpxttn_constrained",
+                        help="Model results directory name (default: erpxttn_constrained)")
     parser.add_argument("--partial", action="store_true",
                         help="Generate figures from partial results (no results.json needed)")
     args = parser.parse_args()

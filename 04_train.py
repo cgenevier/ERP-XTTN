@@ -582,8 +582,8 @@ def main():
                         help="Max number of prototypes in auto mode (default: 4)")
     args = parser.parse_args()
 
-    # Fixed ERPXTTN results now live in erpxttn_fixed/ to distinguish them
-    # from auto mode runs in erpxttn_auto/.
+    # Constrained ERPXTTN results live in erpxttn_constrained/ to distinguish
+    # them from auto mode runs in erpxttn_auto/.
     model_dir_name = args.model
     if args.model == "erpxttn":
         if args.peak_mode == "auto":
@@ -592,7 +592,7 @@ def main():
             else:
                 model_dir_name = "erpxttn_auto"
         else:
-            model_dir_name = "erpxttn_fixed"
+            model_dir_name = "erpxttn_constrained"
 
     # Setup logging
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -115,7 +115,7 @@ def log(msg):
 def get_model_dir_name(model):
     """Determine the results directory name for a model."""
     if model == "erpxttn":
-        return "erpxttn_fixed"
+        return "erpxttn_constrained"
     return model
 
 

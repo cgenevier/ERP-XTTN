@@ -45,7 +45,7 @@ Each dataset directory contains:
 |-------|-------------|
 | **EEGNet** | Lawhern et al. (2018) compact CNN baseline |
 | **xDAWN+RG** | xDAWN spatial filtering + Riemannian geometry classifier (classical ML baseline) |
-| **ERPXTTN Fixed** | Cross-attention prototype model with dataset-configured polarity pattern; results saved under `erpxttn_fixed/` |
+| **ERPXTTN Constrained** | Cross-attention prototype model with dataset-configured polarity pattern; results saved under `erpxttn_constrained/` |
 | **ERPXTTN Auto** | Auto peak-detection variant of ERPXTTN; results saved under `erpxttn_auto/` |
 
 ## Requirements
@@ -93,7 +93,7 @@ python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model eegne
 # xDAWN+RG classical baseline
 python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model xdawn_rg
 
-# Fixed-pattern ERPXTTN
+# Constrained ERPXTTN
 python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn
 
 # Auto ERPXTTN
@@ -102,12 +102,12 @@ python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxt
 ```
 
 `--model erpxttn` selects the ERPXTTN architecture. Constrained runs are saved
-under `erpxttn_fixed/`; auto runs are saved under `erpxttn_auto/`.
+under `erpxttn_constrained/`; auto runs are saved under `erpxttn_auto/`.
 
 ### 5. Generate Figures
 
 ```bash
-python 05_gen_figures.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn_fixed
+python 05_gen_figures.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn_constrained
 ```
 
 ## Datasets
