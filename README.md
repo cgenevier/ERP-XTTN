@@ -11,6 +11,8 @@ ERP-XTTN/
 ├── 03_preprocess.py        # Preprocessing + epoching pipeline
 ├── 04_train.py             # LOSO cross-validation training
 ├── 05_gen_figures.py       # Attention & TP/TN figure generation
+├── run_manager.py          # Batch launcher / status monitor for experiment runs
+├── dashboard.html          # Browser dashboard for browsing saved results
 ├── eegnet.py               # EEGNet baseline (Lawhern et al., 2018)
 ├── erpxttn.py              # ERP-XTTN model + dynamic peak detection
 ├── xdawn_rg.py             # xDAWN + Riemannian Geometry baseline
@@ -24,7 +26,7 @@ ERP-XTTN/
 │   ├── erpcore_n2pc/               # ERP CORE — N2pc
 │   ├── erpcore_n400/               # ERP CORE — N400
 │   ├── erpcore_p300/               # ERP CORE — P300
-└── logs/
+└── logs/                    # Generated at run time (not tracked in git)
     └── <timestamp>_<dataset>_<channels>_<model>/
         └── train.log
 ```
@@ -43,7 +45,8 @@ Each dataset directory contains:
 |-------|-------------|
 | **EEGNet** | Lawhern et al. (2018) compact CNN baseline |
 | **xDAWN+RG** | xDAWN spatial filtering + Riemannian geometry classifier (classical ML baseline) |
-| **ERPXTTN** | Cross-attention prototype model with dynamic peak detection |
+| **ERPXTTN Fixed** | Cross-attention prototype model with dataset-configured polarity pattern; results saved under `erpxttn_fixed/` |
+| **ERPXTTN Auto** | Auto peak-detection variant of ERPXTTN; results saved under `erpxttn_auto/` |
 
 ## Requirements
 
@@ -93,7 +96,13 @@ python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model xdawn
 # Fixed-pattern ERPXTTN
 python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn
 
+# Auto ERPXTTN
+python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn --peak-mode auto
+
 ```
+
+`--model erpxttn` selects the ERPXTTN architecture. Constrained runs are saved
+under `erpxttn_fixed/`; auto runs are saved under `erpxttn_auto/`.
 
 ### 5. Generate Figures
 
@@ -127,21 +136,23 @@ Prototype windows are detected automatically per LOSO fold from the training dat
 
 | Dataset | Pattern | K | Prominence | Prototypes |
 |---------|---------|---|------------|------------|
-| BNCI ErrP | pos, neg, pos, neg | 4 | 0.02 | P1, Ne, Pe, LateN |
-| HRI ErrP | pos, neg, pos, neg | 4 | 0.02 | P1, Ne, Pe, LateN |
-| ERN | neg, pos | 2 | 0.005 | ERN, Pe |
-| LRP | neg, pos, neg, pos | 4 | 0.005 | EarlyN, EarlyP, LRP, LateP |
-| MMN | neg, pos, neg | 3 | 0.005 | MMN, P3a, LateN |
-| N170 | neg, pos, neg | 3 | 0.005 | N170, VPP, LateN |
-| N2pc | neg, pos, neg | 3 | 0.005 | N2pc, SPCN, LateN |
-| N400 | pos, neg, pos, neg | 4 | 0.005 | P2, N400, LPC, LateN |
-| P3 | pos, neg, pos | 3 | 0.10 | P3, SW, LateP |
+| BNCI ErrP | pos, neg, pos, neg | 4 | 0.02 | P1-diff, Ne-diff, Pe-diff, LateN-diff |
+| HRI ErrP | pos, neg, pos, neg | 4 | 0.02 | P1-diff, Ne-diff, Pe-diff, LateN-diff |
+| ERN | neg, pos | 2 | 0.02 | ERN-diff, Pe-diff |
+| LRP | neg, pos | 2 | 0.02 | LRP, LateP |
+| MMN | neg, pos, neg | 3 | 0.02 | MMN-diff, P3a-diff, LateN-diff |
+| N170 | neg, pos, neg | 3 | 0.02 | N170-diff, VPP-diff, LateN-diff |
+| N2pc | neg, pos, neg | 3 | 0.02 | N2pc-diff, SPCN-diff, LateN-diff |
+| N400 | pos, neg, pos, neg | 4 | 0.02 | P2-diff, N400-diff, LPC-diff, LateN-diff |
+| P300 | pos, neg, pos | 3 | 0.02 | P3-diff, SW-diff, LateP-diff |
 
 Additionally, prototype windows are clamped to a maximum width of 200ms (`max_window_ms` in `erpxttn.py`). This prevents late, broad components (e.g., LPC, LateP) from dominating the prototype representation. A future direction is to make this configurable per-dataset, as late ERP components naturally span wider temporal windows than early ones.
 
 ## Results Summary
 
-Results are in progress — see the dashboard for current numbers. Run `python run_manager.py` to check experiment status, or `python run_manager.py --daemon --include-full` to auto-launch pending runs.
+Main result artifacts are included in the repo under `datasets/*/results/`.
+Use the dashboard to browse saved numbers and figures, or `python run_manager.py`
+to monitor / launch future reruns.
 
 ## Hardware
 
