@@ -630,6 +630,302 @@ def generate_tp_tn_figures(results_dir, cfg, channel_config,
 
 
 # =====================================================================
+# ERP morphology figures (TP vs FN / TN vs FP)
+# =====================================================================
+
+def _plot_morphology(fig_path, title, ch_names, time_ms,
+                     tp_mean, tp_sem, fn_mean, fn_sem,
+                     tn_mean, tn_sem, fp_mean, fp_sem,
+                     counts=None, proto_windows=None,
+                     pos_label='Error', neg_label='Correct',
+                     footer=None):
+    """Shared 2 x C plotting for TP/FN and TN/FP morphology comparison.
+
+    Each row is one class (error/correct). Each col is one channel.
+    Per panel: two class-conditional means with SEM ribbons plus a thin
+    diff trace on the same axis (all in µV).
+    """
+    C = len(ch_names)
+    fig, axes = plt.subplots(2, C, figsize=(4.5 * C, 7), sharex=True,
+                             squeeze=False)
+
+    color_a_err = '#2ca02c'  # TP (green = correctly detected)
+    color_b_err = '#d62728'  # FN (red = missed)
+    color_a_cor = '#1f77b4'  # TN (blue = correctly rejected)
+    color_b_cor = '#ff7f0e'  # FP (orange = false alarm)
+
+    rows = [
+        {
+            'a_mean': tp_mean, 'a_sem': tp_sem,
+            'a_label': 'TP (hit)', 'a_color': color_a_err,
+            'b_mean': fn_mean, 'b_sem': fn_sem,
+            'b_label': 'FN (miss)', 'b_color': color_b_err,
+            'class_label': pos_label,
+        },
+        {
+            'a_mean': tn_mean, 'a_sem': tn_sem,
+            'a_label': 'TN (correct reject)', 'a_color': color_a_cor,
+            'b_mean': fp_mean, 'b_sem': fp_sem,
+            'b_label': 'FP (false alarm)', 'b_color': color_b_cor,
+            'class_label': neg_label,
+        },
+    ]
+
+    # Shared y-limits per row for visual comparison across channels
+    for r in rows:
+        stacked = []
+        for arr in (r['a_mean'], r['b_mean']):
+            if arr is not None:
+                stacked.append(np.abs(arr))
+        r['ymax'] = float(np.max(stacked)) * 1.2 if stacked else 1.0
+
+    for row_idx, r in enumerate(rows):
+        for c_idx, ch in enumerate(ch_names):
+            ax = axes[row_idx, c_idx]
+
+            # Prototype windows as faded colored background
+            if proto_windows:
+                for wk, win in enumerate(proto_windows):
+                    s_ms, e_ms = win
+                    ax.axvspan(
+                        s_ms, e_ms,
+                        color=PROTO_COLOR_PALETTE[wk % len(PROTO_COLOR_PALETTE)],
+                        alpha=0.08, zorder=1,
+                    )
+
+            if r['a_mean'] is not None:
+                ax.plot(time_ms, r['a_mean'][c_idx], color=r['a_color'],
+                        lw=2.0, label=r['a_label'], zorder=3)
+                if r['a_sem'] is not None:
+                    ax.fill_between(
+                        time_ms,
+                        r['a_mean'][c_idx] - r['a_sem'][c_idx],
+                        r['a_mean'][c_idx] + r['a_sem'][c_idx],
+                        color=r['a_color'], alpha=0.22, zorder=2,
+                    )
+
+            if r['b_mean'] is not None:
+                ax.plot(time_ms, r['b_mean'][c_idx], color=r['b_color'],
+                        lw=2.0, label=r['b_label'], zorder=3)
+                if r['b_sem'] is not None:
+                    ax.fill_between(
+                        time_ms,
+                        r['b_mean'][c_idx] - r['b_sem'][c_idx],
+                        r['b_mean'][c_idx] + r['b_sem'][c_idx],
+                        color=r['b_color'], alpha=0.22, zorder=2,
+                    )
+
+            ax.axhline(0, color='gray', lw=0.5, ls='--', zorder=1)
+            ax.set_ylim(-r['ymax'], r['ymax'])
+
+            if row_idx == 0:
+                ax.set_title(ch, fontsize=12, fontweight='bold')
+            if row_idx == 1:
+                ax.set_xlabel('Time (ms)', fontsize=11)
+            if c_idx == 0:
+                ax.set_ylabel(
+                    f'{r["class_label"]} class\namplitude (µV)',
+                    fontsize=10,
+                )
+            if c_idx == C - 1:
+                ax.legend(fontsize=8, loc='best', framealpha=0.8)
+
+    title_full = title
+    if counts is not None:
+        title_full += (
+            f'\nTP={counts["tp"]}, FN={counts["fn"]}, '
+            f'TN={counts["tn"]}, FP={counts["fp"]}'
+        )
+    fig.suptitle(title_full, fontsize=12, fontweight='bold', y=1.00)
+
+    if footer:
+        fig.text(0.5, -0.01, footer, ha='center', fontsize=9,
+                 color='gray', style='italic')
+
+    fig.tight_layout()
+    fig.savefig(fig_path, dpi=110, bbox_inches='tight',
+                pil_kwargs={'optimize': True, 'compress_level': 9})
+    plt.close(fig)
+
+
+def generate_morphology_figures(results_dir, cfg, channel_config,
+                                subjects, dataset_label):
+    """Per-subject and aggregate ERP morphology figures: TP vs FN, TN vs FP.
+
+    Uses only the held-out test subject's epochs per fold. Class assignment
+    comes from `predictions_<subj>.npz` (probs >= 0.5 threshold, matching
+    the balanced-accuracy cutoff used in training).
+
+    For ERPXTTN variants, prototype windows from each fold are overlaid as
+    faded background spans. For baselines (EEGNet, xDAWN+RG), no prototype
+    background is drawn.
+    """
+    results_dir = Path(results_dir)
+
+    pos_label = cfg.get('label_map', {}).get('pos_key', 'error') \
+        .replace('_', ' ').title()
+    neg_label = cfg.get('label_map', {}).get('neg_key', 'correct') \
+        .replace('_', ' ').title()
+
+    per_subj = {}
+    proto_windows_per_fold = {}
+    has_protos = False
+    ch_names_canonical = None
+    sfreq = 256.0
+
+    for subj in subjects:
+        pred_path = results_dir / f'predictions_{subj}.npz'
+        if not pred_path.exists():
+            print(f'  {subj}: no predictions, skipping')
+            continue
+        pred = np.load(pred_path)
+        probs = pred['probs']
+        labels = pred['labels']
+
+        proto_path = results_dir / f'prototypes_{subj}.npz'
+        if proto_path.exists():
+            has_protos = True
+            pdata = np.load(proto_path)
+            proto_windows_per_fold[subj] = [
+                (float(w[0]), float(w[1])) for w in pdata['proto_windows_ms']
+            ]
+            sfreq = float(pdata['sfreq'])
+
+        X_raw, ch_names = load_subject_epochs(cfg, channel_config, subj)
+        X_uV = X_raw * 1e6  # Volts -> microvolts
+
+        # For "full" variants (30+ channels), plotting every channel
+        # produces unreadable 20k-px-wide figures. Clamp to the dataset's
+        # detection channel only — matches the existing TP/TN routing
+        # figure convention for full variants.
+        if channel_config == 'full':
+            det_name = cfg.get('detection_channel', 'Cz')
+            det_idx = ch_names.index(det_name) if det_name in ch_names else min(1, len(ch_names) - 1)
+            X_uV = X_uV[:, det_idx:det_idx + 1, :]
+            ch_names = [ch_names[det_idx]]
+
+        if ch_names_canonical is None:
+            ch_names_canonical = ch_names
+
+        if len(probs) != X_uV.shape[0]:
+            print(f'  WARNING: {subj} predictions ({len(probs)}) do not match '
+                  f'epochs ({X_uV.shape[0]}), skipping')
+            continue
+
+        preds = (probs >= 0.5).astype(int)
+        tp_mask = (labels == 1) & (preds == 1)
+        fn_mask = (labels == 1) & (preds == 0)
+        tn_mask = (labels == 0) & (preds == 0)
+        fp_mask = (labels == 0) & (preds == 1)
+
+        def _mean(mask):
+            return X_uV[mask].mean(axis=0) if mask.sum() > 0 else None
+
+        def _sem(mask):
+            n = int(mask.sum())
+            if n <= 1:
+                return None
+            return X_uV[mask].std(axis=0, ddof=1) / np.sqrt(n)
+
+        per_subj[subj] = {
+            'tp_mean': _mean(tp_mask), 'tp_sem': _sem(tp_mask),
+            'fn_mean': _mean(fn_mask), 'fn_sem': _sem(fn_mask),
+            'tn_mean': _mean(tn_mask), 'tn_sem': _sem(tn_mask),
+            'fp_mean': _mean(fp_mask), 'fp_sem': _sem(fp_mask),
+            'counts': {
+                'tp': int(tp_mask.sum()), 'fn': int(fn_mask.sum()),
+                'tn': int(tn_mask.sum()), 'fp': int(fp_mask.sum()),
+            },
+            'auroc': float(pred['auroc']),
+            'n_times': X_uV.shape[2],
+        }
+
+    if not per_subj:
+        print('  No subjects with predictions; skipping morphology figures.')
+        return
+
+    T = per_subj[next(iter(per_subj))]['n_times']
+    time_ms = np.arange(T) / sfreq * 1000.0
+    C = len(ch_names_canonical)
+
+    # ── Per-subject figures ──
+    for subj, s in per_subj.items():
+        _plot_morphology(
+            fig_path=results_dir / f'fig_morphology_{subj}.png',
+            title=(f'Morphology by outcome — {dataset_label} '
+                   f'({subj}, AUROC={s["auroc"]:.3f})'),
+            ch_names=ch_names_canonical, time_ms=time_ms,
+            tp_mean=s['tp_mean'], tp_sem=s['tp_sem'],
+            fn_mean=s['fn_mean'], fn_sem=s['fn_sem'],
+            tn_mean=s['tn_mean'], tn_sem=s['tn_sem'],
+            fp_mean=s['fp_mean'], fp_sem=s['fp_sem'],
+            counts=s['counts'],
+            proto_windows=proto_windows_per_fold.get(subj),
+            pos_label=pos_label, neg_label=neg_label,
+        )
+        print(f'  Saved fig_morphology_{subj}.png  '
+              f'(TP={s["counts"]["tp"]}, FN={s["counts"]["fn"]}, '
+              f'TN={s["counts"]["tn"]}, FP={s["counts"]["fp"]})')
+
+    # ── Aggregate figure ──
+    def _agg(key):
+        means = [s[key] for s in per_subj.values() if s[key] is not None]
+        if not means:
+            return None, None, 0
+        stacked = np.stack(means, axis=0)
+        n = stacked.shape[0]
+        grand = stacked.mean(axis=0)
+        if n <= 1:
+            return grand, None, n
+        sem = stacked.std(axis=0, ddof=1) / np.sqrt(n)
+        return grand, sem, n
+
+    tp_a, tp_a_sem, n_tp = _agg('tp_mean')
+    fn_a, fn_a_sem, n_fn = _agg('fn_mean')
+    tn_a, tn_a_sem, n_tn = _agg('tn_mean')
+    fp_a, fp_a_sem, n_fp = _agg('fp_mean')
+
+    agg_proto_windows = None
+    if has_protos and proto_windows_per_fold:
+        fold_ws = list(proto_windows_per_fold.values())
+        K = max(len(w) for w in fold_ws)
+        agg_proto_windows = []
+        for k in range(K):
+            k_wins = [w[k] for w in fold_ws if len(w) > k]
+            if k_wins:
+                agg_proto_windows.append((
+                    float(np.mean([w[0] for w in k_wins])),
+                    float(np.mean([w[1] for w in k_wins])),
+                ))
+
+    n_subjects = len(per_subj)
+    footer_bits = [f'n_subjects={n_subjects}']
+    if min(n_tp, n_fn, n_tn, n_fp) < n_subjects:
+        footer_bits.append(
+            f'subject contributions TP/FN/TN/FP = '
+            f'{n_tp}/{n_fn}/{n_tn}/{n_fp} '
+            f'(subjects with 0 trials in a category drop out of that mean)'
+        )
+    footer = '  |  '.join(footer_bits)
+
+    _plot_morphology(
+        fig_path=results_dir / 'fig_morphology_aggregate.png',
+        title=(f'Aggregate morphology by outcome — {dataset_label} '
+               f'({n_subjects} subjects, grand-average ± SEM across subjects)'),
+        ch_names=ch_names_canonical, time_ms=time_ms,
+        tp_mean=tp_a, tp_sem=tp_a_sem,
+        fn_mean=fn_a, fn_sem=fn_a_sem,
+        tn_mean=tn_a, tn_sem=tn_a_sem,
+        fp_mean=fp_a, fp_sem=fp_a_sem,
+        counts=None, proto_windows=agg_proto_windows,
+        pos_label=pos_label, neg_label=neg_label,
+        footer=footer,
+    )
+    print(f'  Saved fig_morphology_aggregate.png  '
+          f'(subject contributions TP/FN/TN/FP = {n_tp}/{n_fn}/{n_tn}/{n_fp})')
+
+
+# =====================================================================
 # Main
 # =====================================================================
 
@@ -643,6 +939,8 @@ def main():
                         help="Model results directory name (default: erpxttn_constrained)")
     parser.add_argument("--partial", action="store_true",
                         help="Generate figures from partial results (no results.json needed)")
+    parser.add_argument("--morphology-only", action="store_true",
+                        help="Only generate morphology figures (skip attention and TP/TN routing)")
     args = parser.parse_args()
 
     cfg = load_dataset_config(args.dataset)
@@ -666,31 +964,47 @@ def main():
     model_label = args.model.upper().replace("_", " ")
     dataset_label = f'{args.dataset.upper()} \u2014 {model_label}'
 
-    if args.partial:
-        print(f'=== Partial mode: skipping attention analysis figures (need results.json) ===')
-    else:
-        print(f'=== Attention analysis figures ===')
-        generate_attention_figures(results_dir, dataset_label, channel_names, 256)
-
-    if args.partial:
-        # Discover subjects from prediction files
+    # Discover subjects (results.json takes priority, fallback to prediction files)
+    if args.partial or not (results_dir / 'results.json').exists():
         import glob
         pred_files = sorted(glob.glob(str(results_dir / 'predictions_sub-*.npz')))
         subjects = [Path(p).stem.replace('predictions_', '') for p in pred_files]
-        print(f'  Partial mode: found {len(subjects)} subjects')
+        print(f'  Discovered {len(subjects)} subjects from prediction files')
     else:
         with open(results_dir / 'results.json') as f:
             results = json.load(f)
         subjects = [r['test_subject'] for r in results['folds']]
 
-    print(f'\n=== TP/TN routing figures ===')
-    for subj in subjects:
-        attn_path = results_dir / f'attention_{subj}.npz'
-        if not attn_path.exists():
-            print(f'  {subj}: attention file not found, skipping')
-            continue
-        generate_tp_tn_figures(results_dir, cfg, args.channels,
-                               subj, dataset_label)
+    has_attention = any(
+        (results_dir / f'attention_{s}.npz').exists() for s in subjects
+    )
+
+    if args.morphology_only:
+        print(f'=== --morphology-only: skipping attention and TP/TN routing ===')
+    else:
+        if has_attention and not args.partial:
+            print(f'=== Attention analysis figures ===')
+            generate_attention_figures(results_dir, dataset_label, channel_names, 256)
+        elif not has_attention:
+            print(f'=== Skipping attention analysis figures '
+                  f'(no attention files — expected for baselines) ===')
+
+        if has_attention:
+            print(f'\n=== TP/TN routing figures ===')
+            for subj in subjects:
+                attn_path = results_dir / f'attention_{subj}.npz'
+                if not attn_path.exists():
+                    print(f'  {subj}: attention file not found, skipping')
+                    continue
+                generate_tp_tn_figures(results_dir, cfg, args.channels,
+                                       subj, dataset_label)
+        else:
+            print(f'\n=== Skipping TP/TN routing figures '
+                  f'(no attention files) ===')
+
+    print(f'\n=== Morphology figures (TP vs FN / TN vs FP) ===')
+    generate_morphology_figures(results_dir, cfg, args.channels,
+                                subjects, dataset_label)
 
     print('\nDone!')
 

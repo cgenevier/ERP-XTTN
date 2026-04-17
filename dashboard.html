@@ -394,6 +394,7 @@ tbody tr.clickable { cursor: pointer; }
   <button class="tab-btn active" data-tab="overview">Overview</button>
   <button class="tab-btn" data-tab="figures">Figures</button>
   <button class="tab-btn" data-tab="compare">Compare</button>
+  <button class="tab-btn" data-tab="analysis">Analysis</button>
 </div>
 
 <div class="main">
@@ -416,6 +417,11 @@ tbody tr.clickable { cursor: pointer; }
   <div id="panelCompare" class="tab-panel">
     <div id="compareControls" class="controls-row"></div>
     <div id="compareContent"></div>
+  </div>
+
+  <div id="panelAnalysis" class="tab-panel">
+    <div id="analysisControls" class="controls-row"></div>
+    <div id="analysisContent"></div>
   </div>
 </div>
 
@@ -462,6 +468,7 @@ function modelDisplay(m) {
 }
 const MODEL_DISPLAY = Object.fromEntries(KNOWN_MODELS.map(m => [m, modelDisplay(m)]));
 const AGGREGATE_FIGS = [
+  'fig_morphology_aggregate.png',
   'fig_prototypes.png',
   'fig_entropy_vs_auroc.png',
   'fig_attn_timecourse.png',
@@ -476,6 +483,11 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('panel' + capitalize(btn.dataset.tab)).classList.add('active');
+    if (btn.dataset.tab === 'analysis') {
+      // Lazy-build controls once, then render
+      if (!document.getElementById('analVarBtns')) renderAnalysisControls();
+      renderAnalysis();
+    }
   });
 });
 
@@ -573,8 +585,12 @@ function indexLocalFiles(files) {
       }
     }
 
-    if (!matched && rawPath.endsWith('/dashboard.html')) {
-      indexed.set('dashboard.html', file);
+    if (!matched) {
+      if (rawPath.endsWith('/dashboard.html')) {
+        indexed.set('dashboard.html', file);
+      } else if (rawPath.endsWith('/analysis_summary.json')) {
+        indexed.set('analysis_summary.json', file);
+      }
     }
   }
 
@@ -637,6 +653,12 @@ async function indexRepoHandle(rootHandle) {
         await scanHandleTree(indexed, resultsDir, 'datasets/' + datasetName + '/results/', ['.json', '.png']);
       }
     }
+  }
+
+  // Repo-level analysis summary
+  const analysisHandle = await safeGetFileHandle(rootHandle, 'analysis_summary.json');
+  if (analysisHandle) {
+    await addIndexedFile(indexed, 'analysis_summary.json', analysisHandle);
   }
 
   return indexed;
@@ -766,15 +788,25 @@ async function scanDatasets() {
 
         const modelData = { results: results, figures: {}, basePath: modelPath };
 
-        // Only ERPXTTN-family models have figures — construct URLs directly (no probing)
+        const subjects = config.subjects || [];
         if (ERPXTTN_FAMILY.includes(modelName)) {
-          const subjects = config.subjects || [];
+          // ERPXTTN-family: aggregate figs + per-subject morphology + TP/TN routing
           const figNames = [
             ...AGGREGATE_FIGS,
             ...subjects.flatMap(s => [
+              'fig_morphology_' + s + '.png',
               'fig_tp_tn_routing_' + s + '_highconf.png',
               'fig_tp_tn_routing_' + s + '_median.png'
             ])
+          ];
+          for (const fn of figNames) {
+            modelData.figures[fn] = fileUrl(modelPath + '/' + fn);
+          }
+        } else {
+          // Baselines (EEGNet, xDAWN+RG): morphology figures only
+          const figNames = [
+            'fig_morphology_aggregate.png',
+            ...subjects.map(s => 'fig_morphology_' + s + '.png')
           ];
           for (const fn of figNames) {
             modelData.figures[fn] = fileUrl(modelPath + '/' + fn);
@@ -1182,38 +1214,48 @@ function renderPerSubjectFigs(ds, vk, model, modelData, container) {
   }
 
   for (const subj of subjects) {
+    const morphFig = 'fig_morphology_' + subj + '.png';
     const medianFig = 'fig_tp_tn_routing_' + subj + '_median.png';
     const highconfFig = 'fig_tp_tn_routing_' + subj + '_highconf.png';
+    const morphUrl = modelData.figures[morphFig];
     const medianUrl = modelData.figures[medianFig];
     const highconfUrl = modelData.figures[highconfFig];
 
-    if (!medianUrl && !highconfUrl) continue;
+    if (!morphUrl && !medianUrl && !highconfUrl) continue;
 
     const auroc = getSubjectAuroc(modelData, subj);
     const aurocStr = auroc != null ? ' (AUROC: ' + fmt(auroc) + ')' : '';
 
     html += '<h4 style="margin:16px 0 8px;color:var(--text-primary);">' + escapeHtml(subj) + escapeHtml(aurocStr) + '</h4>';
-    html += '<div class="fig-pair">';
 
-    if (medianUrl) {
-      html += '<div class="fig-card" data-fig-url="' + escapeHtml(medianUrl) + '">';
-      html += '<img src="' + escapeHtml(medianUrl) + '" alt="' + escapeHtml(subj + ' median') + '" loading="lazy">';
-      html += '<div class="fig-label">Median routing</div>';
-      html += '</div>';
-    } else {
-      html += '<div class="no-fig">No median figure</div>';
+    if (morphUrl) {
+      html += '<div class="fig-grid" style="grid-template-columns:1fr;margin-bottom:12px;">';
+      html += '<div class="fig-card" data-fig-url="' + escapeHtml(morphUrl) + '">';
+      html += '<img src="' + escapeHtml(morphUrl) + '" alt="' + escapeHtml(subj + ' morphology') + '" loading="lazy">';
+      html += '<div class="fig-label">Morphology by outcome (TP vs FN / TN vs FP)</div>';
+      html += '</div></div>';
     }
 
-    if (highconfUrl) {
-      html += '<div class="fig-card" data-fig-url="' + escapeHtml(highconfUrl) + '">';
-      html += '<img src="' + escapeHtml(highconfUrl) + '" alt="' + escapeHtml(subj + ' highconf') + '" loading="lazy">';
-      html += '<div class="fig-label">High-confidence routing</div>';
+    if (medianUrl || highconfUrl) {
+      html += '<div class="fig-pair">';
+      if (medianUrl) {
+        html += '<div class="fig-card" data-fig-url="' + escapeHtml(medianUrl) + '">';
+        html += '<img src="' + escapeHtml(medianUrl) + '" alt="' + escapeHtml(subj + ' median') + '" loading="lazy">';
+        html += '<div class="fig-label">Median routing</div>';
+        html += '</div>';
+      } else {
+        html += '<div class="no-fig">No median figure</div>';
+      }
+      if (highconfUrl) {
+        html += '<div class="fig-card" data-fig-url="' + escapeHtml(highconfUrl) + '">';
+        html += '<img src="' + escapeHtml(highconfUrl) + '" alt="' + escapeHtml(subj + ' highconf') + '" loading="lazy">';
+        html += '<div class="fig-label">High-confidence routing</div>';
+        html += '</div>';
+      } else {
+        html += '<div class="no-fig">No high-confidence figure</div>';
+      }
       html += '</div>';
-    } else {
-      html += '<div class="no-fig">No high-confidence figure</div>';
     }
-
-    html += '</div>';
   }
 
   if (!html) {
@@ -1318,16 +1360,25 @@ function renderCompare() {
   let html = '';
 
   if (subj) {
-    // High-conf grid first, then median grid
+    // Morphology grid first, then high-conf, then median
+    let morphHtml = '';
     let highHtml = '';
     let medHtml = '';
     for (const m of models) {
       const md = modelMap[m];
       if (!md) continue;
+      const morphFig = 'fig_morphology_' + subj + '.png';
       const highFig = 'fig_tp_tn_routing_' + subj + '_highconf.png';
       const medFig = 'fig_tp_tn_routing_' + subj + '_median.png';
+      const morphUrl = md.figures[morphFig];
       const highUrl = md.figures[highFig];
       const medUrl = md.figures[medFig];
+      if (morphUrl) {
+        morphHtml += '<div class="compare-panel">';
+        morphHtml += '<div class="panel-header">' + (MODEL_DISPLAY[m] || m) + ' - ' + escapeHtml(subj) + ' (morphology)</div>';
+        morphHtml += '<img src="' + escapeHtml(morphUrl) + '" alt="' + escapeHtml(m + ' ' + subj + ' morph') + '" loading="lazy" data-fig-url="' + escapeHtml(morphUrl) + '" class="compare-img">';
+        morphHtml += '</div>';
+      }
       if (highUrl) {
         highHtml += '<div class="compare-panel">';
         highHtml += '<div class="panel-header">' + (MODEL_DISPLAY[m] || m) + ' - ' + escapeHtml(subj) + ' (high conf)</div>';
@@ -1341,6 +1392,7 @@ function renderCompare() {
         medHtml += '</div>';
       }
     }
+    if (morphHtml) html += '<div class="compare-grid">' + morphHtml + '</div>';
     if (highHtml) html += '<div class="compare-grid">' + highHtml + '</div>';
     if (medHtml) html += '<div class="compare-grid">' + medHtml + '</div>';
   } else {
@@ -1366,6 +1418,399 @@ function renderCompare() {
       openLightbox(img.dataset.figUrl);
     });
   });
+}
+
+/* ================================================================
+   Analysis tab
+   ================================================================ */
+
+let analysisData = null;
+
+async function loadAnalysisData() {
+  if (analysisData !== null) return analysisData;
+  analysisData = await fetchJson('analysis_summary.json');
+  return analysisData;
+}
+
+// Column definitions for the Analysis table. `key` is a path into the
+// combo entry; `extractor` pulls a display-ready value; `metricKey`
+// maps to metric_descriptions in the JSON for the tooltip.
+const ANALYSIS_COLUMNS = [
+  {id: 'dataset', label: 'Dataset', metricKey: null,
+    extractor: c => c.dataset_name || c.dataset_dir},
+  {id: 'variant', label: 'Variant', metricKey: null,
+    extractor: c => c.variant_key},
+  {id: 'n', label: 'n subj', metricKey: null,
+    extractor: c => c.auroc ? c.auroc.n_subjects : null, isNum: true, digits: 0},
+  {id: 'auroc', label: 'AUROC (ERPXTTN)', metricKey: 'auroc',
+    extractor: c => c.auroc ? c.auroc.mean : null, isNum: true, digits: 3},
+  {id: 'auroc_sd', label: 'AUROC SD', metricKey: 'auroc',
+    extractor: c => c.auroc ? c.auroc.sd : null, isNum: true, digits: 3},
+  {id: 'tax_eegnet', label: 'Tax vs EEGNet', metricKey: 'tax',
+    extractor: c => c.tax && c.tax.eegnet ? c.tax.eegnet.mean_delta : null,
+    secondary: c => c.tax && c.tax.eegnet ? c.tax.eegnet.sem : null,
+    isNum: true, digits: 3, fmtFn: (v, s) => v==null ? '' : v.toFixed(3) + (s!=null ? ' ±' + s.toFixed(3) : '')},
+  {id: 'tax_xdawn', label: 'Tax vs xDAWN+RG', metricKey: 'tax',
+    extractor: c => c.tax && c.tax.xdawn_rg ? c.tax.xdawn_rg.mean_delta : null,
+    secondary: c => c.tax && c.tax.xdawn_rg ? c.tax.xdawn_rg.sem : null,
+    isNum: true, digits: 3, fmtFn: (v, s) => v==null ? '' : v.toFixed(3) + (s!=null ? ' ±' + s.toFixed(3) : '')},
+  {id: 'balance', label: 'Class balance', metricKey: 'class_balance_minority',
+    extractor: c => c.class_balance_minority, isNum: true, digits: 3},
+  {id: 'k_mode', label: 'K (mode)', metricKey: 'k_stats',
+    extractor: c => c.k_stats ? c.k_stats.K_mode : null, isNum: true, digits: 0},
+  {id: 'k_consistency', label: 'K consistency', metricKey: 'k_stats',
+    extractor: c => c.k_stats ? c.k_stats.K_consistency : null, isNum: true, digits: 3},
+  {id: 'proto_stab', label: 'Proto stability', metricKey: 'proto_stability',
+    extractor: c => c.proto_stability ? c.proto_stability.mean_pairwise_r : null, isNum: true, digits: 3},
+  {id: 'snr', label: 'SNR proxy', metricKey: 'snr_proxy',
+    extractor: c => c.snr_proxy ? c.snr_proxy.mean_snr : null, isNum: true, digits: 3},
+  {id: 'attn_ent', label: 'Attn entropy', metricKey: 'attention_entropy',
+    extractor: c => c.attention_entropy ? c.attention_entropy.mean_entropy : null, isNum: true, digits: 3},
+  {id: 'route_disc', label: 'Routing discrim.', metricKey: 'routing_discriminability',
+    extractor: c => c.routing_discriminability ? c.routing_discriminability.mean_distance : null, isNum: true, digits: 3},
+  {id: 'lat_var', label: 'Latency SD (ms)', metricKey: 'latency_variability',
+    extractor: c => c.latency_variability ? c.latency_variability.sd_latency_ms : null, isNum: true, digits: 1},
+  {id: 'tp_fp', label: 'TP↔FP r', metricKey: 'tp_fp_tn_corr',
+    extractor: c => c.tp_fp_tn_corr && c.tp_fp_tn_corr.tp_fp ? c.tp_fp_tn_corr.tp_fp.mean_r : null,
+    secondary: c => c.tp_fp_tn_corr && c.tp_fp_tn_corr.tp_fp ? [c.tp_fp_tn_corr.tp_fp.ci_low, c.tp_fp_tn_corr.tp_fp.ci_high] : null,
+    isNum: true, digits: 3,
+    fmtFn: (v, s) => v==null ? '' : v.toFixed(3) + (Array.isArray(s) ? ' [' + s[0].toFixed(2) + ', ' + s[1].toFixed(2) + ']' : '')},
+  {id: 'tp_tn', label: 'TP↔TN r', metricKey: 'tp_fp_tn_corr',
+    extractor: c => c.tp_fp_tn_corr && c.tp_fp_tn_corr.tp_tn ? c.tp_fp_tn_corr.tp_tn.mean_r : null,
+    secondary: c => c.tp_fp_tn_corr && c.tp_fp_tn_corr.tp_tn ? [c.tp_fp_tn_corr.tp_tn.ci_low, c.tp_fp_tn_corr.tp_tn.ci_high] : null,
+    isNum: true, digits: 3,
+    fmtFn: (v, s) => v==null ? '' : v.toFixed(3) + (Array.isArray(s) ? ' [' + s[0].toFixed(2) + ', ' + s[1].toFixed(2) + ']' : '')},
+];
+
+function spearmanRho(xs, ys) {
+  const pairs = [];
+  for (let i = 0; i < xs.length; i++) {
+    if (xs[i] != null && ys[i] != null && isFinite(xs[i]) && isFinite(ys[i])) {
+      pairs.push([xs[i], ys[i]]);
+    }
+  }
+  if (pairs.length < 3) return {rho: null, n: pairs.length};
+  const n = pairs.length;
+  // Compute ranks with average-tie handling
+  function rank(vals) {
+    const idx = vals.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]);
+    const ranks = new Array(vals.length);
+    let i = 0;
+    while (i < idx.length) {
+      let j = i;
+      while (j + 1 < idx.length && idx[j+1][0] === idx[i][0]) j++;
+      const avg = (i + j) / 2 + 1;
+      for (let k = i; k <= j; k++) ranks[idx[k][1]] = avg;
+      i = j + 1;
+    }
+    return ranks;
+  }
+  const rx = rank(pairs.map(p => p[0]));
+  const ry = rank(pairs.map(p => p[1]));
+  const mx = rx.reduce((a, b) => a + b, 0) / n;
+  const my = ry.reduce((a, b) => a + b, 0) / n;
+  let num = 0, dx = 0, dy = 0;
+  for (let i = 0; i < n; i++) {
+    num += (rx[i] - mx) * (ry[i] - my);
+    dx += (rx[i] - mx) ** 2;
+    dy += (ry[i] - my) ** 2;
+  }
+  const denom = Math.sqrt(dx * dy);
+  return {rho: denom > 0 ? num / denom : null, n};
+}
+
+function renderAnalysisControls() {
+  const c = document.getElementById('analysisControls');
+  c.innerHTML =
+    '<div class="control-group"><label>Variant filter</label>' +
+    '<div id="analVarBtns" style="display:flex;gap:4px;">' +
+    '<button class="btn-small btn-active" data-filter="all">All</button>' +
+    '<button class="btn-small" data-filter="3ch">3-channel presets</button>' +
+    '<button class="btn-small" data-filter="full">Full montage</button>' +
+    '</div></div>';
+
+  c.querySelector('#analVarBtns').addEventListener('click', (e) => {
+    if (e.target.dataset.filter) {
+      c.querySelectorAll('#analVarBtns button').forEach(b => b.classList.remove('btn-active'));
+      e.target.classList.add('btn-active');
+      renderAnalysis();
+    }
+  });
+}
+
+function filterCombos(data, variantFilter) {
+  const combos = Object.entries(data.combos).map(([key, entry]) => ({key, ...entry}));
+  if (variantFilter === '3ch') return combos.filter(c => c.variant_key !== 'full');
+  if (variantFilter === 'full') return combos.filter(c => c.variant_key === 'full');
+  return combos;
+}
+
+function currentFilters() {
+  const vBtn = document.querySelector('#analVarBtns button.btn-active');
+  return {
+    variant: vBtn ? vBtn.dataset.filter : 'all',
+  };
+}
+
+function renderAnalysis() {
+  const content = document.getElementById('analysisContent');
+  if (!analysisData) {
+    content.innerHTML = '<div class="no-fig" style="padding:32px;">Loading analysis_summary.json...</div>';
+    loadAnalysisData().then(d => {
+      if (!d) {
+        content.innerHTML = '<div class="no-fig" style="padding:32px;">analysis_summary.json not found. Run <code>python 06_gen_analysis.py</code> to generate it.</div>';
+        return;
+      }
+      renderAnalysis();
+    });
+    return;
+  }
+  const filters = currentFilters();
+  const combos = filterCombos(analysisData, filters.variant);
+  if (combos.length === 0) {
+    content.innerHTML = '<div class="no-fig" style="padding:32px;">No combos match the current filter.</div>';
+    return;
+  }
+  let html = '';
+  html += renderAnalysisTable(combos, analysisData.metric_descriptions);
+  html += renderAnalysisScatters(combos);
+  html += renderAnalysisCorrBars(combos);
+  html += renderAnalysisLegend(analysisData.metric_descriptions);
+  content.innerHTML = html;
+  attachAnalysisScatterHovers(content);
+}
+
+function renderAnalysisTable(combos, descriptions) {
+  // Compute column-wise min/max for color shading
+  const numCols = ANALYSIS_COLUMNS.filter(c => c.isNum);
+  const colStats = {};
+  for (const col of numCols) {
+    const vals = combos.map(c => col.extractor(c)).filter(v => v != null && isFinite(v));
+    if (vals.length) colStats[col.id] = {min: Math.min(...vals), max: Math.max(...vals)};
+  }
+  let html = '<h3 style="margin:12px 0;color:var(--accent);">Metrics by dataset × variant</h3>';
+  html += '<div class="table-container"><table><thead><tr>';
+  for (const col of ANALYSIS_COLUMNS) {
+    const desc = col.metricKey && descriptions[col.metricKey] ? descriptions[col.metricKey] : '';
+    const title = desc ? ' title="' + escapeHtml(desc) + '"' : '';
+    html += '<th' + title + '>' + escapeHtml(col.label) + '</th>';
+  }
+  html += '</tr></thead><tbody>';
+  for (const c of combos) {
+    html += '<tr>';
+    for (const col of ANALYSIS_COLUMNS) {
+      const v = col.extractor(c);
+      const s = col.secondary ? col.secondary(c) : null;
+      let txt;
+      if (col.fmtFn) txt = col.fmtFn(v, s);
+      else if (v == null) txt = '<span class="cell-missing">—</span>';
+      else if (col.isNum) txt = Number(v).toFixed(col.digits != null ? col.digits : 3);
+      else txt = escapeHtml(String(v));
+      html += '<td>' + txt + '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+  return html;
+}
+
+// SVG scatter plotting: one point per combo, hover shows dataset.
+function renderAnalysisScatters(combos) {
+  const scatterCols = [
+    {id: 'proto_stab', label: 'Prototype stability (mean pairwise r)'},
+    {id: 'snr', label: 'GA diff-wave SNR proxy'},
+    {id: 'attn_ent', label: 'Attention entropy (normalized)'},
+    {id: 'route_disc', label: 'Routing discriminability (cosine dist.)'},
+  ];
+  const baselines = [
+    {taxKey: 'tax_eegnet', label: 'vs EEGNet'},
+    {taxKey: 'tax_xdawn', label: 'vs xDAWN+RG'},
+  ];
+  const taxLabel = 'Interpretability tax (baseline − ERPXTTN Auto AUROC)';
+
+  let html = '<h3 style="margin:20px 0 8px;color:var(--accent);">Tax vs interpretability metrics</h3>';
+  html += '<div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:12px;">Each row = one metric. Left column uses EEGNet as the tax baseline, right column uses xDAWN+RG. Each point is a (dataset, variant) — <span style="color:#4fc3f7;">● 3-channel preset</span>, <span style="color:#ffb74d;">● full montage</span>. Spearman ρ is reported per-variant (n=9 each) to avoid the same x value contributing twice for montage-invariant metrics. n is low; treat ρ as a trend indicator, not a significance test. Hover a point for details.</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:16px;">';
+  for (const sc of scatterCols) {
+    const col = ANALYSIS_COLUMNS.find(cc => cc.id === sc.id);
+    for (const bl of baselines) {
+      const taxCol = ANALYSIS_COLUMNS.find(cc => cc.id === bl.taxKey);
+      const pts = combos.map((c) => ({
+        x: col.extractor(c),
+        y: taxCol.extractor(c),
+        variant: c.variant_key,
+        isFull: c.variant_key === 'full',
+        label: (c.dataset_name || c.dataset_dir) + ' / ' + c.variant_key,
+      }));
+      html += renderSingleScatter({
+        title: sc.label + '  —  tax ' + bl.label,
+        xLabel: sc.label,
+        yLabel: taxLabel + '  (' + bl.label + ')',
+        pts,
+      });
+    }
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderSingleScatter({title, xLabel, yLabel, pts}) {
+  const valid = pts.filter(p => p.x != null && p.y != null && isFinite(p.x) && isFinite(p.y));
+  const W = 440, H = 340;
+  const M = {top: 52, right: 16, bottom: 48, left: 64};
+  if (valid.length < 2) {
+    return '<div class="compare-panel" style="padding:12px;">' +
+      '<div style="font-weight:600;color:var(--accent);margin-bottom:4px;">' + escapeHtml(title) + '</div>' +
+      '<div class="no-fig" style="min-height:120px;">Not enough data to plot.</div></div>';
+  }
+  const xs = valid.map(p => p.x), ys = valid.map(p => p.y);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMin = Math.min(...ys), yMax = Math.max(...ys);
+  const xPad = (xMax - xMin) * 0.08 || 0.05;
+  const yPad = (yMax - yMin) * 0.08 || 0.05;
+  const x0 = xMin - xPad, x1 = xMax + xPad;
+  const y0 = yMin - yPad, y1 = yMax + yPad;
+  const sx = v => M.left + ((v - x0) / (x1 - x0)) * (W - M.left - M.right);
+  const sy = v => H - M.bottom - ((v - y0) / (y1 - y0)) * (H - M.top - M.bottom);
+  const rho = spearmanRho(xs, ys);
+
+  // Axes + grid
+  const ticks = (a, b) => {
+    const range = b - a;
+    const step = Math.pow(10, Math.floor(Math.log10(range))) / 2;
+    const out = [];
+    for (let t = Math.ceil(a / step) * step; t <= b; t += step) out.push(t);
+    return out.slice(0, 6);
+  };
+  let svg = '<svg width="' + W + '" height="' + H + '" style="background:#0f1528;border-radius:6px;">';
+  // Grid
+  for (const t of ticks(x0, x1)) {
+    svg += '<line x1="' + sx(t) + '" y1="' + M.top + '" x2="' + sx(t) + '" y2="' + (H - M.bottom) + '" stroke="#2a3a5e" stroke-dasharray="2,3"/>';
+    svg += '<text x="' + sx(t) + '" y="' + (H - M.bottom + 14) + '" fill="#a0a0b0" font-size="10" text-anchor="middle">' + t.toFixed(2) + '</text>';
+  }
+  for (const t of ticks(y0, y1)) {
+    svg += '<line x1="' + M.left + '" y1="' + sy(t) + '" x2="' + (W - M.right) + '" y2="' + sy(t) + '" stroke="#2a3a5e" stroke-dasharray="2,3"/>';
+    svg += '<text x="' + (M.left - 6) + '" y="' + (sy(t) + 3) + '" fill="#a0a0b0" font-size="10" text-anchor="end">' + t.toFixed(2) + '</text>';
+  }
+  // y=0 reference line
+  if (y0 < 0 && y1 > 0) {
+    svg += '<line x1="' + M.left + '" y1="' + sy(0) + '" x2="' + (W - M.right) + '" y2="' + sy(0) + '" stroke="#666" stroke-width="1"/>';
+  }
+  // Points — color 3ch vs full differently if variant info present
+  for (const p of valid) {
+    const color = p.isFull ? '#ffb74d' : '#4fc3f7';
+    svg += '<circle cx="' + sx(p.x) + '" cy="' + sy(p.y) + '" r="5" fill="' + color + '" stroke="#fff" stroke-width="1" class="scatter-pt" data-label="' + escapeHtml(p.label + ' — x=' + p.x.toFixed(3) + ', y=' + p.y.toFixed(3)) + '"/>';
+  }
+  // Axis labels
+  svg += '<text x="' + (M.left + (W - M.left - M.right) / 2) + '" y="' + (H - 8) + '" fill="#e0e0e0" font-size="11" text-anchor="middle">' + escapeHtml(xLabel) + '</text>';
+  svg += '<text x="' + 14 + '" y="' + (M.top + (H - M.top - M.bottom) / 2) + '" fill="#e0e0e0" font-size="11" text-anchor="middle" transform="rotate(-90 14,' + (M.top + (H - M.top - M.bottom) / 2) + ')">' + escapeHtml(yLabel) + '</text>';
+  // Title
+  svg += '<text x="' + (W / 2) + '" y="16" fill="#4fc3f7" font-size="13" font-weight="600" text-anchor="middle">' + escapeHtml(title) + '</text>';
+
+  // Spearman ρ per variant subset
+  const xs3 = valid.filter(p => !p.isFull).map(p => p.x);
+  const ys3 = valid.filter(p => !p.isFull).map(p => p.y);
+  const xsf = valid.filter(p => p.isFull).map(p => p.x);
+  const ysf = valid.filter(p => p.isFull).map(p => p.y);
+  const rho3 = spearmanRho(xs3, ys3);
+  const rhoF = spearmanRho(xsf, ysf);
+  const rho3Str = rho3.rho != null ? rho3.rho.toFixed(2) : 'N/A';
+  const rhoFStr = rhoF.rho != null ? rhoF.rho.toFixed(2) : 'N/A';
+  svg += '<text x="8" y="34" fill="#4fc3f7" font-size="11" font-weight="600" text-anchor="start">ρ 3ch = ' + rho3Str + ' (n=' + rho3.n + ')</text>';
+  svg += '<text x="' + (W - M.right) + '" y="34" fill="#ffb74d" font-size="11" font-weight="600" text-anchor="end">ρ full = ' + rhoFStr + ' (n=' + rhoF.n + ')</text>';
+  svg += '</svg>';
+  return '<div class="compare-panel" style="padding:8px;">' + svg + '<div class="scatter-hover" style="color:var(--text-secondary);font-size:0.8rem;min-height:16px;margin-top:4px;"></div></div>';
+}
+
+function attachAnalysisScatterHovers(container) {
+  container.querySelectorAll('.scatter-pt').forEach(pt => {
+    const panel = pt.closest('.compare-panel');
+    const hover = panel ? panel.querySelector('.scatter-hover') : null;
+    pt.addEventListener('mouseenter', () => {
+      if (hover) hover.textContent = pt.dataset.label;
+      pt.setAttribute('r', '7');
+    });
+    pt.addEventListener('mouseleave', () => {
+      if (hover) hover.textContent = '';
+      pt.setAttribute('r', '5');
+    });
+  });
+}
+
+function renderAnalysisCorrBars(combos) {
+  // One grouped bar chart: TP↔FP and TP↔TN per dataset with CI bars.
+  const W = 920, rowH = 22, headerH = 46;
+  const M = {top: headerH, right: 24, bottom: 32, left: 260};
+  const H = M.top + M.bottom + combos.length * rowH;
+  const x0 = -1, x1 = 1;
+  const sx = v => M.left + ((v - x0) / (x1 - x0)) * (W - M.left - M.right);
+
+  let html = '<h3 style="margin:20px 0 8px;color:var(--accent);">TP↔FP vs TP↔TN correlation (mean across subjects, 95% bootstrap CI)</h3>';
+  html += '<div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:12px;">Pearson r between class-conditioned grand-mean waveforms at each dataset&#39;s detection channel. TP↔FP much greater than TP↔TN across datasets would support the claim that the model classifies by waveform morphology (its false alarms look like its hits).</div>';
+  let svg = '<svg width="' + W + '" height="' + H + '" style="background:#0f1528;border-radius:6px;">';
+  // Axis
+  for (const t of [-1, -0.5, 0, 0.5, 1]) {
+    svg += '<line x1="' + sx(t) + '" y1="' + M.top + '" x2="' + sx(t) + '" y2="' + (H - M.bottom) + '" stroke="#2a3a5e" stroke-dasharray="2,3"/>';
+    svg += '<text x="' + sx(t) + '" y="' + (H - M.bottom + 16) + '" fill="#a0a0b0" font-size="10" text-anchor="middle">' + t.toFixed(1) + '</text>';
+  }
+  // Zero line
+  svg += '<line x1="' + sx(0) + '" y1="' + M.top + '" x2="' + sx(0) + '" y2="' + (H - M.bottom) + '" stroke="#666" stroke-width="1"/>';
+  // Legend
+  svg += '<rect x="' + M.left + '" y="12" width="12" height="12" fill="#66bb6a"/><text x="' + (M.left + 18) + '" y="22" fill="#e0e0e0" font-size="11">TP↔FP</text>';
+  svg += '<rect x="' + (M.left + 90) + '" y="12" width="12" height="12" fill="#e57373"/><text x="' + (M.left + 108) + '" y="22" fill="#e0e0e0" font-size="11">TP↔TN</text>';
+  svg += '<text x="' + (W - M.right) + '" y="22" fill="#a0a0b0" font-size="10" text-anchor="end">r (Pearson)</text>';
+  // Rows
+  combos.forEach((c, i) => {
+    const yCenter = M.top + i * rowH + rowH / 2;
+    const rowLabel = (c.dataset_name || c.dataset_dir) + ' (' + c.variant_key + ')';
+    svg += '<text x="' + (M.left - 8) + '" y="' + (yCenter + 3) + '" fill="#e0e0e0" font-size="10" text-anchor="end">' + escapeHtml(rowLabel) + '</text>';
+    // Horizontal row separator
+    svg += '<line x1="' + M.left + '" y1="' + (yCenter + rowH / 2) + '" x2="' + (W - M.right) + '" y2="' + (yCenter + rowH / 2) + '" stroke="#1a2744"/>';
+    const ct = c.tp_fp_tn_corr;
+    if (!ct) return;
+    const barH = 7;
+    // TP↔FP
+    if (ct.tp_fp && ct.tp_fp.mean_r != null) {
+      const m = ct.tp_fp.mean_r;
+      svg += '<line x1="' + sx(ct.tp_fp.ci_low) + '" y1="' + (yCenter - 5) + '" x2="' + sx(ct.tp_fp.ci_high) + '" y2="' + (yCenter - 5) + '" stroke="#66bb6a" stroke-width="2" stroke-linecap="round"/>';
+      svg += '<circle cx="' + sx(m) + '" cy="' + (yCenter - 5) + '" r="4" fill="#66bb6a" stroke="#fff" stroke-width="1"/>';
+      svg += '<title>TP↔FP r = ' + m.toFixed(3) + '  [' + ct.tp_fp.ci_low.toFixed(2) + ', ' + ct.tp_fp.ci_high.toFixed(2) + ']</title>';
+    }
+    // TP↔TN
+    if (ct.tp_tn && ct.tp_tn.mean_r != null) {
+      const m = ct.tp_tn.mean_r;
+      svg += '<line x1="' + sx(ct.tp_tn.ci_low) + '" y1="' + (yCenter + 5) + '" x2="' + sx(ct.tp_tn.ci_high) + '" y2="' + (yCenter + 5) + '" stroke="#e57373" stroke-width="2" stroke-linecap="round"/>';
+      svg += '<circle cx="' + sx(m) + '" cy="' + (yCenter + 5) + '" r="4" fill="#e57373" stroke="#fff" stroke-width="1"/>';
+    }
+  });
+  svg += '</svg>';
+  html += '<div class="compare-panel" style="padding:8px;">' + svg + '</div>';
+  return html;
+}
+
+function renderAnalysisLegend(descriptions) {
+  const order = ['tax', 'class_balance_minority', 'k_stats', 'proto_stability', 'snr_proxy', 'attention_entropy', 'routing_discriminability', 'auroc', 'latency_variability', 'tp_fp_tn_corr'];
+  const labels = {
+    tax: 'Interpretability tax',
+    class_balance_minority: 'Class balance',
+    k_stats: 'K statistics (K_mode, K_consistency)',
+    proto_stability: 'Prototype stability',
+    snr_proxy: 'GA diff-wave SNR proxy',
+    attention_entropy: 'Attention entropy',
+    routing_discriminability: 'Routing discriminability',
+    auroc: 'AUROC & AUROC SD',
+    latency_variability: 'Latency variability',
+    tp_fp_tn_corr: 'TP↔FP / TP↔TN Pearson r',
+  };
+  let html = '<h3 style="margin:20px 0 8px;color:var(--accent);">Metric definitions</h3>';
+  html += '<dl style="color:var(--text-primary);font-size:0.88rem;line-height:1.5;">';
+  for (const k of order) {
+    if (!descriptions[k]) continue;
+    html += '<dt style="font-weight:600;margin-top:10px;color:var(--accent);">' + escapeHtml(labels[k] || k) + '</dt>';
+    html += '<dd style="margin-left:16px;color:var(--text-secondary);">' + escapeHtml(descriptions[k]) + '</dd>';
+  }
+  html += '</dl>';
+  return html;
 }
 
 /* ── Auto-load ── */
