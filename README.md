@@ -2,6 +2,18 @@
 
 Code repository for the paper on ERP-XTTN, an interpretable cross-attention architecture for error-related potential (ErrP) classification from EEG signals.
 
+## Versions
+
+- **v1.0.0** (this version) — Code for Wyman & Hirshfield, *Graz BCI 2026*.
+  - Paper DOI: [pending]
+  - Archived on Zenodo: [pending]
+- **v2.0.0** *(planned)* — Extension paper in preparation, covering the full
+  ERP CORE benchmark with additional baselines. See the `erp-core` branch
+  for work in progress.
+
+To reproduce the Graz paper results, check out the `v1.0.0` tag after release:
+`git checkout v1.0.0`
+
 ## Repository Structure
 
 ```
@@ -41,15 +53,15 @@ ERP-XTTN/
 ## Requirements
 
 - Python 3.10+
-- PyTorch 2.0+ (CUDA recommended)
-- MNE-Python
-- NumPy, SciPy, pandas, scikit-learn, matplotlib
+- CUDA-capable GPU recommended (experiments used an NVIDIA RTX 4070)
+
+Install dependencies:
 
 ```bash
-pip install torch mne numpy scipy pandas scikit-learn matplotlib
+pip install -r requirements.txt
 ```
 
-For data conversion only (step 1):
+For data conversion only (step 1), additional packages:
 ```bash
 pip install mne-bids pybv
 ```
@@ -60,7 +72,7 @@ pip install mne-bids pybv
 
 **BNCI Horizon 2020 — Monitoring Error-Related Potentials** (Margaux et al.)
 - 6 subjects, 64 EEG channels, 512 Hz
-- Available via MOABB or the BNCI Horizon 2020 project
+- Publicly available at https://bnci-horizon-2020.eu/database/data-sets
 - Place raw `.mat` files in `datasets/bnci_horizon_2020_ErrP/original_data/`
 
 **HRI Cursor** (Ehrlich & Cheng, 2019)
@@ -332,4 +344,29 @@ Experiments were run on an NVIDIA GeForce RTX 4070 Laptop GPU (8 GB VRAM). Full-
 
 ## License
 
-Please refer to the accompanying paper for citation and usage terms.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Citation
+
+If you use this code, please cite:
+
+```bibtex
+@inproceedings{wyman2026erpxttn,
+  title={ERP-XTTN: Interpretable Cross-Subject Error-Related Potential Classification via Cross-Attention to Data-Driven ERP Prototypes},
+  author={Wyman, Charlotte and Hirshfield, Leanne},
+  booktitle={Proceedings of the 10th Graz Brain-Computer Interface Conference},
+  year={2026},
+  note={To appear. DOI and full publication metadata will be added upon publication.}
+}
+
+@software{wyman2026erpxttn_code,
+  author={Wyman, Charlotte},
+  title={ERP-XTTN: Cross-Attention ErrP Classifier (v1.0.0)},
+  year={2026},
+  publisher={Zenodo},
+  version={v1.0.0},
+  doi={[Zenodo DOI — add after release]},
+  url={[Zenodo URL — add after release]}
+}
+```
+
