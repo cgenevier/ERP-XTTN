@@ -43,15 +43,15 @@ ERP-XTTN/
 - Python 3.10+
 - PyTorch 2.0+ (CUDA recommended)
 - MNE-Python
-- NumPy, SciPy, scikit-learn, matplotlib
+- NumPy, SciPy, pandas, scikit-learn, matplotlib
 
 ```bash
-pip install torch mne numpy scipy scikit-learn matplotlib
+pip install torch mne numpy scipy pandas scikit-learn matplotlib
 ```
 
 For data conversion only (step 1):
 ```bash
-pip install mne-bids pandas pybv
+pip install mne-bids pybv
 ```
 
 ## Steps to Reproduce
@@ -63,11 +63,12 @@ pip install mne-bids pandas pybv
 - Available via MOABB or the BNCI Horizon 2020 project
 - Place raw `.mat` files in `datasets/bnci_horizon_2020_ErrP/original_data/`
 
-**HRI Cursor** (in-house dataset)
+**HRI Cursor** (Ehrlich & Cheng, 2019)
 - 11 subjects (sub-02 through sub-13, excluding sub-01 and sub-12), 27 EEG channels, 256 Hz
+- Publicly available at https://github.com/stefan-ehrlich/dataset-ErrP-HRI/
 - Place raw `.set/.fdt` files in `datasets/hri_cursor/original_data/`
 
-Each dataset directory requires a `dataset_config.json` specifying format, event IDs, channel info, and subject mapping.
+Each dataset directory requires a `dataset_config.json` specifying format, event IDs, channel info, and epoching rules. Training subject lists and result variant names are defined in `04_train.py` and `05_gen_figures.py`.
 
 ### 2. Convert to BIDS + FIF
 
@@ -78,18 +79,18 @@ python 01_convert_data.py datasets/hri_cursor
 
 ### 3. Preprocess and Epoch
 
-Preprocessing applies: optional re-referencing, channel selection, IIR 1–10 Hz bandpass (4th-order Butterworth, forward-phase), optional resampling, and epoching (0–800 ms post-event).
+Preprocessing applies: optional re-referencing, channel selection, IIR 1–10 Hz bandpass (4th-order Butterworth, forward-phase), optional resampling, and epoching (0–800 ms post-event). The commands below include `--no-qc-drop` to reproduce the variant names used by the checked-in results and training scripts.
 
 ```bash
 # BNCI — midline subsets (resampled 512→256 Hz)
-python 03_preprocess.py --dataset datasets/bnci_horizon_2020_ErrP --channels midline2 --reference none --resample 256
-python 03_preprocess.py --dataset datasets/bnci_horizon_2020_ErrP --channels midline3 --reference none --resample 256
-python 03_preprocess.py --dataset datasets/bnci_horizon_2020_ErrP --channels full    --reference none --resample 256
+python 03_preprocess.py --dataset datasets/bnci_horizon_2020_ErrP --channels midline2 --reference none --resample 256 --no-qc-drop
+python 03_preprocess.py --dataset datasets/bnci_horizon_2020_ErrP --channels midline3 --reference none --resample 256 --no-qc-drop
+python 03_preprocess.py --dataset datasets/bnci_horizon_2020_ErrP --channels full    --reference none --resample 256 --no-qc-drop
 
 # HRI — no resampling needed (already 256 Hz)
-python 03_preprocess.py --dataset datasets/hri_cursor --channels midline2 --reference none
-python 03_preprocess.py --dataset datasets/hri_cursor --channels midline3 --reference none
-python 03_preprocess.py --dataset datasets/hri_cursor --channels full    --reference none
+python 03_preprocess.py --dataset datasets/hri_cursor --channels midline2 --reference none --no-qc-drop
+python 03_preprocess.py --dataset datasets/hri_cursor --channels midline3 --reference none --no-qc-drop
+python 03_preprocess.py --dataset datasets/hri_cursor --channels full    --reference none --no-qc-drop
 ```
 
 ### 4. Train Models (LOSO Cross-Validation)
@@ -145,7 +146,7 @@ A single multi-head self-attention layer (H = 4 heads, d_h = 16) with pre-layer-
 
 For each LOSO fold, K = 4 ERP prototypes are extracted from the grand-average difference wave (error minus correct) on the Cz detection channel. This is done once in Phase 1 (train split) and again in Phase 2 (full training pool):
 
-- The difference wave is Gaussian-smoothed (σ = 2 samples) and an alternating-polarity peak detector finds the P1–Ne–Pe–LateN chain (positive–negative–positive–negative) that maximizes total prominence.
+- The difference wave is Gaussian-smoothed (σ = 2 samples), and local extrema with prominence ≥ 0.1 are considered. P1 is anchored as the earliest positive peak at least 50 ms post-event; the remaining Ne–Pe–LateN chain (negative–positive–negative) is selected to maximize total prominence.
 - Window boundaries expand from each peak to neighboring zero-crossings, clamped to [40, 200] ms width.
 - Each prototype is the segment of the full multichannel difference wave within its detected window, zero-padded elsewhere to epoch length.
 
@@ -317,7 +318,7 @@ For each ERP-XTTN fold, the following are saved:
 
 | Dataset | Subjects | Channels | Sampling Rate | Epoch Window | Task |
 |---------|----------|----------|---------------|--------------|------|
-| BNCI Horizon 2020 ErrP | 6 | 64 | 512 Hz (resampled to 256) | 0–800 ms | P300 speller error monitoring |
+| BNCI Horizon 2020 ErrP | 6 | 64 | 512 Hz (resampled to 256) | 0–800 ms | Cursor/agent observation error monitoring |
 | HRI Cursor | 11 | 27 | 256 Hz | 0–800 ms | Cursor control error monitoring |
 
 **Channel montages evaluated**:
