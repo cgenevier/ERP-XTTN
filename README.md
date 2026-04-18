@@ -2,6 +2,8 @@
 
 Code repository for ERP-XTTN, an interpretable cross-attention architecture for ERP classification from EEG signals.
 
+> **Status:** This is the `erp-core` branch, actively under development for the v2.0.0 extension paper. For the frozen v1.0.0 Graz release, check out the `v1.0.0` tag.
+
 ## Versions
 
 - **v1.0.0** — Code for Wyman & Hirshfield, *Graz BCI 2026*.
@@ -259,7 +261,7 @@ EEGNet and xDAWN+RG save `results.json`, `predictions_sub-*.npz`, and (for EEGNe
 
 | Dataset | Subjects | Channels | Sampling Rate | Task |
 |---------|----------|----------|---------------|------|
-| BNCI ErrP (013-2015) | 6 | 64 | 512 Hz → 256 | P300 speller error monitoring |
+| BNCI ErrP (013-2015) | 6 | 64 | 512 Hz → 256 | Cursor/agent observation error monitoring |
 | HRI ErrP (cursor) | 11 | 27 | 256 Hz | Cursor control error monitoring |
 | ERP CORE N400 | 40 | 30 | 1024 Hz → 256 | Semantic priming (related/unrelated) |
 | ERP CORE ERN | 40 | 30 | 1024 Hz → 256 | Flanker task (correct/error response) |
@@ -329,14 +331,6 @@ If you use this code, please cite:
   year={2026},
   note={To appear. DOI and full publication metadata will be added upon publication.}
 }
-
-@software{wyman2026erpxttn_code,
-  author={Wyman, Charlotte},
-  title={ERP-XTTN: Cross-Attention ErrP Classifier (v1.0.0)},
-  year={2026},
-  publisher={Zenodo},
-  version={v1.0.0},
-  doi={[Zenodo DOI — add after release]},
-  url={[Zenodo URL — add after release]}
-}
 ```
+
+For the v1.0.0 software release (Graz paper snapshot), see the `main` branch or the `v1.0.0` tag. A `@software` citation for the v2.0.0 release will be added here once the extension paper and accompanying Zenodo archive are finalized.
