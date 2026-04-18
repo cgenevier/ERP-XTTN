@@ -2,6 +2,17 @@
 
 Code repository for ERP-XTTN, an interpretable cross-attention architecture for ERP classification from EEG signals.
 
+## Versions
+
+- **v1.0.0** — Code for Wyman & Hirshfield, *Graz BCI 2026*.
+  - Paper DOI: [pending]
+  - Archived on Zenodo: [pending]
+- **v2.0.0** *(planned, this branch)* — Extension paper in preparation, covering
+  the full ERP CORE benchmark with additional baselines.
+
+To reproduce the Graz paper results, check out the `v1.0.0` tag after release:
+`git checkout v1.0.0`
+
 ## Repository Structure
 
 ```
@@ -51,40 +62,71 @@ Each dataset directory contains:
 ## Requirements
 
 - Python 3.10+
-- PyTorch 2.0+ (CUDA recommended)
-- MNE-Python
-- NumPy, SciPy, scikit-learn, matplotlib
-- pyriemann (for xDAWN+RG baseline)
+- CUDA-capable GPU recommended (experiments used an NVIDIA RTX PRO 6000 Blackwell Server Edition via RunPod; v1.0.0 results were on an NVIDIA RTX 4070 Laptop GPU)
+
+Install dependencies:
 
 ```bash
-pip install torch mne numpy scipy scikit-learn matplotlib pyriemann
-pip install mne-bids pandas pybv  # for data conversion only
+pip install -r requirements.txt
 ```
 
-## Pipeline
+For data conversion only (step 2), additional packages:
+```bash
+pip install mne-bids pybv
+```
 
-### 1. Convert Raw Data
+## Steps to Reproduce
+
+### 1. Data Acquisition
+
+**BNCI Horizon 2020 — Monitoring Error-Related Potentials** (Margaux et al., 2012)
+- 6 subjects, 64 EEG channels, 512 Hz
+- Publicly available at https://bnci-horizon-2020.eu/database/data-sets
+- Place raw `.mat` files in `datasets/bnci_errp_013-2015/original_data/`
+
+**HRI Cursor** (Ehrlich & Cheng, 2019)
+- 11 subjects (sub-02 through sub-13, excluding sub-01 and sub-12), 27 EEG channels, 256 Hz
+- Publicly available at https://github.com/stefan-ehrlich/dataset-ErrP-HRI/
+- Place raw `.set/.fdt` files in `datasets/hri_errp_cursor/original_data/`
+
+**ERP CORE** (Kappenman et al., 2021)
+- 40 subjects, 30 EEG channels, 1024 Hz
+- Seven paradigms: ERN, LRP, MMN, N170, N2pc, N400, P300
+- Publicly available at https://osf.io/thsqg/
+- Place per-paradigm raw files in `datasets/erpcore_<paradigm>/original_data/`
+
+Each dataset directory requires a `dataset_config.json` specifying format, event IDs, channel presets, label mapping, and polarity pattern. Training subject lists and result variant names are defined in `04_train.py` and `05_gen_figures.py`.
+
+### 2. Convert to BIDS + FIF
 
 ```bash
 python 01_convert_data.py datasets/bnci_errp_013-2015
-python 01_convert_data.py datasets/erpcore_n400
+python 01_convert_data.py datasets/hri_errp_cursor
+python 01_convert_data.py datasets/erpcore_n400   # repeat per ERP CORE paradigm
 ```
 
-### 2. Inspect (Optional QC)
+### 3. Inspect (Optional QC)
 
 ```bash
 python 02_inspect.py datasets/erpcore_n400
 ```
 
-### 3. Preprocess and Epoch
+### 4. Preprocess and Epoch
+
+Preprocessing applies: optional re-referencing, channel selection, IIR bandpass (4th-order Butterworth, forward-phase; cutoffs per dataset config), optional resampling, and epoching (window per dataset config). The `--no-qc-drop` flag reproduces the variant names used by the checked-in results and training scripts.
 
 ```bash
+# ErrP datasets (resampled to 256 Hz)
 python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels midline3 --resample 256
+python 03_preprocess.py --dataset datasets/hri_errp_cursor    --channels midline3 --resample 256
+
+# ERP CORE — paradigm-specific channel presets + full 30ch
 python 03_preprocess.py --dataset datasets/erpcore_n400 --channels midline3_n400 --resample 256
-python 03_preprocess.py --dataset datasets/erpcore_n400 --channels full --resample 256
+python 03_preprocess.py --dataset datasets/erpcore_n400 --channels full          --resample 256
+# ...repeat per paradigm
 ```
 
-### 4. Train (LOSO Cross-Validation)
+### 5. Train (LOSO Cross-Validation)
 
 ```bash
 # EEGNet baseline
@@ -93,36 +135,80 @@ python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model eegne
 # xDAWN+RG classical baseline
 python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model xdawn_rg
 
-# Constrained ERPXTTN
+# Constrained ERPXTTN (uses dataset-configured polarity pattern)
 python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn
 
-# Auto ERPXTTN
+# Auto ERPXTTN (auto peak-detection, no polarity constraint)
 python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn --peak-mode auto
-
 ```
 
-`--model erpxttn` selects the ERPXTTN architecture. Constrained runs are saved
-under `erpxttn_constrained/`; auto runs are saved under `erpxttn_auto/`.
+`--model erpxttn` selects the ERPXTTN architecture. Constrained runs are saved under `erpxttn_constrained/`; auto runs are saved under `erpxttn_auto/`.
 
-### 5. Generate Figures
+Results are saved to `datasets/<name>/results/<window>/<variant>/<model>/results.json`.
+
+### 6. Generate Figures (ERPXTTN only)
 
 ```bash
 python 05_gen_figures.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn_constrained
 ```
 
-## Datasets
+Generates per-subject attention routing figures (TP/TN high-confidence and median trials) and aggregate attention analysis plots (prototype visualization, entropy vs. AUROC, attention timecourse, differential overlay, per-subject routing).
 
-| Dataset | Subjects | Channels | Sampling Rate | Task |
-|---------|----------|----------|---------------|------|
-| BNCI ErrP (013-2015) | 6 | 64 | 512 Hz → 256 | P300 speller error monitoring |
-| HRI ErrP (cursor) | 11 | 27 | 256 Hz | Cursor control error monitoring |
-| ERP CORE N400 | 40 | 30 | 1024 Hz → 256 | Semantic priming (related/unrelated) |
-| ERP CORE ERN | 40 | 30 | 1024 Hz → 256 | Flanker task (correct/error response) |
-| ERP CORE LRP | 40 | 30 | 1024 Hz → 256 | Flanker task (left/right response) |
-| ERP CORE MMN | 40 | 30 | 1024 Hz → 256 | Oddball (standard/deviant) |
-| ERP CORE N170 | 40 | 30 | 1024 Hz → 256 | Face/car categorization |
-| ERP CORE N2pc | 40 | 30 | 1024 Hz → 256 | Visual search (target laterality) |
-| ERP CORE P300 | 40 | 30 | 1024 Hz → 256 | Oddball (target/non-target) |
+## Architecture
+
+### ERP-XTTN
+
+ERP-XTTN classifies EEG trials by cross-attending input signal patches against ERP prototype templates derived from the grand-average difference wave. The architecture has five stages:
+
+**1. Patch Embedding + Positional Encoding**
+
+The input epoch (C channels × T time samples) is divided into N = T / w non-overlapping temporal patches of width w = 8 samples (31.25 ms at 256 Hz). Each patch is flattened to a C·w-dimensional vector and linearly projected to d = 64 dimensions. Learned positional embeddings are added to encode temporal position.
+
+**2. Self-Attention**
+
+A single multi-head self-attention layer (H = 4 heads, d_h = 16) with pre-layer-normalization and residual connection refines the patch embeddings, allowing patches to share temporal context before cross-attention.
+
+**3. Prototype Construction (per fold, per training phase)**
+
+For each LOSO fold, K ERP prototypes are extracted from the grand-average difference wave on the dataset's detection channel. K and the expected polarity pattern are configured per dataset (see [Prototype Configuration](#prototype-configuration)). Extraction runs once in Phase 1 (train split) and again in Phase 2 (full training pool):
+
+- The difference wave is Gaussian-smoothed (σ = 2 samples), and local extrema passing the dataset-configured prominence threshold are considered. Peaks are selected to match the expected polarity pattern while maximizing total prominence.
+- Window boundaries expand from each peak to neighboring zero-crossings, clamped to [40, 200] ms width.
+- Each prototype is the segment of the full multichannel difference wave within its detected window, zero-padded elsewhere to epoch length.
+
+Prototypes are embedded through the same patch embedding layer as input patches and mean-pooled across the patch dimension to produce K vectors of dimension d. Shared positional encoding (indexed at each prototype's temporal center) is added, placing prototypes in the same positional space as input patches.
+
+**4. QK-Only Cross-Attention**
+
+Input patch embeddings serve as queries (Q) and prototype embeddings as keys (K). Separate layer norms are applied before Q and K linear projections. Scaled dot-product attention produces weights in (B, H, N, K) — no value (V) projection is used. The attention map directly encodes how each input patch routes to each prototype.
+
+**5. Classification**
+
+Attention weights are averaged across heads, flattened to N·K dimensions, and passed through a single linear layer to produce a scalar logit (or multi-way logits for paradigms with >2 classes).
+
+### EEGNet (Baseline)
+
+EEGNet (Lawhern et al., 2018) is used as a compact CNN baseline. It applies temporal convolution, depthwise spatial convolution, separable convolution, and average pooling, with max-norm weight constraints. Implementation follows Table 2 of the original paper with F1=8, D=2, F2=16, dropout=0.25.
+
+### xDAWN + Riemannian Geometry (Baseline)
+
+A classical ML baseline: xDAWN spatial filters estimated on the training set project epochs onto ERP-enhanced components, their trial covariance matrices are projected to the Riemannian tangent space, and an MDM or logistic-regression classifier is fit. Implemented via `pyriemann`.
+
+### Training Procedure
+
+- **Cross-validation**: Leave-one-subject-out (LOSO)
+- **Two-phase training per fold**:
+  - Phase 1: Train on 85% of pooled leave-out data with 15% stratified validation split. Early stopping (patience=15) on validation AUROC determines best epoch count.
+  - Phase 2: Retrain from scratch on the full training pool for exactly best_epoch+1 epochs. Evaluate on the held-out test subject.
+  - ERP-XTTN prototype extraction: Run in both phases, using the phase-specific training data.
+- **Optimizer**: AdamW (lr=1e-3, weight_decay=1e-4)
+- **LR schedule**: Linear warmup (5 epochs, from lr/10) + cosine annealing over 100 epochs (to lr/100)
+- **Loss**: BCEWithLogitsLoss with inverse class-frequency pos_weight (binary) / CrossEntropy (multi-class)
+- **Augmentation** (training only): Temporal jitter (uniform ±10 samples) + Gaussian noise (σ=0.1)
+- **Normalization**: Per-channel z-score computed on training data, applied to train/val/test
+- **Gradient clipping**: Max norm = 1.0
+- **Batch size**: 128 (on the current GPU; v1.0.0 results used 32 — deltas validated within noise)
+- **Seed**: 42 (deterministic)
 
 ## Prototype Configuration
 
@@ -146,13 +232,48 @@ Prototype windows are detected automatically per LOSO fold from the training dat
 | N400 | pos, neg, pos, neg | 4 | 0.02 | P2-diff, N400-diff, LPC-diff, LateN-diff |
 | P300 | pos, neg, pos | 3 | 0.02 | P3-diff, SW-diff, LateP-diff |
 
-Additionally, prototype windows are clamped to a maximum width of 200ms (`max_window_ms` in `erpxttn.py`). This prevents late, broad components (e.g., LPC, LateP) from dominating the prototype representation. A future direction is to make this configurable per-dataset, as late ERP components naturally span wider temporal windows than early ones.
+Additionally, prototype windows are clamped to a maximum width of 200 ms (`max_window_ms` in `erpxttn.py`). This prevents late, broad components (e.g., LPC, LateP) from dominating the prototype representation. A future direction is to make this configurable per-dataset, as late ERP components naturally span wider temporal windows than early ones.
 
-## Results Summary
+## Output Artifacts
 
-Main result artifacts are included in the repo under `datasets/*/results/`.
-Use the dashboard to browse saved numbers and figures, or `python run_manager.py`
-to monitor / launch future reruns.
+For each ERPXTTN fold, the following are saved:
+
+| File | Description |
+|------|-------------|
+| `results.json` | Per-subject metrics, detected windows (ERPXTTN), and run metadata (`args`, `seed`, `device`, elapsed time, aggregate stats) |
+| `predictions_sub-*.npz` | Predicted probabilities and ground-truth labels |
+| `curves_sub-*.npz` | Phase 1 & 2 training loss curves, validation AUROC |
+| `attention_sub-*.npz` | Full attention weight tensors (B, H, N, K) per test trial |
+| `prototypes_sub-*.npz` | Raw prototype waveforms and detected window boundaries |
+| `fig_prototypes.png` | Prototype waveforms with detected temporal windows |
+| `fig_entropy_vs_auroc.png` | Attention entropy vs. classification AUROC |
+| `fig_attn_timecourse.png` | Mean attention weight timecourse (per class) |
+| `fig_attn_diff_overlay.png` | Attention difference overlaid on ERP |
+| `fig_per_subject_routing.png` | Per-subject prototype routing distributions |
+| `fig_tp_tn_routing_sub-*_highconf.png` | High-confidence TP/TN trial attention maps |
+| `fig_tp_tn_routing_sub-*_median.png` | Median-confidence TP/TN trial attention maps |
+
+EEGNet and xDAWN+RG save `results.json`, `predictions_sub-*.npz`, and (for EEGNet) `curves_sub-*.npz`.
+
+## Datasets
+
+| Dataset | Subjects | Channels | Sampling Rate | Task |
+|---------|----------|----------|---------------|------|
+| BNCI ErrP (013-2015) | 6 | 64 | 512 Hz → 256 | P300 speller error monitoring |
+| HRI ErrP (cursor) | 11 | 27 | 256 Hz | Cursor control error monitoring |
+| ERP CORE N400 | 40 | 30 | 1024 Hz → 256 | Semantic priming (related/unrelated) |
+| ERP CORE ERN | 40 | 30 | 1024 Hz → 256 | Flanker task (correct/error response) |
+| ERP CORE LRP | 40 | 30 | 1024 Hz → 256 | Flanker task (left/right response) |
+| ERP CORE MMN | 40 | 30 | 1024 Hz → 256 | Oddball (standard/deviant) |
+| ERP CORE N170 | 40 | 30 | 1024 Hz → 256 | Face/car categorization |
+| ERP CORE N2pc | 40 | 30 | 1024 Hz → 256 | Visual search (target laterality) |
+| ERP CORE P300 | 40 | 30 | 1024 Hz → 256 | Oddball (target/non-target) |
+
+## Results
+
+Main result artifacts are included in the repo under `datasets/*/results/`. Use the dashboard to browse saved numbers and figures, or `python run_manager.py` to monitor / launch future reruns.
+
+Per-subject LOSO results for the v1.0.0 Graz paper (BNCI + HRI, midline2 / midline3 / full) are frozen on the `v1.0.0` tag.
 
 ## Hardware
 
@@ -194,4 +315,28 @@ Get the token with: `ps aux | grep -oP '(?<=token=)\S+' | head -1`
 
 ## License
 
-Please refer to the accompanying paper for citation and usage terms.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Citation
+
+If you use this code, please cite:
+
+```bibtex
+@inproceedings{wyman2026erpxttn,
+  title={ERP-XTTN: Interpretable Cross-Subject Error-Related Potential Classification via Cross-Attention to Data-Driven ERP Prototypes},
+  author={Wyman, Charlotte and Hirshfield, Leanne},
+  booktitle={Proceedings of the 10th Graz Brain-Computer Interface Conference},
+  year={2026},
+  note={To appear. DOI and full publication metadata will be added upon publication.}
+}
+
+@software{wyman2026erpxttn_code,
+  author={Wyman, Charlotte},
+  title={ERP-XTTN: Cross-Attention ErrP Classifier (v1.0.0)},
+  year={2026},
+  publisher={Zenodo},
+  version={v1.0.0},
+  doi={[Zenodo DOI — add after release]},
+  url={[Zenodo URL — add after release]}
+}
+```
