@@ -1,12 +1,18 @@
-# Python 3.11.14
 # Direct dependencies only. Transitive deps are resolved by pip.
-# torch was installed from the CUDA 12.4 wheel index:
-#   pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+# The --extra-index-url below fetches the CUDA 12.8 torch wheel to match the
+# RunPod RTX PRO 6000 environment. For CPU-only installs, remove that line and
+# the torch pin (+cu128 suffix); pip will fall back to PyPI's CPU wheel.
+#
+# For step 2 (raw → BIDS conversion) only, additionally:
+#   pip install mne-bids pybv
 
-numpy==2.3.5
-pandas==3.0.1
-mne==1.11.0
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+numpy==2.1.2
+pandas==3.0.2
+mne==1.12.0
 matplotlib==3.10.8
-torch==2.6.0+cu124
+scipy==1.17.1
 scikit-learn==1.8.0
-scipy==1.17.0
+torch==2.8.0+cu128
+pyriemann==0.11
