@@ -25,10 +25,36 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import matplotlib.colors as mcolors
 from scipy import stats
 
 PROTO_NAMES = ['P1-diff', 'Ne-diff', 'Pe-diff', 'LateN-diff']
 PROTO_COLORS = ['#e67e22', '#c0392b', '#2980b9', '#27ae60']
+PROTO_CMAPS = ['Oranges', 'Reds', 'Blues', 'Greens']
+
+plt.rcParams.update({
+    'font.size': 13,
+    'axes.titlesize': 15,
+    'axes.labelsize': 14,
+    'xtick.labelsize': 12,
+    'ytick.labelsize': 12,
+    'legend.fontsize': 12,
+    'figure.titlesize': 18,
+})
+
+
+def _fold_shades(base_hex: str, n: int) -> list:
+    """Return N slightly-varied hues around a base color for per-fold traces."""
+    r, g, b = mcolors.to_rgb(base_hex)
+    h, s, v = mcolors.rgb_to_hsv([[[r, g, b]]])[0, 0]
+    shades = []
+    for i in range(n):
+        frac = (i / max(n - 1, 1)) - 0.5
+        s_i = float(np.clip(s * (1.0 + 0.35 * frac), 0.25, 1.0))
+        v_i = float(np.clip(v * (1.0 - 0.25 * frac), 0.35, 1.0))
+        rgb = mcolors.hsv_to_rgb([[[h, s_i, v_i]]])[0, 0]
+        shades.append(tuple(rgb))
+    return shades
 
 REPO_ROOT = Path(__file__).resolve().parent
 DATASETS_DIR = REPO_ROOT / "datasets"
@@ -141,38 +167,44 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
     ))
 
     # ── Fig 1: Prototype waveforms ──
-    fig, axes = plt.subplots(K, C, figsize=(4 * C, 3 * K), sharex=True)
+    fig, axes = plt.subplots(K, C, figsize=(4.5 * C, 3.2 * K), sharex=True)
     fig.suptitle(
         f'Difference-Wave Prototypes ({n_subj} LOSO folds) \u2014 {dataset_label}',
-        fontsize=14, fontweight='bold',
+        fontsize=18, fontweight='bold',
     )
     for col, ch in enumerate(channels):
-        axes[0, col].set_title(ch, fontsize=13, fontweight='bold')
+        axes[0, col].set_title(ch, fontsize=16, fontweight='bold')
     for k in range(K):
         s_ms, e_ms = windows[k]
+        shades = _fold_shades(PROTO_COLORS[k], n_subj)
         for c in range(C):
             ax = axes[k, c]
             traces = np.array([all_protos[s][k, c, :] for s in subjects])
             for ti, t in enumerate(traces):
-                ax.plot(time_ms, t, color=PROTO_COLORS[k], alpha=0.25, lw=0.8)
+                ax.plot(time_ms, t, color=shades[ti], alpha=0.65, lw=1.2,
+                        zorder=2)
                 if subjects[ti] in per_fold_windows:
                     fw = per_fold_windows[subjects[ti]]
                     ax.axvspan(fw[k][0], fw[k][1], color=PROTO_COLORS[k],
-                               alpha=0.04)
+                               alpha=0.04, zorder=1)
             mean = traces.mean(0)
             std = traces.std(0)
-            ax.plot(time_ms, mean, color=PROTO_COLORS[k], lw=2.5)
             ax.fill_between(time_ms, mean - std, mean + std,
-                            color=PROTO_COLORS[k], alpha=0.15)
-            ax.axvspan(s_ms, e_ms, color='gray', alpha=0.15)
-            ax.axhline(0, color='gray', lw=0.5, ls='--')
+                            color=PROTO_COLORS[k], alpha=0.15, zorder=3)
+            ax.plot(time_ms, mean, color='black', lw=3.2, alpha=0.35,
+                    zorder=4)
+            ax.plot(time_ms, mean, color=PROTO_COLORS[k], lw=2.2,
+                    zorder=5)
+            ax.axvspan(s_ms, e_ms, color='gray', alpha=0.15, zorder=1)
+            ax.axhline(0, color='gray', lw=0.6, ls='--', zorder=2)
+            ax.tick_params(axis='both', labelsize=12)
             if c == 0:
                 ax.set_ylabel(
                     f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)\n(z-score)',
-                    fontsize=10,
+                    fontsize=14,
                 )
     for c in range(C):
-        axes[-1, c].set_xlabel('Time (ms)', fontsize=11)
+        axes[-1, c].set_xlabel('Time (ms)', fontsize=14)
     fig.tight_layout()
     fig.savefig(results_dir / 'fig_prototypes.png', dpi=150, bbox_inches='tight')
     plt.close(fig)
@@ -192,18 +224,19 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
     auroc_vals = np.array(auroc_vals)
     r, _ = stats.pearsonr(entropies, auroc_vals)
 
-    ax.scatter(entropies, auroc_vals, s=120, c='#c0392b', zorder=5,
+    ax.scatter(entropies, auroc_vals, s=140, c='#c0392b', zorder=5,
                edgecolors='white', linewidth=1.5)
     for i, subj in enumerate(subjects):
         ax.annotate(subj, (entropies[i], auroc_vals[i]),
-                    textcoords='offset points', xytext=(8, 8), fontsize=10)
+                    textcoords='offset points', xytext=(8, 8), fontsize=13)
     sl, ic = np.polyfit(entropies, auroc_vals, 1)
     xr = np.linspace(entropies.min() - 0.02, entropies.max() + 0.02, 100)
     ax.plot(xr, sl * xr + ic, '--', color='gray', lw=1.5)
-    ax.set_xlabel('Mean Normalized Attention Entropy', fontsize=12)
-    ax.set_ylabel('AUROC', fontsize=12)
-    ax.set_title(f'Attention Entropy vs AUROC (r={r:.2f})', fontsize=14,
+    ax.set_xlabel('Mean Normalized Attention Entropy', fontsize=15)
+    ax.set_ylabel('AUROC', fontsize=15)
+    ax.set_title(f'Attention Entropy vs AUROC (r={r:.2f})', fontsize=17,
                  fontweight='bold')
+    ax.tick_params(axis='both', labelsize=13)
     fig.tight_layout()
     fig.savefig(results_dir / 'fig_entropy_vs_auroc.png', dpi=150,
                 bbox_inches='tight')
@@ -211,8 +244,8 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
     print(f'  Saved fig_entropy_vs_auroc.png')
 
     # ── Fig 3: Per-prototype attention time course ──
-    fig, axes = plt.subplots(1, K, figsize=(5 * K, 4.5))
-    fig.suptitle(dataset_label, fontsize=14, fontweight='bold')
+    fig, axes = plt.subplots(1, K, figsize=(5.5 * K, 5.0))
+    fig.suptitle(dataset_label, fontsize=18, fontweight='bold')
     for k in range(K):
         ax = axes[k]
         s_ms, e_ms = windows[k]
@@ -225,16 +258,18 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
         err_tr, cor_tr = np.array(err_tr), np.array(cor_tr)
         em, cm = err_tr.mean(0), cor_tr.mean(0)
         es, cs = err_tr.std(0) / np.sqrt(n_subj), cor_tr.std(0) / np.sqrt(n_subj)
-        ax.plot(patch_ms, em, 'r-', lw=2, label='Error trials')
+        ax.plot(patch_ms, em, 'r-', lw=2.5, label='Error trials')
         ax.fill_between(patch_ms, em - es, em + es, color='red', alpha=0.2)
-        ax.plot(patch_ms, cm, 'b-', lw=2, label='Correct trials')
+        ax.plot(patch_ms, cm, 'b-', lw=2.5, label='Correct trials')
         ax.fill_between(patch_ms, cm - cs, cm + cs, color='blue', alpha=0.2)
         ax.axvspan(s_ms, e_ms, color='gray', alpha=0.15)
-        ax.set_xlabel('Time (ms)', fontsize=11)
-        ax.set_title(f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)', fontsize=12)
+        ax.set_xlabel('Time (ms)', fontsize=15)
+        ax.set_title(f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)',
+                     fontsize=16, fontweight='bold')
+        ax.tick_params(axis='both', labelsize=13)
         if k == 0:
-            ax.set_ylabel('Attention weight', fontsize=11)
-            ax.legend(fontsize=10)
+            ax.set_ylabel('Attention weight', fontsize=15)
+            ax.legend(fontsize=13)
     fig.tight_layout()
     fig.savefig(results_dir / 'fig_attn_timecourse.png', dpi=150,
                 bbox_inches='tight')
@@ -242,7 +277,7 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
     print(f'  Saved fig_attn_timecourse.png')
 
     # ── Fig 4: Attention difference overlay ──
-    fig, ax = plt.subplots(figsize=(8, 5.5))
+    fig, ax = plt.subplots(figsize=(9, 6))
     for k in range(K):
         diffs = []
         for subj in subjects:
@@ -255,7 +290,7 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
         dm = diffs.mean(0)
         ds = diffs.std(0) / np.sqrt(n_subj)
         s_ms, e_ms = windows[k]
-        ax.plot(patch_ms, dm, color=PROTO_COLORS[k], lw=2.5,
+        ax.plot(patch_ms, dm, color=PROTO_COLORS[k], lw=2.8,
                 label=f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)')
         ax.fill_between(patch_ms, dm - ds, dm + ds,
                         color=PROTO_COLORS[k], alpha=0.15)
@@ -266,14 +301,16 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
             ax.annotate(f'{sign}{pv:.3f}', (patch_ms[pi], pv),
                         textcoords='offset points',
                         xytext=(5, 8 if pv > 0 else -15),
-                        fontsize=9, color=PROTO_COLORS[k])
+                        fontsize=12, color=PROTO_COLORS[k],
+                        fontweight='bold')
     for b in boundaries:
         ax.axvline(b, color='gray', lw=0.8, ls=':')
     ax.axhline(0, color='gray', lw=0.8, ls='--')
-    ax.set_xlabel('Time (ms)', fontsize=12)
-    ax.set_ylabel('Attention diff (error \u2212 correct)', fontsize=12)
-    ax.set_title(dataset_label, fontsize=14, fontweight='bold')
-    ax.legend(fontsize=10, loc='best')
+    ax.set_xlabel('Time (ms)', fontsize=15)
+    ax.set_ylabel('Attention diff (error \u2212 correct)', fontsize=15)
+    ax.set_title(dataset_label, fontsize=18, fontweight='bold')
+    ax.tick_params(axis='both', labelsize=13)
+    ax.legend(fontsize=12, loc='best')
     fig.tight_layout()
     fig.savefig(results_dir / 'fig_attn_diff_overlay.png', dpi=150,
                 bbox_inches='tight')
@@ -281,12 +318,12 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
     print(f'  Saved fig_attn_diff_overlay.png')
 
     # ── Fig 5: Per-subject routing difference ──
-    fig, axes = plt.subplots(n_subj, 1, figsize=(10, 2.5 * n_subj),
+    fig, axes = plt.subplots(n_subj, 1, figsize=(12, 2.6 * n_subj),
                              sharex=True)
     if n_subj == 1:
         axes = [axes]
     fig.suptitle(f'Per-Subject Routing Difference \u2014 {dataset_label}',
-                 fontsize=14, fontweight='bold', y=1.02)
+                 fontsize=18, fontweight='bold', y=1.00)
     for i, subj in enumerate(subjects):
         ax = axes[i]
         attn = all_attn[subj].mean(axis=1)
@@ -299,23 +336,24 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
             if i == 0:
                 s_ms, e_ms = windows[k]
                 kw['label'] = f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)'
-            ax.plot(patch_ms, em - cm, color=PROTO_COLORS[k], lw=1.8, **kw)
-        ax.axhline(0, color='gray', lw=0.5, ls='--')
+            ax.plot(patch_ms, em - cm, color=PROTO_COLORS[k], lw=2.4, **kw)
+        ax.axhline(0, color='gray', lw=0.6, ls='--')
         for b in boundaries:
-            ax.axvline(b, color='gray', lw=0.5, ls=':')
-        ax.set_ylabel(subj, fontsize=11, fontweight='bold',
-                      rotation=0, labelpad=50, va='center')
+            ax.axvline(b, color='gray', lw=0.6, ls=':')
+        ax.set_ylabel(subj, fontsize=14, fontweight='bold',
+                      rotation=0, labelpad=55, va='center')
         ax.text(0.98, 0.85, f'AUROC={auroc:.3f}', transform=ax.transAxes,
-                fontsize=10, ha='right', va='top')
-    axes[-1].set_xlabel('Time (ms)', fontsize=12)
+                fontsize=13, ha='right', va='top', fontweight='bold')
+        ax.tick_params(axis='both', labelsize=12)
+    axes[-1].set_xlabel('Time (ms)', fontsize=15)
     handles = [
-        plt.Line2D([0], [0], color=PROTO_COLORS[k], lw=2,
+        plt.Line2D([0], [0], color=PROTO_COLORS[k], lw=2.5,
                    label=f'{PROTO_NAMES[k]} ({windows[k][0]:.0f}\u2013{windows[k][1]:.0f} ms)')
         for k in range(K)
     ]
-    fig.legend(handles=handles, loc='upper center', ncol=K, fontsize=9,
-               bbox_to_anchor=(0.5, 1.0))
-    fig.tight_layout()
+    fig.legend(handles=handles, loc='upper center', ncol=K, fontsize=12,
+               bbox_to_anchor=(0.5, 0.995))
+    fig.tight_layout(rect=[0, 0, 1, 0.97])
     fig.savefig(results_dir / 'fig_per_subject_routing.png', dpi=150,
                 bbox_inches='tight')
     plt.close(fig)
@@ -346,10 +384,10 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
     tn_cz = X_raw[tn_trial, cz_idx, :] * 1e6
     proto_cz = proto_raw[:, cz_idx, :]
 
-    fig = plt.figure(figsize=(14, 10))
+    fig = plt.figure(figsize=(16, 11.5))
     gs = gridspec.GridSpec(3, 2, figure=fig,
                            height_ratios=[0.7, 1.2, 1],
-                           hspace=0.35, wspace=0.25)
+                           hspace=0.42, wspace=0.22)
 
     # Row 0: Prototype reference
     ax_proto = fig.add_subplot(gs[0, :])
@@ -361,16 +399,17 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
         s_samp = int(round(s_ms / 1000 * sfreq))
         e_samp = int(round(e_ms / 1000 * sfreq))
         ax_proto.plot(time_ms, proto_cz[k], color=PROTO_COLORS[k],
-                      lw=0.6, alpha=0.3, zorder=2)
+                      lw=0.8, alpha=0.35, zorder=2)
         ax_proto.plot(time_ms[s_samp:e_samp], proto_cz[k, s_samp:e_samp],
-                      color=PROTO_COLORS[k], lw=2.5, zorder=3,
+                      color=PROTO_COLORS[k], lw=3.0, zorder=3,
                       label=f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)')
-    ax_proto.axhline(0, color='gray', lw=0.5, ls='--')
+    ax_proto.axhline(0, color='gray', lw=0.6, ls='--')
     ax_proto.set_xlim(0, time_ms[-1])
-    ax_proto.set_ylabel('Prototype Cz (z-score)', fontsize=11)
-    ax_proto.set_title('Diff-Wave Prototypes (Cz channel)', fontsize=12,
+    ax_proto.set_ylabel('Prototype Cz (z-score)', fontsize=14)
+    ax_proto.set_title('Diff-Wave Prototypes (Cz channel)', fontsize=16,
                        fontweight='bold')
-    ax_proto.legend(fontsize=9, loc='upper right', ncol=K)
+    ax_proto.tick_params(axis='both', labelsize=12)
+    ax_proto.legend(fontsize=12, loc='upper right', ncol=K)
 
     # Trial rows
     trials = [
@@ -398,32 +437,34 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
             e_samp = min((p + 1) * patch_width + 1, T)
             dominant_k = np.argmax(trial_attn[p, :])
             ax1.plot(time_ms[s_samp:e_samp], cz[s_samp:e_samp],
-                     color=PROTO_COLORS[dominant_k], lw=2.5, zorder=3,
+                     color=PROTO_COLORS[dominant_k], lw=3.0, zorder=3,
                      solid_capstyle='round')
-        ax1.axhline(0, color='gray', lw=0.5, ls='--', zorder=2)
-        ax1.set_title(f'{title}\np(error) = {prob:.3f}', fontsize=12,
+        ax1.axhline(0, color='gray', lw=0.6, ls='--', zorder=2)
+        ax1.set_title(f'{title}\np(error) = {prob:.3f}', fontsize=16,
                       fontweight='bold')
-        ax1.set_ylabel('Cz amplitude (\u00b5V)', fontsize=11)
+        ax1.set_ylabel('Cz amplitude (\u00b5V)', fontsize=14)
         ax1.set_xlim(0, time_ms[-1])
         ax1.set_ylim(-ymax_cz, ymax_cz)
+        ax1.tick_params(axis='both', labelsize=12)
 
         ax2 = fig.add_subplot(gs[2, col])
         for k in range(K):
             ax2.plot(patch_centers_ms, trial_attn[:, k],
-                     color=PROTO_COLORS[k], lw=2.0,
+                     color=PROTO_COLORS[k], lw=2.5,
                      label=PROTO_NAMES[k] if col == 0 else None,
                      zorder=3)
-        ax2.set_xlabel('Time (ms)', fontsize=11)
-        ax2.set_ylabel('Attention weight', fontsize=11)
+        ax2.set_xlabel('Time (ms)', fontsize=14)
+        ax2.set_ylabel('Attention weight', fontsize=14)
         ax2.set_ylim(0, ymax_attn)
         ax2.set_xlim(0, time_ms[-1])
+        ax2.tick_params(axis='both', labelsize=12)
         if col == 0:
-            ax2.legend(fontsize=9, loc='upper right')
+            ax2.legend(fontsize=12, loc='upper right')
 
     fig.suptitle(
         f'Attention Routing: TP vs TN{title_suffix} \u2014 {dataset_label} '
         f'({subject}, AUROC={auroc:.3f})',
-        fontsize=13, fontweight='bold', y=1.01)
+        fontsize=17, fontweight='bold', y=1.01)
 
     fname = f'fig_tp_tn_routing_{subject}{output_suffix}.png'
     fig.savefig(results_dir / fname, dpi=150, bbox_inches='tight')
