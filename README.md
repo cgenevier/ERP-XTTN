@@ -6,7 +6,7 @@ Code repository for ERP-XTTN, an interpretable cross-attention architecture for 
 
 - **v1.0.0** (this version) — Code for Wyman & Hirshfield, *Graz BCI 2026*.
   - Paper DOI: [pending]
-  - Archived on Zenodo: [pending]
+  - Archived on Zenodo: [10.5281/zenodo.20087551](https://doi.org/10.5281/zenodo.20087551)
 - **v2.0.0** *(planned)* — Extension paper in preparation, covering the full
   ERP CORE benchmark with additional baselines. See the `erp-core` branch
   for work in progress.
@@ -365,8 +365,8 @@ If you use this code, please cite:
   year={2026},
   publisher={Zenodo},
   version={v1.0.0},
-  doi={[Zenodo DOI — add after release]},
-  url={[Zenodo URL — add after release]}
+  doi={10.5281/zenodo.20087551},
+  url={https://doi.org/10.5281/zenodo.20087551}
 }
 ```
 
