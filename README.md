@@ -1,5 +1,7 @@
 # ERP-XTTN: Interpretable Cross-Attention ERP Classifier
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20087550.svg)](https://doi.org/10.5281/zenodo.20087550)
+
 Code repository for ERP-XTTN, an interpretable cross-attention architecture for ERP classification from EEG signals. Currently applied to error-related potentials (ErrPs); see Versions for ongoing work.
 
 ## Versions
