@@ -1,6 +1,6 @@
-# ERP-XTTN: Cross-Attention ErrP Classifier with Dynamic Prototypes
+# ERP-XTTN: Interpretable Cross-Attention ERP Classifier
 
-Code repository for the paper on ERP-XTTN, an interpretable cross-attention architecture for error-related potential (ErrP) classification from EEG signals.
+Code repository for ERP-XTTN, an interpretable cross-attention architecture for ERP classification from EEG signals. Currently applied to error-related potentials (ErrPs); see Versions for ongoing work.
 
 ## Versions
 
@@ -52,7 +52,7 @@ ERP-XTTN/
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.11+ (Tested with Python 3.11.14)
 - CUDA-capable GPU recommended (experiments used an NVIDIA RTX 4070)
 
 Install dependencies:
@@ -144,7 +144,7 @@ Generates per-subject attention routing figures (TP/TN high-confidence and media
 
 ### ERP-XTTN
 
-ERP-XTTN classifies EEG error trials by cross-attending input signal patches against ERP prototype templates derived from the grand-average difference wave. The architecture has five stages:
+ERP-XTTN classifies EEG trials by cross-attending input signal patches against ERP prototype templates derived from the grand-average difference wave. The architecture has five stages:
 
 **1. Patch Embedding + Positional Encoding**
 
@@ -353,15 +353,15 @@ If you use this code, please cite:
 ```bibtex
 @inproceedings{wyman2026erpxttn,
   title={ERP-XTTN: Interpretable Cross-Subject Error-Related Potential Classification via Cross-Attention to Data-Driven ERP Prototypes},
-  author={Wyman, Charlotte and Hirshfield, Leanne},
+  author={Wyman, Charlotte Genevier and Hirshfield, Leanne},
   booktitle={Proceedings of the 10th Graz Brain-Computer Interface Conference},
   year={2026},
   note={To appear. DOI and full publication metadata will be added upon publication.}
 }
 
 @software{wyman2026erpxttn_code,
-  author={Wyman, Charlotte},
-  title={ERP-XTTN: Cross-Attention ErrP Classifier (v1.0.0)},
+  author={Wyman, Charlotte Genevier},
+  title={ERP-XTTN: Interpretable Cross-Attention ERP Classifier},
   year={2026},
   publisher={Zenodo},
   version={v1.0.0},
