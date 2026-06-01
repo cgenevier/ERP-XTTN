@@ -237,7 +237,7 @@ def make_model(model_name: str, n_channels: int, n_times: int,
                polarity_pattern: list[str] = None,
                peak_prominence: float = 0.02,
                detection_channel: str = None,
-               peak_mode: str = 'constrained',
+               peak_mode: str = 'auto',
                max_k: int = 4):
     if model_name == "eegnet":
         return EEGNet(n_channels, n_times, srate=srate).to(device)
@@ -329,7 +329,7 @@ def run_fold(fold_idx: int, test_subj: str,
              peak_prominence: float = 0.02,
              pos_key: str = "error", neg_key: str = "correct",
              detection_channel: str = None,
-             peak_mode: str = 'constrained',
+             peak_mode: str = 'auto',
              max_k: int = 4) -> dict:
     """Run one LOSO fold: Phase 1 (find best epoch) + Phase 2 (retrain)."""
 

@@ -238,7 +238,7 @@ class PatchEmbedding(nn.Module):
 
 
 class ERPXTTN(nn.Module):
-    """ERP-XTTN: cross-attention ErrP classifier.
+    """ERP-XTTN: cross-attention ERP classifier.
 
     Input:  (B, C, T)
     Output: (B, 1) logit
@@ -257,7 +257,7 @@ class ERPXTTN(nn.Module):
                  min_window_ms: float = 40.0,
                  max_window_ms: float = 200.0,
                  detection_channel: str = None,
-                 peak_mode: str = 'constrained',
+                 peak_mode: str = 'auto',
                  max_k: int = 4):
         super().__init__()
         self.n_channels = n_channels

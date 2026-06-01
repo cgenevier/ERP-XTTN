@@ -1,15 +1,15 @@
 # ERP-XTTN: Interpretable Cross-Attention ERP Classifier
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20087550.svg)](https://doi.org/10.5281/zenodo.20087550)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20087550-blue)](https://doi.org/10.5281/zenodo.20087550)
 [![arXiv](https://img.shields.io/badge/arXiv-XXXX.XXXXX-b31b1b.svg)](https://arxiv.org/abs/XXXX.XXXXX)
 
 Code repository for ERP-XTTN, an interpretable cross-attention architecture for ERP classification from EEG signals.
 
-> **Version 2.0.0** — This release extends the v1.0.0 *Graz BCI 2026* work to the full ERP CORE benchmark (seven paradigms) alongside the BNCI and HRI ErrP datasets, adding EEGNet and xDAWN+RG baselines and an auto peak-detection ERPXTTN variant. It accompanies the ERP-XTTN extension paper (preprint: [arXiv:XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX)). For the frozen Graz conference release, check out the `v1.0.0` tag.
+> **Version 2.0.0** — This release extends the v1.0.0 *Graz BCI 2026* work to the full ERP CORE benchmark (seven paradigms) alongside the BNCI and HRI ErrP datasets, adding EEGNet and xDAWN+RG baselines and an auto peak-detection ERPXTTN variant. It accompanies the ERP-XTTN extension paper (preprint: [arXiv:XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX)). For the frozen Graz conference release, see the [`v1.0.0` release](https://github.com/cgenevier/ERP-XTTN/releases/tag/v1.0.0).
 
 ## Versions
 
-- **v1.0.0** — Code for Wyman & Hirshfield, *Graz BCI 2026* (conference paper).
+- **[v1.0.0](https://github.com/cgenevier/ERP-XTTN/releases/tag/v1.0.0)** — Code for Wyman & Hirshfield, *Graz BCI 2026* (conference paper).
   - Paper DOI: [pending]
   - Archived on Zenodo: [10.5281/zenodo.20087551](https://doi.org/10.5281/zenodo.20087551)
 - **v2.0.0** *(this release)* — Extension paper covering the full ERP CORE
@@ -18,7 +18,7 @@ Code repository for ERP-XTTN, an interpretable cross-attention architecture for 
   - Preprint: [arXiv:XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX)
   - Archived on Zenodo: [pending — v2.0.0 DOI]
 
-To reproduce the Graz conference results, check out the `v1.0.0` tag:
+To reproduce the Graz conference results, check out the [`v1.0.0`](https://github.com/cgenevier/ERP-XTTN/releases/tag/v1.0.0) tag:
 `git checkout v1.0.0`
 
 ## Repository Structure
@@ -277,25 +277,29 @@ A classical ML baseline: xDAWN spatial filters estimated on the training set pro
 
 ## Prototype Configuration
 
-ERPXTTN uses data-driven prototype detection from the training-set grand-average difference wave. The following parameters are configured per dataset in `dataset_config.json`, informed by established ERP morphology:
+The following parameters are configured per dataset in `dataset_config.json`, informed by established ERP morphology:
 
-- **Polarity pattern**: The expected alternating sign pattern of ERP components (e.g., `neg, pos` for a negative-then-positive waveform). Determines the number of prototypes (K).
-- **Peak prominence**: Minimum prominence threshold (in z-scored units) for peak detection. Tuned per dataset to ensure the detector anchors on canonical ERP components rather than small early deflections.
-- **Proto names**: Human-readable labels for each prototype window, corresponding to known ERP components.
+- **Peak prominence**: Minimum prominence threshold (in z-scored units) for peak detection. Tuned per dataset to ensure the detector anchors on canonical ERP components rather than small early deflections. Applies to **both** variants.
+- **Polarity pattern**: The expected alternating sign pattern of ERP components (e.g., `neg, pos` for a negative-then-positive waveform). Used **only by the constrained variant**, where its length fixes the number of prototypes (K). The auto variant (the model reported in the paper) ignores the polarity pattern and instead takes the top-K most prominent peaks, so its K is detected per fold (capped by `--max-k`, default 4).
+- **Proto names**: Human-readable component labels for each constrained-variant prototype window.
 
-Prototype windows are detected automatically per LOSO fold from the training data only — no test-set information is used. The polarity pattern and prominence threshold encode prior neuroscience knowledge about each paradigm's expected waveform morphology.
+Prototype windows are detected automatically per LOSO fold from the training data only — no test-set information is used.
 
-| Dataset | Pattern | K | Prominence | Prototypes |
-|---------|---------|---|------------|------------|
-| BNCI ErrP | pos, neg, pos, neg | 4 | 0.02 | P1-diff, Ne-diff, Pe-diff, LateN-diff |
-| HRI ErrP | pos, neg, pos, neg | 4 | 0.02 | P1-diff, Ne-diff, Pe-diff, LateN-diff |
-| ERN | neg, pos | 2 | 0.02 | ERN-diff, Pe-diff |
-| LRP | neg, pos | 2 | 0.02 | EarlyN, LateP |
-| MMN | neg, pos, neg | 3 | 0.02 | MMN-diff, P3a-diff, LateN-diff |
-| N170 | neg, pos, neg | 3 | 0.02 | N170-diff, VPP-diff, LateN-diff |
-| N2pc | neg, pos, neg | 3 | 0.02 | N2pc-diff, SPCN-diff, LateN-diff |
-| N400 | pos, neg, pos, neg | 4 | 0.02 | P2-diff, N400-diff, LPC-diff, LateN-diff |
-| P300 | pos, neg, pos | 3 | 0.02 | P3-diff, SW-diff, LateP-diff |
+The table below lists the **constrained-variant** configuration. The **Auto K** column gives the auto variant's observed modal K per fold (from `analysis_summary.json`); because auto does not enforce the polarity pattern, it differs from the constrained K for several datasets, so its values should not be read off the *Pattern* / *Constrained K* columns.
+
+| Dataset | Pattern (constrained) | Constrained K | Auto K (modal) | Prominence | Prototypes (constrained) |
+|---------|---------|---|---|------------|------------|
+| BNCI ErrP | pos, neg, pos, neg | 4 | 4 | 0.02 | P1-diff, Ne-diff, Pe-diff, LateN-diff |
+| HRI ErrP | pos, neg, pos, neg | 4 | 4 | 0.02 | P1-diff, Ne-diff, Pe-diff, LateN-diff |
+| ERN | neg, pos | 2 | 3 | 0.02 | ERN-diff, Pe-diff |
+| LRP | neg, pos | 2 | 2 | 0.02 | EarlyN, LateP |
+| MMN | neg, pos, neg | 3 | 3 | 0.02 | MMN-diff, P3a-diff, LateN-diff |
+| N170 | neg, pos, neg | 3 | 4 | 0.02 | N170-diff, VPP-diff, LateN-diff |
+| N2pc | neg, pos, neg | 3 | 4 | 0.02 | N2pc-diff, SPCN-diff, LateN-diff |
+| N400 | pos, neg, pos, neg | 4 | 4 | 0.02 | P2-diff, N400-diff, LPC-diff, LateN-diff |
+| P300 | pos, neg, pos | 3 | 4 | 0.02 | P3-diff, SW-diff, LateP-diff |
+
+Auto K is the modal value across folds (consistent for all datasets except N400 and P300, which vary between 3 and 4).
 
 Additionally, prototype windows are clamped to a maximum width of 200 ms (`max_window_ms` in `erpxttn.py`). This prevents late, broad components (e.g., LPC, LateP) from dominating the prototype representation. A future direction is to make this configurable per-dataset, as late ERP components naturally span wider temporal windows than early ones.
 
@@ -342,7 +346,7 @@ Per-subject LOSO results for the v1.0.0 Graz paper (BNCI + HRI, midline2 / midli
 
 ## Hardware
 
-Current training runs on **NVIDIA RTX PRO 6000 Blackwell Server Edition** (98 GB VRAM) via RunPod, with 128 CPU cores and 1.5 TB RAM. Previous results (now superseded) were on an NVIDIA GeForce RTX 4070 Laptop GPU (8 GB VRAM).
+Current training runs on **NVIDIA RTX PRO 6000 Blackwell Server Edition** (96 GB VRAM) via RunPod, with 128 CPU cores and 1.5 TB RAM. Previous results (now superseded) were on an NVIDIA GeForce RTX 4070 Laptop GPU (8 GB VRAM).
 
 ### Training configuration
 
@@ -388,7 +392,7 @@ If you use this code (v2.0.0), please cite the **extension paper preprint** and 
 
 ```bibtex
 @misc{wyman2026erpxttn_preprint,
-  title={ERP-XTTN: Interpretable Prototype-Guided Cross-Attention for Cross-Subject ERP Classification>},
+  title={ERP-XTTN: Interpretable Prototype-Guided Cross-Attention for Cross-Subject ERP Classification},
   author={Wyman, Charlotte Genevier and Hirshfield, Leanne},
   year={2026},
   eprint={XXXX.XXXXX},
@@ -408,7 +412,7 @@ If you use this code (v2.0.0), please cite the **extension paper preprint** and 
 }
 ```
 
-The earlier **v1.0.0 conference release** (*Graz BCI 2026*) is archived separately and available via the `v1.0.0` tag:
+The earlier **v1.0.0 conference release** (*Graz BCI 2026*) is archived separately and available via the [`v1.0.0` release](https://github.com/cgenevier/ERP-XTTN/releases/tag/v1.0.0):
 
 ```bibtex
 @inproceedings{wyman2026erpxttn,

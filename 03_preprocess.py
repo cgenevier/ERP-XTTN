@@ -25,7 +25,7 @@ Usage:
   python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels full --reference car
   python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels full --reference car --filter-method fir_zero
   python 03_preprocess.py --dataset datasets/hri_errp_cursor --channels midline3 --reference none
-  python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels midline2_bnci --reference none --resample 256
+  python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels midline3 --reference none --resample 256
 """
 
 from __future__ import annotations
@@ -43,7 +43,6 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 CHANNEL_PRESETS = {
     # Generic cross-dataset presets
-    "midline2": ["Fz", "Cz"],
     "midline3": ["Fz", "Cz", "Pz"],
     # Dataset-specific presets should be defined in dataset_config.json
     # under "channel_presets". They override these built-in presets.
@@ -151,13 +150,13 @@ def make_variant_name(
 ) -> str:
     """Build the preprocessing variant directory name.
 
-    Uses the preset name directly (e.g. ``midline2``, ``midline2_bnci``)
+    Uses the preset name directly (e.g. ``midline3``, ``posterior3_n2pc``)
     so that presets with the same channel count but different channels
     produce distinct directory names.
 
     Examples:
       car_qcdrop_iir_fwd_bp-1-10                (full channels, CAR, QC drop, IIR)
-      noref_midline2_rs256_iir_fwd_bp-1-10      (midline2, no ref, no QC drop, IIR)
+      noref_midline3_rs256_iir_fwd_bp-1-10      (midline3, no ref, no QC drop, IIR)
       noref_qcdrop_rs256_fir_zero_bp-1-10       (full, no ref, QC drop, FIR)
     """
     ref = "car" if reference == "car" else "noref"
@@ -431,7 +430,7 @@ def main() -> None:
 Examples:
   python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels full --reference car
   python 03_preprocess.py --dataset datasets/hri_errp_cursor --channels midline3 --reference none
-  python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels midline2_bnci --reference none --resample 256
+  python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels midline3 --reference none --resample 256
 """,
     )
     parser.add_argument(
