@@ -1,20 +1,24 @@
-# ERP-XTTN: Cross-Attention ERP Classifier with Dynamic Prototypes
+# ERP-XTTN: Interpretable Cross-Attention ERP Classifier
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20087550.svg)](https://doi.org/10.5281/zenodo.20087550)
+[![arXiv](https://img.shields.io/badge/arXiv-XXXX.XXXXX-b31b1b.svg)](https://arxiv.org/abs/XXXX.XXXXX)
 
 Code repository for ERP-XTTN, an interpretable cross-attention architecture for ERP classification from EEG signals.
 
-> **Status:** This is the `erp-core` branch, actively under development for the v2.0.0 extension paper. For the frozen v1.0.0 Graz release, check out the `v1.0.0` tag.
+> **Version 2.0.0** — This release extends the v1.0.0 *Graz BCI 2026* work to the full ERP CORE benchmark (seven paradigms) alongside the BNCI and HRI ErrP datasets, adding EEGNet and xDAWN+RG baselines and an auto peak-detection ERPXTTN variant. It accompanies the ERP-XTTN extension paper (preprint: [arXiv:XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX)). For the frozen Graz conference release, check out the `v1.0.0` tag.
 
 ## Versions
 
-- **v1.0.0** — Code for Wyman & Hirshfield, *Graz BCI 2026*.
+- **v1.0.0** — Code for Wyman & Hirshfield, *Graz BCI 2026* (conference paper).
   - Paper DOI: [pending]
   - Archived on Zenodo: [10.5281/zenodo.20087551](https://doi.org/10.5281/zenodo.20087551)
-- **v2.0.0** *(planned, this branch)* — Extension paper in preparation, covering
-  the full ERP CORE benchmark with additional baselines.
+- **v2.0.0** *(this release)* — Extension paper covering the full ERP CORE
+  benchmark (seven paradigms) plus the BNCI and HRI ErrP datasets, with EEGNet
+  and xDAWN+RG baselines and constrained/auto ERPXTTN variants.
+  - Preprint: [arXiv:XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX)
+  - Archived on Zenodo: [pending — v2.0.0 DOI]
 
-To reproduce the Graz paper results, check out the `v1.0.0` tag after release:
+To reproduce the Graz conference results, check out the `v1.0.0` tag:
 `git checkout v1.0.0`
 
 ## Repository Structure
@@ -25,12 +29,19 @@ ERP-XTTN/
 ├── 02_inspect.py           # Data inspection / quality check utilities
 ├── 03_preprocess.py        # Preprocessing + epoching pipeline
 ├── 04_train.py             # LOSO cross-validation training
-├── 05_gen_figures.py       # Attention & TP/TN figure generation
+├── 05_gen_figures.py       # Per-dataset attention & TP/TN figure generation
+├── 06_gen_analysis.py      # Cross-dataset interpretability analysis → analysis_summary.json
+├── 07_gen_paper_figures.py # Aggregate multi-dataset figures for the paper
+├── bench_latency.py        # Inference latency / parameter-count benchmark
 ├── run_manager.py          # Batch launcher / status monitor for experiment runs
 ├── dashboard.html          # Browser dashboard for browsing saved results
 ├── eegnet.py               # EEGNet baseline (Lawhern et al., 2018)
 ├── erpxttn.py              # ERP-XTTN model + dynamic peak detection
 ├── xdawn_rg.py             # xDAWN + Riemannian Geometry baseline
+├── analysis_summary.json   # Cached cross-dataset analysis output (from 06)
+├── paper_figures/          # Paper figures + architecture diagram source
+│   ├── extension/          #   v2.0.0 extension-paper figures + make_diagram.py
+│   └── graz2026/           #   v1.0.0 Graz conference figures
 ├── datasets/
 │   ├── bnci_errp_013-2015/         # BNCI Horizon 2020 ErrP (feedback)
 │   ├── hri_errp_cursor/            # HRI cursor ErrP (feedback)
@@ -121,12 +132,12 @@ Preprocessing applies: optional re-referencing, channel selection, IIR bandpass 
 
 ```bash
 # ErrP datasets (resampled to 256 Hz)
-python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels midline3 --resample 256
-python 03_preprocess.py --dataset datasets/hri_errp_cursor    --channels midline3 --resample 256
+python 03_preprocess.py --dataset datasets/bnci_errp_013-2015 --channels midline3 --resample 256 --no-qc-drop
+python 03_preprocess.py --dataset datasets/hri_errp_cursor    --channels midline3 --resample 256 --no-qc-drop
 
 # ERP CORE — paradigm-specific channel presets + full 30ch
-python 03_preprocess.py --dataset datasets/erpcore_n400 --channels midline3_n400 --resample 256
-python 03_preprocess.py --dataset datasets/erpcore_n400 --channels full          --resample 256
+python 03_preprocess.py --dataset datasets/erpcore_n400 --channels midline3_n400 --resample 256 --no-qc-drop
+python 03_preprocess.py --dataset datasets/erpcore_n400 --channels full          --resample 256 --no-qc-drop
 # ...repeat per paradigm
 ```
 
@@ -146,7 +157,7 @@ python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxt
 python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn --peak-mode auto
 ```
 
-`--model erpxttn` selects the ERPXTTN architecture. Constrained runs are saved under `erpxttn_constrained/`; auto runs are saved under `erpxttn_auto/`.
+`--model erpxttn` selects the ERPXTTN architecture. Constrained runs are saved under `erpxttn_constrained/`; auto runs are saved under `erpxttn_auto/` (the auto variant accepts `--max-k` to cap the number of detected prototypes, default 4).
 
 Results are saved to `datasets/<name>/results/<window>/<variant>/<model>/results.json`.
 
@@ -156,7 +167,21 @@ Results are saved to `datasets/<name>/results/<window>/<variant>/<model>/results
 python 05_gen_figures.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn_constrained
 ```
 
-Generates per-subject attention routing figures (TP/TN high-confidence and median trials) and aggregate attention analysis plots (prototype visualization, entropy vs. AUROC, attention timecourse, differential overlay, per-subject routing).
+Generates per-subject attention routing figures (TP/TN high-confidence and median trials) and aggregate attention analysis plots (prototype visualization, entropy vs. AUROC, attention timecourse, differential overlay, per-subject routing). Use `--morphology-only` to regenerate just the morphology panels, or `--partial` to skip datasets whose results are incomplete.
+
+### 7. Cross-Dataset Analysis and Paper Figures
+
+The aggregate (multi-dataset) analysis and publication figures are driven by the auto ERPXTTN runs (`erpxttn_auto/`):
+
+```bash
+# Cross-dataset interpretability analysis → analysis_summary.json
+python 06_gen_analysis.py
+
+# Aggregate paper figures (reads analysis_summary.json + per-subject results) → paper_figures/extension/
+python 07_gen_paper_figures.py
+```
+
+`bench_latency.py` reports inference latency and parameter counts for the model/baselines.
 
 ## Architecture
 
@@ -229,7 +254,7 @@ Prototype windows are detected automatically per LOSO fold from the training dat
 | BNCI ErrP | pos, neg, pos, neg | 4 | 0.02 | P1-diff, Ne-diff, Pe-diff, LateN-diff |
 | HRI ErrP | pos, neg, pos, neg | 4 | 0.02 | P1-diff, Ne-diff, Pe-diff, LateN-diff |
 | ERN | neg, pos | 2 | 0.02 | ERN-diff, Pe-diff |
-| LRP | neg, pos | 2 | 0.02 | LRP, LateP |
+| LRP | neg, pos | 2 | 0.02 | EarlyN, LateP |
 | MMN | neg, pos, neg | 3 | 0.02 | MMN-diff, P3a-diff, LateN-diff |
 | N170 | neg, pos, neg | 3 | 0.02 | N170-diff, VPP-diff, LateN-diff |
 | N2pc | neg, pos, neg | 3 | 0.02 | N2pc-diff, SPCN-diff, LateN-diff |
@@ -323,7 +348,31 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Citation
 
-If you use this code, please cite:
+If you use this code (v2.0.0), please cite the **extension paper preprint** and the **software**:
+
+```bibtex
+@misc{wyman2026erpxttn_preprint,
+  title={ERP-XTTN: Interpretable Prototype-Guided Cross-Attention for Cross-Subject ERP Classification>},
+  author={Wyman, Charlotte Genevier and Hirshfield, Leanne},
+  year={2026},
+  eprint={XXXX.XXXXX},
+  archivePrefix={arXiv},
+  primaryClass={eess.SP},
+  note={Preprint. Full publication metadata will be added upon acceptance.}
+}
+
+@software{wyman2026erpxttn_code,
+  author={Wyman, Charlotte Genevier},
+  title={ERP-XTTN: Cross-Attention ERP Classifier with Dynamic Prototypes},
+  year={2026},
+  publisher={Zenodo},
+  version={v2.0.0},
+  doi={10.5281/zenodo.20087550},
+  url={https://doi.org/10.5281/zenodo.20087550}
+}
+```
+
+The earlier **v1.0.0 conference release** (*Graz BCI 2026*) is archived separately and available via the `v1.0.0` tag:
 
 ```bibtex
 @inproceedings{wyman2026erpxttn,
@@ -333,16 +382,6 @@ If you use this code, please cite:
   year={2026},
   note={To appear. DOI and full publication metadata will be added upon publication.}
 }
-
-@software{wyman2026erpxttn_code,
-  author={Wyman, Charlotte Genevier},
-  title={ERP-XTTN: Interpretable Cross-Attention ERP Classifier},
-  year={2026},
-  publisher={Zenodo},
-  version={v1.0.0},
-  doi={10.5281/zenodo.20087551},
-  url={https://doi.org/10.5281/zenodo.20087551}
-}
 ```
 
-For the v1.0.0 software release (Graz paper snapshot), see the `main` branch or the `v1.0.0` tag. A `@software` citation for the v2.0.0 release will be added here once the extension paper and accompanying Zenodo archive are finalized.
+The preprint arXiv ID and the version-specific v2.0.0 Zenodo DOI will be filled in once finalized; the `@software` DOI above is the Zenodo concept DOI, which always resolves to the latest release. Machine-readable metadata is in [CITATION.cff](CITATION.cff).
