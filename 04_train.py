@@ -657,8 +657,7 @@ def main():
         if args.resume:
             pred_path = results_dir / f"predictions_{test_subj}.npz"
             if pred_path.exists():
-                import numpy as _np
-                _d = _np.load(pred_path)
+                _d = np.load(pred_path)
                 fold_result = {
                     "fold": i, "test_subject": test_subj,
                     "best_epoch": 0,

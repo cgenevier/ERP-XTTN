@@ -25,7 +25,6 @@ Metrics per (dataset, variant):
 """
 import argparse
 import json
-import sys
 from itertools import combinations
 from pathlib import Path
 

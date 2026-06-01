@@ -1,8 +1,8 @@
 """Generate all attention analysis and routing figures for ERP-XTTN.
 
 Usage:
-    python gen_figures.py --dataset bnci --channels midline3
-    python gen_figures.py --dataset hri  --channels midline3
+    python 05_gen_figures.py --dataset bnci_errp_013-2015 --channels midline3
+    python 05_gen_figures.py --dataset erpcore_n400 --channels midline3_n400
 
 Generates:
     - fig_prototypes.png          Prototype waveforms across folds
@@ -15,7 +15,6 @@ Generates:
 
 import argparse
 import json
-import os
 from pathlib import Path
 
 import mne
