@@ -150,21 +150,21 @@ python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model eegne
 # xDAWN+RG classical baseline
 python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model xdawn_rg
 
-# Constrained ERPXTTN (uses dataset-configured polarity pattern)
+# ERPXTTN — auto peak-detection (default; the model reported in the paper)
 python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn
 
-# Auto ERPXTTN (auto peak-detection, no polarity constraint)
-python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn --peak-mode auto
+# ERPXTTN — constrained variant (dataset-configured polarity pattern; the v1.0.0 model)
+python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn --peak-mode constrained
 ```
 
-`--model erpxttn` selects the ERPXTTN architecture. Constrained runs are saved under `erpxttn_constrained/`; auto runs are saved under `erpxttn_auto/` (the auto variant accepts `--max-k` to cap the number of detected prototypes, default 4).
+`--model erpxttn` selects the ERPXTTN architecture and **defaults to auto peak-detection** (saved under `erpxttn_auto/`; accepts `--max-k` to cap the number of detected prototypes, default 4). Pass `--peak-mode constrained` for the v1.0.0 constrained variant (saved under `erpxttn_constrained/`).
 
 Results are saved to `datasets/<name>/results/<window>/<variant>/<model>/results.json`.
 
 ### 6. Generate Figures (ERPXTTN only)
 
 ```bash
-python 05_gen_figures.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn_constrained
+python 05_gen_figures.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn_auto
 ```
 
 Generates per-subject attention routing figures (TP/TN high-confidence and median trials) and aggregate attention analysis plots (prototype visualization, entropy vs. AUROC, attention timecourse, differential overlay, per-subject routing). Use `--morphology-only` to regenerate just the morphology panels, or `--partial` to skip datasets whose results are incomplete.
@@ -182,6 +182,38 @@ python 07_gen_paper_figures.py
 ```
 
 `bench_latency.py` reports inference latency and parameter counts for the model/baselines.
+
+### Reproducing the Paper Results
+
+**All ERPXTTN results reported in the extension paper use the automatic peak-detection variant (`erpxttn_auto`)**, which is the default for `04_train.py` and `run_manager.py` in this release. The constrained variant (`erpxttn_constrained`) is the v1.0.0 model and is kept only for comparison; reach it with `--peak-mode constrained`. The paper uses the 3-channel preset per dataset (the cross-dataset analysis additionally uses `--channels full`):
+
+| Dataset | `--channels` preset |
+|---------|---------------------|
+| bnci_errp_013-2015 | midline3 |
+| hri_errp_cursor | midline3 |
+| erpcore_ern | midline3_ern |
+| erpcore_lrp | lateral3_lrp |
+| erpcore_mmn | midline3 |
+| erpcore_n170 | occipital3_n170 |
+| erpcore_n2pc | posterior3_n2pc |
+| erpcore_n400 | midline3_n400 |
+| erpcore_p300 | midline3 |
+
+```bash
+# Paper model (auto ERPXTTN, the default) — repeat per dataset/preset from the
+# table above, and again with `--channels full` for the full-channel analysis.
+python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn
+
+# Baselines (same dataset/preset)
+python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model eegnet
+python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model xdawn_rg
+
+# Then aggregate analysis + paper figures (read the erpxttn_auto runs)
+python 06_gen_analysis.py
+python 07_gen_paper_figures.py
+```
+
+Equivalently, `python run_manager.py --launch-all --include-full` batch-launches the same auto ERPXTTN runs plus baselines across all datasets.
 
 ## Architecture
 

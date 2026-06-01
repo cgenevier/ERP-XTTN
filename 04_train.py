@@ -576,8 +576,9 @@ def main():
     parser.add_argument("--model", required=True, choices=["eegnet", "erpxttn", "xdawn_rg"])
     parser.add_argument("--resume", action="store_true",
                         help="Skip folds that already have predictions (for resuming interrupted runs)")
-    parser.add_argument("--peak-mode", choices=["constrained", "auto"], default="constrained",
-                        help="Peak detection mode: 'constrained' (polarity pattern) or 'auto' (data-driven)")
+    parser.add_argument("--peak-mode", choices=["constrained", "auto"], default="auto",
+                        help="Peak detection mode: 'auto' (data-driven; default, the v2.0.0 / paper model) "
+                             "or 'constrained' (dataset-configured polarity pattern; the v1.0.0 model)")
     parser.add_argument("--max-k", type=int, default=4,
                         help="Max number of prototypes in auto mode (default: 4)")
     args = parser.parse_args()

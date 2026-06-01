@@ -113,9 +113,15 @@ def log(msg):
 
 
 def get_model_dir_name(model):
-    """Determine the results directory name for a model."""
+    """Determine the results directory name for a model.
+
+    The bare ``erpxttn`` token maps to the auto peak-detection variant
+    (``erpxttn_auto``) — the model used throughout v2.0.0 and reported in
+    the paper. The constrained variant is the v1.0.0 model and is not
+    queued here; run it directly with ``04_train.py --peak-mode constrained``.
+    """
     if model == "erpxttn":
-        return "erpxttn_constrained"
+        return "erpxttn_auto"
     return model
 
 
@@ -159,7 +165,7 @@ def _is_process_running(dataset_id, channel_preset, model):
         for line in result.stdout.splitlines():
             ds, ch, logical_model = _parse_train_cmdline(line)
             if ds == dataset_id and ch == channel_preset \
-               and logical_model == model:
+               and logical_model == get_model_dir_name(model):
                 return True
         return False
     except Exception:
@@ -246,6 +252,9 @@ def launch_run(dataset_id, channel_preset, model):
            "--channels", channel_preset,
            "--model", model,
            "--resume"]
+    # v2.0.0 queues the auto peak-detection variant (erpxttn_auto).
+    if model == "erpxttn":
+        cmd += ["--peak-mode", "auto"]
 
     env = os.environ.copy()
     env.update(THREAD_ENV)
