@@ -36,7 +36,7 @@ ERP-XTTN/
 ├── run_manager.py          # Batch launcher / status monitor for experiment runs
 ├── dashboard.html          # Browser dashboard for browsing saved results
 ├── eegnet.py               # EEGNet baseline (Lawhern et al., 2018)
-├── erpxttn.py              # ERP-XTTN model + dynamic peak detection
+├── erpxttn.py              # ERP-XTTN model + automatic peak detection
 ├── xdawn_rg.py             # xDAWN + Riemannian Geometry baseline
 ├── analysis_summary.json   # Cached cross-dataset analysis output (from 06)
 ├── paper_figures/          # Paper figures + architecture diagram source
@@ -231,9 +231,13 @@ A single multi-head self-attention layer (H = 4 heads, d_h = 16) with pre-layer-
 
 **3. Prototype Construction (per fold, per training phase)**
 
-For each LOSO fold, K ERP prototypes are extracted from the grand-average difference wave on the dataset's detection channel. K and the expected polarity pattern are configured per dataset (see [Prototype Configuration](#prototype-configuration)). Extraction runs once in Phase 1 (train split) and again in Phase 2 (full training pool):
+For each LOSO fold, K ERP prototypes are extracted from the grand-average difference wave on the dataset's detection channel. Extraction runs once in Phase 1 (train split) and again in Phase 2 (full training pool). Two extraction modes are available:
 
-- The difference wave is Gaussian-smoothed (σ = 2 samples), and local extrema passing the dataset-configured prominence threshold are considered. Peaks are selected to match the expected polarity pattern while maximizing total prominence.
+- **Auto (default; the model reported in the paper):** the difference wave is Gaussian-smoothed (σ = 2 samples), and the top-K local extrema by prominence (above the dataset-configured threshold) are selected, with no polarity constraint. K is the number of peaks actually detected and may vary by fold (capped by `--max-k`, default 4).
+- **Constrained (the v1.0.0 model, retained for comparison):** peaks are instead selected to match a dataset-configured expected polarity pattern while maximizing total prominence, fixing K per dataset (see [Prototype Configuration](#prototype-configuration)).
+
+In both modes:
+
 - Window boundaries expand from each peak to neighboring zero-crossings, clamped to [40, 200] ms width.
 - Each prototype is the segment of the full multichannel difference wave within its detected window, zero-padded elsewhere to epoch length.
 

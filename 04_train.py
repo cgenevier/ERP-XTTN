@@ -79,7 +79,7 @@ def load_dataset_config(dataset_key: str) -> dict:
     # Ensure 'name' field is the directory name (for path construction)
     cfg.setdefault("name", dataset_dir.name)
     # Default peak_prominence
-    cfg.setdefault("peak_prominence", 0.1)
+    cfg.setdefault("peak_prominence", 0.02)
     return cfg
 
 
@@ -235,7 +235,7 @@ def make_model(model_name: str, n_channels: int, n_times: int,
                srate: int, device: torch.device,
                channel_names: list[str] = None,
                polarity_pattern: list[str] = None,
-               peak_prominence: float = 0.1,
+               peak_prominence: float = 0.02,
                detection_channel: str = None,
                peak_mode: str = 'constrained',
                max_k: int = 4):
@@ -326,7 +326,7 @@ def run_fold(fold_idx: int, test_subj: str,
              device: torch.device, results_dir: Path,
              channel_names: list[str] = None,
              polarity_pattern: list[str] = None,
-             peak_prominence: float = 0.1,
+             peak_prominence: float = 0.02,
              pos_key: str = "error", neg_key: str = "correct",
              detection_channel: str = None,
              peak_mode: str = 'constrained',
@@ -648,7 +648,7 @@ def main():
 
     # LOSO cross-validation
     polarity_pattern = cfg.get("polarity_pattern")
-    peak_prominence = cfg.get("peak_prominence", 0.1)
+    peak_prominence = cfg.get("peak_prominence", 0.02)
     pos_key = cfg["label_map"]["pos_key"]
     neg_key = cfg["label_map"]["neg_key"]
     results = []

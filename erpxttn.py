@@ -1,5 +1,5 @@
-"""ERP-XTTN — cross-attention ErrP classifier with dynamic prototypes,
-self-attention, and prototype positional encoding.
+"""ERP-XTTN — cross-attention ERP classifier with automatic prototype
+detection, self-attention, and prototype positional encoding.
 
 Classifies EEG epochs by cross-attending input patches against ERP prototype
 templates derived from the grand-average difference wave. Prototype temporal
@@ -39,7 +39,7 @@ def ms_to_sample(ms: float, sfreq: float = 256.0, tmin: float = 0.0) -> int:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Dynamic peak detection
+# Automatic peak detection
 # ──────────────────────────────────────────────────────────────────────
 
 def _smooth_signal(diff_signal: np.ndarray, sigma: float = 2.0) -> np.ndarray:
@@ -63,7 +63,7 @@ def _find_zero_crossings(signal: np.ndarray) -> np.ndarray:
 def detect_alternating_peaks(
     diff_signal: np.ndarray, sfreq: float,
     polarity_pattern: list[str] = None,
-    prominence: float = 0.1,
+    prominence: float = 0.02,
     min_distance_ms: float = 31.0,
     smooth_sigma: float = 2.0,
     min_latency_ms: float = 50.0,
@@ -253,7 +253,7 @@ class ERPXTTN(nn.Module):
                  sfreq: float = 256.0, tmin: float = 0.0,
                  n_proto: int = 4,
                  polarity_pattern: list[str] = None,
-                 peak_prominence: float = 0.1,
+                 peak_prominence: float = 0.02,
                  min_window_ms: float = 40.0,
                  max_window_ms: float = 200.0,
                  detection_channel: str = None,
@@ -285,7 +285,7 @@ class ERPXTTN(nn.Module):
                     f"Detection channel '{detect_name}' not found in "
                     f"{channel_names}; falling back to index {self.detect_ch}")
 
-        # Dynamic window parameters
+        # Automatic window parameters
         self.min_window_ms = min_window_ms
         self.max_window_ms = max_window_ms
 
@@ -408,7 +408,7 @@ class ERPXTTN(nn.Module):
             )
             if len(peaks) < self.K:
                 raise RuntimeError(
-                    f"Dynamic peak detection found only {len(peaks)}/{self.K} "
+                    f"Constrained peak detection found only {len(peaks)}/{self.K} "
                     f"peaks on the grand-average difference wave. Expected "
                     f"polarity pattern {self.polarity_pattern}. Check "
                     f"preprocessing and data quality. Detected peaks: {peaks}")
