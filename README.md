@@ -51,7 +51,7 @@ ERP-XTTN/
 │   ├── erpcore_n170/               # ERP CORE — N170
 │   ├── erpcore_n2pc/               # ERP CORE — N2pc
 │   ├── erpcore_n400/               # ERP CORE — N400
-│   ├── erpcore_p300/               # ERP CORE — P300
+│   └── erpcore_p300/               # ERP CORE — P300
 └── logs/                    # Generated at run time (not tracked in git)
     └── <timestamp>_<dataset>_<channels>_<model>/
         └── train.log
@@ -257,7 +257,7 @@ EEGNet (Lawhern et al., 2018) is used as a compact CNN baseline. It applies temp
 
 ### xDAWN + Riemannian Geometry (Baseline)
 
-A classical ML baseline: xDAWN spatial filters estimated on the training set project epochs onto ERP-enhanced components, their trial covariance matrices are projected to the Riemannian tangent space, and an MDM or logistic-regression classifier is fit. Implemented via `pyriemann`.
+A classical ML baseline: xDAWN spatial filters estimated on the training set project epochs onto ERP-enhanced components, their trial covariance matrices are projected to the Riemannian tangent space, and a logistic-regression classifier (L2, C=1.0, L-BFGS) is fit. Implemented via `pyriemann` + scikit-learn.
 
 ### Training Procedure
 
