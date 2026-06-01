@@ -403,7 +403,7 @@ If you use this code (v2.0.0), please cite the **extension paper preprint** and 
 
 @software{wyman2026erpxttn_code,
   author={Wyman, Charlotte Genevier},
-  title={ERP-XTTN: Cross-Attention ERP Classifier with Dynamic Prototypes},
+  title={ERP-XTTN: Interpretable Cross-Attention ERP Classifier},
   year={2026},
   publisher={Zenodo},
   version={v2.0.0},
