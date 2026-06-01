@@ -16,7 +16,7 @@ Code repository for ERP-XTTN, an interpretable cross-attention architecture for 
   benchmark (seven paradigms) plus the BNCI and HRI ErrP datasets, with EEGNet
   and xDAWN+RG baselines and constrained/auto ERPXTTN variants.
   - Preprint: [arXiv:XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX)
-  - Archived on Zenodo: [pending — v2.0.0 DOI]
+  - Archived on Zenodo: [10.5281/zenodo.20497891](https://doi.org/10.5281/zenodo.20497891)
 
 To reproduce the Graz conference results, check out the [`v1.0.0`](https://github.com/cgenevier/ERP-XTTN/releases/tag/v1.0.0) tag:
 `git checkout v1.0.0`
@@ -407,8 +407,8 @@ If you use this code (v2.0.0), please cite the **extension paper preprint** and 
   year={2026},
   publisher={Zenodo},
   version={v2.0.0},
-  doi={10.5281/zenodo.20087550},
-  url={https://doi.org/10.5281/zenodo.20087550}
+  doi={10.5281/zenodo.20497891},
+  url={https://doi.org/10.5281/zenodo.20497891}
 }
 ```
 
@@ -424,4 +424,4 @@ The earlier **v1.0.0 conference release** (*Graz BCI 2026*) is archived separate
 }
 ```
 
-The preprint arXiv ID and the version-specific v2.0.0 Zenodo DOI will be filled in once finalized; the `@software` DOI above is the Zenodo concept DOI, which always resolves to the latest release. Machine-readable metadata is in [CITATION.cff](CITATION.cff).
+The `@software` DOI above (`10.5281/zenodo.20497891`) is specific to v2.0.0; the badge links the Zenodo concept DOI (`10.5281/zenodo.20087550`), which always resolves to the latest release. The preprint arXiv identifier will be added once posted. Machine-readable metadata is in [CITATION.cff](CITATION.cff).
