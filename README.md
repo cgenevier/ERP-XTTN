@@ -9,14 +9,14 @@ Code repository for ERP-XTTN, an interpretable cross-attention architecture for 
 
 ## Versions
 
-- **[v1.0.0](https://github.com/cgenevier/ERP-XTTN/releases/tag/v1.0.0)** — Code for Wyman & Hirshfield, *Graz BCI 2026* (conference paper).
-  - Paper DOI: [pending]
-  - Archived on Zenodo: [10.5281/zenodo.20087551](https://doi.org/10.5281/zenodo.20087551)
-- **v2.0.0** *(this release)* — Extension paper covering the full ERP CORE
+- **[v2.0.0](https://github.com/cgenevier/ERP-XTTN/releases/tag/v2.0.0)** *(this release)* — Extension paper covering the full ERP CORE
   benchmark (seven paradigms) plus the BNCI and HRI ErrP datasets, with EEGNet
   and xDAWN+RG baselines and constrained/auto ERPXTTN variants.
   - Preprint: [arXiv:XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX)
   - Archived on Zenodo: [10.5281/zenodo.20497891](https://doi.org/10.5281/zenodo.20497891)
+- **[v1.0.0](https://github.com/cgenevier/ERP-XTTN/releases/tag/v1.0.0)** — Code for Wyman & Hirshfield, *Graz BCI 2026* (conference paper).
+  - Paper DOI: [pending]
+  - Archived on Zenodo: [10.5281/zenodo.20087551](https://doi.org/10.5281/zenodo.20087551)
 
 To reproduce the Graz conference results, check out the [`v1.0.0`](https://github.com/cgenevier/ERP-XTTN/releases/tag/v1.0.0) tag:
 `git checkout v1.0.0`
