@@ -1,5 +1,7 @@
 # ERP-XTTN: Cross-Attention ERP Classifier with Dynamic Prototypes
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20087550.svg)](https://doi.org/10.5281/zenodo.20087550)
+
 Code repository for ERP-XTTN, an interpretable cross-attention architecture for ERP classification from EEG signals.
 
 > **Status:** This is the `erp-core` branch, actively under development for the v2.0.0 extension paper. For the frozen v1.0.0 Graz release, check out the `v1.0.0` tag.
@@ -8,7 +10,7 @@ Code repository for ERP-XTTN, an interpretable cross-attention architecture for 
 
 - **v1.0.0** — Code for Wyman & Hirshfield, *Graz BCI 2026*.
   - Paper DOI: [pending]
-  - Archived on Zenodo: [pending]
+  - Archived on Zenodo: [10.5281/zenodo.20087551](https://doi.org/10.5281/zenodo.20087551)
 - **v2.0.0** *(planned, this branch)* — Extension paper in preparation, covering
   the full ERP CORE benchmark with additional baselines.
 
@@ -63,7 +65,7 @@ Each dataset directory contains:
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.10+ (tested with Python 3.11.14)
 - CUDA-capable GPU recommended (experiments used an NVIDIA RTX PRO 6000 Blackwell Server Edition via RunPod; v1.0.0 results were on an NVIDIA RTX 4070 Laptop GPU)
 
 Install dependencies:
@@ -326,10 +328,20 @@ If you use this code, please cite:
 ```bibtex
 @inproceedings{wyman2026erpxttn,
   title={ERP-XTTN: Interpretable Cross-Subject Error-Related Potential Classification via Cross-Attention to Data-Driven ERP Prototypes},
-  author={Wyman, Charlotte and Hirshfield, Leanne},
+  author={Wyman, Charlotte Genevier and Hirshfield, Leanne},
   booktitle={Proceedings of the 10th Graz Brain-Computer Interface Conference},
   year={2026},
   note={To appear. DOI and full publication metadata will be added upon publication.}
+}
+
+@software{wyman2026erpxttn_code,
+  author={Wyman, Charlotte Genevier},
+  title={ERP-XTTN: Interpretable Cross-Attention ERP Classifier},
+  year={2026},
+  publisher={Zenodo},
+  version={v1.0.0},
+  doi={10.5281/zenodo.20087551},
+  url={https://doi.org/10.5281/zenodo.20087551}
 }
 ```
 
