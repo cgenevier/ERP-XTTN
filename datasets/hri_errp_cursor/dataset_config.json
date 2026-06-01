@@ -1,0 +1,96 @@
+{
+    "dataset_name": "HRI Cursor ErrP",
+    "description": "Error-related potentials from a cursor control task (human-computer interaction). 11 subjects (s02-s13, no s01/s12). Part of the HRI ErrP study by Ehrlich & Cheng (2019).",
+    "citation": "Ehrlich, S. K., & Cheng, G. (2019). A feasibility study for validating robot actions using EEG-based error-related potentials. International Journal of Social Robotics, 11(2), 271-283.",
+    "input_format": "eeglab",
+    "file_glob": "s*_cursor.set",
+    "filename_regex": "^s(?P<sub>\\d+)_cursor\\.set$",
+    "channel_type": "eeg",
+    "eog_channels": [
+        "EOG1",
+        "EOG2",
+        "EOG3"
+    ],
+    "assume_microvolts": false,
+    "montage": "standard_1020",
+    "bids_task": "errp",
+    "export_mode": "single",
+    "event_id": {
+        "stimulus_left": "S  1",
+        "stimulus_up": "S  2",
+        "stimulus_right": "S  3",
+        "correct": "S  4",
+        "human_error": "S  5",
+        "machine_error": "S  6",
+        "feedback_color": "S  7",
+        "robot_head_back": "S  8",
+        "end_of_trial": "S  9",
+        "response_left": "R  1",
+        "response_up": "R  2",
+        "response_right": "R  3",
+        "feedback_left": "FB1",
+        "feedback_up": "FB2",
+        "feedback_right": "FB3"
+    },
+    "epoching": {
+        "mode": "trial_outcome",
+        "time_lock_events": [
+            "feedback_left",
+            "feedback_up",
+            "feedback_right"
+        ],
+        "outcome_events": {
+            "correct": "correct",
+            "error": "machine_error"
+        },
+        "exclude_outcomes": [
+            "human_error"
+        ],
+        "outcome_search_window_sec": 2.0
+    },
+    "notes": "EEGLAB .set/.fdt format. 30 channels (27 EEG + 3 EOG). Recorded at 1000 Hz, downsampled to 256 Hz. Referenced to average mastoids (TP9, TP10). Error probability: pErr1=20%, pErr2=50% (pseudo-randomized). For ErrP classification: S4=correct, S6=machine_error (ErrP-eliciting). S5=human_error (typically excluded). Time-lock to S7 (feedback_color) or FB1/FB2/FB3.",
+    "dataset_id": "hri_errp_cursor",
+    "subjects": [
+        "sub-02",
+        "sub-03",
+        "sub-04",
+        "sub-05",
+        "sub-06",
+        "sub-07",
+        "sub-08",
+        "sub-09",
+        "sub-10",
+        "sub-11",
+        "sub-13"
+    ],
+    "variants": {
+        "midline2": "noref_midline2_iir_fwd_bp-1-10",
+        "midline3": "noref_midline3_iir_fwd_bp-1-10",
+        "full": "noref_iir_fwd_bp-1-10"
+    },
+    "label_map": {
+        "pos_key": "error",
+        "neg_key": "correct"
+    },
+    "polarity_pattern": [
+        "pos",
+        "neg",
+        "pos",
+        "neg"
+    ],
+    "peak_prominence": 0.02,
+    "channel_presets": {
+        "midline3": [
+            "Fz",
+            "Cz",
+            "Pz"
+        ]
+    },
+    "proto_names": [
+        "P1-diff",
+        "Ne-diff",
+        "Pe-diff",
+        "LateN-diff"
+    ],
+    "detection_channel": "Cz"
+}

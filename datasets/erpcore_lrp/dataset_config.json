@@ -1,0 +1,120 @@
+{
+    "dataset_name": "ERP CORE LRP",
+    "description": "Lateralized Readiness Potential from flanker task. 40 neurotypical adults. Part of the ERP CORE project (Kappenman et al., 2021).",
+    "citation": "Kappenman, E. S., Farrens, J. L., Zhang, W., Stewart, A. X., & Luck, S. J. (2021). ERP CORE: An open resource for human event-related potential research. NeuroImage, 225, 117465.",
+    "input_format": "eeglab",
+    "file_glob": "*/*_eeg.set",
+    "filename_regex": "^sub-(?P<sub>\\d+)_ses-(?P<ses>[^_]+)_task-[^_]+_eeg\\.set$",
+    "channel_type": "eeg",
+    "eog_channels": [
+        "HEOG_left",
+        "HEOG_right",
+        "VEOG_lower"
+    ],
+    "assume_microvolts": false,
+    "montage": "standard_1020",
+    "bids_task": "lrp",
+    "export_mode": "single",
+    "event_id": {
+        "stim_compat_left": "11",
+        "stim_compat_right": "12",
+        "stim_incompat_left": "21",
+        "stim_incompat_right": "22",
+        "resp_left_compat_left": "111",
+        "resp_left_compat_right": "112",
+        "resp_left_incompat_left": "121",
+        "resp_left_incompat_right": "122",
+        "resp_right_compat_left": "211",
+        "resp_right_compat_right": "212",
+        "resp_right_incompat_left": "221",
+        "resp_right_incompat_right": "222"
+    },
+    "epoching": {
+        "mode": "event_lock",
+        "event_subset": [
+            "resp_left_compat_left",
+            "resp_left_incompat_left",
+            "resp_right_compat_right",
+            "resp_right_incompat_right"
+        ]
+    },
+    "notes": "Same flanker task recordings as ERN, analyzed for lateralized readiness potential. LRP = difference between contralateral and ipsilateral motor cortex (C3, C4). For classification: left-hand correct response vs right-hand correct response. LRP expected at C3/C4, stimulus-locked, reflecting motor preparation lateralization.",
+    "dataset_id": "erpcore_lrp",
+    "subjects": [
+        "sub-01",
+        "sub-02",
+        "sub-03",
+        "sub-04",
+        "sub-05",
+        "sub-06",
+        "sub-07",
+        "sub-08",
+        "sub-09",
+        "sub-10",
+        "sub-11",
+        "sub-12",
+        "sub-13",
+        "sub-14",
+        "sub-15",
+        "sub-16",
+        "sub-17",
+        "sub-18",
+        "sub-19",
+        "sub-20",
+        "sub-21",
+        "sub-22",
+        "sub-23",
+        "sub-24",
+        "sub-25",
+        "sub-26",
+        "sub-27",
+        "sub-28",
+        "sub-29",
+        "sub-30",
+        "sub-31",
+        "sub-32",
+        "sub-33",
+        "sub-34",
+        "sub-35",
+        "sub-36",
+        "sub-37",
+        "sub-38",
+        "sub-39",
+        "sub-40"
+    ],
+    "variants": {
+        "lateral3_lrp": "noref_lateral3_lrp_rs256_iir_fwd_bp-1-10",
+        "full": "noref_rs256_iir_fwd_bp-1-10"
+    },
+    "label_map": {
+        "pos_key": "left_hand",
+        "neg_key": "right_hand"
+    },
+    "label_groups": {
+        "left_hand": [
+            "resp_left_compat_left",
+            "resp_left_incompat_left"
+        ],
+        "right_hand": [
+            "resp_right_compat_right",
+            "resp_right_incompat_right"
+        ]
+    },
+    "polarity_pattern": [
+        "neg",
+        "pos"
+    ],
+    "peak_prominence": 0.02,
+    "channel_presets": {
+        "lateral3_lrp": [
+            "C3",
+            "Cz",
+            "C4"
+        ]
+    },
+    "proto_names": [
+        "EarlyN",
+        "LateP"
+    ],
+    "detection_channel": "C3"
+}

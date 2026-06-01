@@ -1,0 +1,112 @@
+{
+    "dataset_name": "ERP CORE N400",
+    "description": "N400 ERP component from word-pair semantic judgment task. 40 neurotypical adults. Part of the ERP CORE project (Kappenman et al., 2021).",
+    "citation": "Kappenman, E. S., Farrens, J. L., Zhang, W., Stewart, A. X., & Luck, S. J. (2021). ERP CORE: An open resource for human event-related potential research. NeuroImage, 225, 117465.",
+    "input_format": "eeglab",
+    "file_glob": "*/*_N400.set",
+    "filename_regex": "^(?P<sub>\\d+)_N400\\.set$",
+    "channel_type": "eeg",
+    "eog_channels": [
+        "HEOG_left",
+        "HEOG_right",
+        "VEOG_lower"
+    ],
+    "assume_microvolts": false,
+    "montage": "standard_1020",
+    "bids_task": "n400",
+    "export_mode": "single",
+    "event_id": {
+        "related_111": "111",
+        "related_112": "112",
+        "unrelated_121": "121",
+        "unrelated_122": "122",
+        "related_211": "211",
+        "related_212": "212",
+        "unrelated_221": "221",
+        "unrelated_222": "222",
+        "correct_response": "201",
+        "incorrect_response": "202"
+    },
+    "epoching": {
+        "mode": "event_lock",
+        "event_subset": [
+            "related_211",
+            "related_212",
+            "unrelated_221",
+            "unrelated_222"
+        ]
+    },
+    "notes": "EEGLAB .set/.fdt format. 33 channels (28 EEG + 2 HEOG + 1 VEOG + 2 reference). Recorded at 1024 Hz. Referenced to average of P9 and P10. Word-pair semantic judgment task: subjects judge whether word pairs are semantically related or unrelated. Event codes: first digit = stimulus list (1 or 2), second digit = related (1) or unrelated (2), third digit = variant (1 or 2). Codes 2xx are target words (epoch-lock), 1xx are prime words. Code 201 = correct response, 202 = incorrect. N400 expected over central-parietal sites (Cz, CPz, Pz) at 300-500 ms, more negative for unrelated than related words. Original data in subject subdirectories (e.g., original_data/1/1_N400.set).",
+    "dataset_id": "erpcore_n400",
+    "subjects": [
+        "sub-01",
+        "sub-02",
+        "sub-03",
+        "sub-04",
+        "sub-05",
+        "sub-06",
+        "sub-07",
+        "sub-08",
+        "sub-09",
+        "sub-10",
+        "sub-11",
+        "sub-12",
+        "sub-13",
+        "sub-14",
+        "sub-15",
+        "sub-16",
+        "sub-17",
+        "sub-18",
+        "sub-19",
+        "sub-20",
+        "sub-21",
+        "sub-22",
+        "sub-23",
+        "sub-24",
+        "sub-25",
+        "sub-26",
+        "sub-27",
+        "sub-28",
+        "sub-29",
+        "sub-30",
+        "sub-31",
+        "sub-32",
+        "sub-33",
+        "sub-34",
+        "sub-35",
+        "sub-36",
+        "sub-37",
+        "sub-38",
+        "sub-39",
+        "sub-40"
+    ],
+    "variants": {
+        "midline3_n400": "noref_midline3_n400_rs256_iir_fwd_bp-1-10",
+        "full": "noref_rs256_iir_fwd_bp-1-10"
+    },
+    "label_map": {
+        "pos_key": "unrelated",
+        "neg_key": "related"
+    },
+    "polarity_pattern": [
+        "pos",
+        "neg",
+        "pos",
+        "neg"
+    ],
+    "peak_prominence": 0.02,
+    "channel_presets": {
+        "midline3_n400": [
+            "Cz",
+            "CPz",
+            "Pz"
+        ]
+    },
+    "proto_names": [
+        "P2-diff",
+        "N400-diff",
+        "LPC-diff",
+        "LateN-diff"
+    ],
+    "detection_channel": "Cz"
+}

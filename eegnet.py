@@ -1,7 +1,7 @@
 """EEGNet — Lawhern et al. (2018) compact CNN for EEG classification.
 
 Single-file, self-contained model definition. No external dependencies beyond
-torch. See REPRODUCIBILITY_SPEC.md §6 for full details.
+torch. See the README for full architecture and training details.
 
 Architecture follows Table 2 of the original paper:
   - Temporal kernel = srate // 2  (captures ≥2 Hz)

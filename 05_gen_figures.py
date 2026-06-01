@@ -1,8 +1,8 @@
 """Generate all attention analysis and routing figures for ERP-XTTN.
 
 Usage:
-    python gen_figures.py --dataset bnci --channels midline3
-    python gen_figures.py --dataset hri  --channels midline3
+    python 05_gen_figures.py --dataset bnci_errp_013-2015 --channels midline3
+    python 05_gen_figures.py --dataset erpcore_n400 --channels midline3_n400
 
 Generates:
     - fig_prototypes.png          Prototype waveforms across folds
@@ -15,7 +15,6 @@ Generates:
 
 import argparse
 import json
-import os
 from pathlib import Path
 
 import mne
@@ -25,12 +24,9 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-import matplotlib.colors as mcolors
 from scipy import stats
 
-PROTO_NAMES = ['P1-diff', 'Ne-diff', 'Pe-diff', 'LateN-diff']
-PROTO_COLORS = ['#e67e22', '#c0392b', '#2980b9', '#27ae60']
-PROTO_CMAPS = ['Oranges', 'Reds', 'Blues', 'Greens']
+PROTO_COLOR_PALETTE = ['#e67e22', '#c0392b', '#2980b9', '#27ae60', '#8e44ad', '#1abc9c']
 
 plt.rcParams.update({
     'font.size': 13,
@@ -42,60 +38,105 @@ plt.rcParams.update({
     'figure.titlesize': 18,
 })
 
-
-def _fold_shades(base_hex: str, n: int) -> list:
-    """Return N slightly-varied hues around a base color for per-fold traces."""
-    r, g, b = mcolors.to_rgb(base_hex)
-    h, s, v = mcolors.rgb_to_hsv([[[r, g, b]]])[0, 0]
-    shades = []
-    for i in range(n):
-        frac = (i / max(n - 1, 1)) - 0.5
-        s_i = float(np.clip(s * (1.0 + 0.35 * frac), 0.25, 1.0))
-        v_i = float(np.clip(v * (1.0 - 0.25 * frac), 0.35, 1.0))
-        rgb = mcolors.hsv_to_rgb([[[h, s_i, v_i]]])[0, 0]
-        shades.append(tuple(rgb))
-    return shades
-
 REPO_ROOT = Path(__file__).resolve().parent
 DATASETS_DIR = REPO_ROOT / "datasets"
 
-DATASET_CONFIG = {
-    "bnci": {
-        "name": "bnci_horizon_2020_ErrP",
-        "subjects": ["sub-01", "sub-02", "sub-03", "sub-04", "sub-05", "sub-06"],
-        "variants": {
-            "midline2": "noref_midline2_rs256_iir_fwd_bp-1-10",
-            "midline3": "noref_midline3_rs256_iir_fwd_bp-1-10",
-            "full":     "noref_rs256_iir_fwd_bp-1-10",
-        },
-    },
-    "hri": {
-        "name": "hri_cursor",
-        "subjects": [f"sub-{i:02d}" for i in [2,3,4,5,6,7,8,9,10,11,13]],
-        "variants": {
-            "midline2": "noref_midline2_iir_fwd_bp-1-10",
-            "midline3": "noref_midline3_iir_fwd_bp-1-10",
-            "full":     "noref_iir_fwd_bp-1-10",
-        },
-    },
-}
+
+def _discover_datasets() -> list[str]:
+    """Scan datasets/ for directories containing dataset_config.json."""
+    return sorted(d.name for d in DATASETS_DIR.iterdir()
+                  if d.is_dir() and (d / "dataset_config.json").exists())
 
 
-def get_channel_names(dataset_key: str, channel_config: str) -> list[str]:
+def load_dataset_config(dataset_key: str) -> dict:
+    """Load dataset config from JSON."""
+    dataset_dir = DATASETS_DIR / dataset_key
+    cfg_path = dataset_dir / "dataset_config.json"
+    if not cfg_path.exists():
+        raise FileNotFoundError(
+            f"No dataset_config.json found in {dataset_dir}. "
+            f"Available: {_discover_datasets()}")
+    with open(cfg_path) as f:
+        cfg = json.load(f)
+    cfg.setdefault("name", dataset_dir.name)
+    return cfg
+
+
+def get_proto_config(cfg: dict, results_dir=None):
+    """Return (proto_names, proto_colors) from dataset config or prototype data.
+
+    For auto-mode results, generates P1/N1/P2/N2 names from prototype polarity.
+    """
+    # If results_dir provided, try to infer names from prototype data
+    if results_dir is not None:
+        results_dir = Path(results_dir)
+        # Check if this is an auto-mode run by looking at the dir name
+        if '_auto' in results_dir.name:
+            # Load prototype file with the most prototypes (K varies across folds)
+            proto_files = sorted(results_dir.glob("prototypes_sub-*.npz"))
+            if proto_files:
+                best_file, best_K = None, 0
+                for pf in proto_files:
+                    pK = np.load(pf)['proto_raw'].shape[0]
+                    if pK > best_K:
+                        best_K, best_file = pK, pf
+                p = np.load(best_file)
+                proto_raw = p['proto_raw']  # (K, C, T)
+                windows = p['proto_windows_ms']
+                K = proto_raw.shape[0]
+                # Determine polarity from detection channel signal within each window
+                det_ch = cfg.get('detection_channel', 'Cz')
+                ch_names_cfg = None
+                try:
+                    ch_names_cfg = get_channel_names(cfg, list(cfg['variants'].keys())[0])
+                except:
+                    pass
+                det_idx = 1
+                if ch_names_cfg and det_ch in ch_names_cfg:
+                    det_idx = ch_names_cfg.index(det_ch)
+
+                pos_count, neg_count = 0, 0
+                names = []
+                for k in range(K):
+                    s_samp = int(round(windows[k][0] / 1000 * 256))
+                    e_samp = int(round(windows[k][1] / 1000 * 256))
+                    segment = proto_raw[k, det_idx, s_samp:e_samp]
+                    if len(segment) > 0:
+                        peak_idx = int(np.argmax(np.abs(segment)))
+                        peak_val = segment[peak_idx]
+                    else:
+                        peak_val = 0
+                    if peak_val >= 0:
+                        pos_count += 1
+                        names.append(f'P{pos_count}')
+                    else:
+                        neg_count += 1
+                        names.append(f'N{neg_count}')
+                colors = PROTO_COLOR_PALETTE[:K]
+                return names, colors
+
+    names = cfg.get("proto_names", [f"Proto-{i}" for i in range(len(cfg.get("polarity_pattern", [])))])
+    colors = PROTO_COLOR_PALETTE[:len(names)]
+    return names, colors
+
+
+def get_channel_names(cfg: dict, channel_config: str) -> list[str]:
     """Read channel names from the first epoch file."""
-    cfg = DATASET_CONFIG[dataset_key]
     variant = cfg["variants"][channel_config]
     base = DATASETS_DIR / cfg["name"] / "epoched_fif" / "tmin0ms_tmax800ms" / variant
     first_fif = next((base / cfg["subjects"][0]).rglob("*-epo.fif"))
     return mne.read_epochs(str(first_fif), preload=False, verbose=False).ch_names
 
 
-def load_subject_epochs(dataset_key: str, channel_config: str,
+def load_subject_epochs(cfg: dict, channel_config: str,
                         subject: str) -> tuple[np.ndarray, list[str]]:
     """Load raw epoch data for a subject. Returns (X_raw, ch_names)."""
-    cfg = DATASET_CONFIG[dataset_key]
     variant = cfg["variants"][channel_config]
     base = DATASETS_DIR / cfg["name"] / "epoched_fif" / "tmin0ms_tmax800ms" / variant
+
+    pos_key = cfg["label_map"]["pos_key"]
+    neg_key = cfg["label_map"]["neg_key"]
+    label_groups = cfg.get("label_groups")
 
     all_X = []
     subj_dir = base / subject
@@ -105,9 +146,15 @@ def load_subject_epochs(dataset_key: str, channel_config: str,
         if ch_names is None:
             ch_names = epochs.ch_names
         event_id = epochs.event_id
-        error_ids = {v for k, v in event_id.items() if "error" in k.lower()}
-        correct_ids = {v for k, v in event_id.items() if "correct" in k.lower()}
-        keep_ids = error_ids | correct_ids
+        if label_groups:
+            pos_names = set(label_groups.get(pos_key, []))
+            neg_names = set(label_groups.get(neg_key, []))
+            pos_ids = {v for k, v in event_id.items() if k in pos_names}
+            neg_ids = {v for k, v in event_id.items() if k in neg_names}
+        else:
+            pos_ids = {v for k, v in event_id.items() if pos_key in k.lower()}
+            neg_ids = {v for k, v in event_id.items() if neg_key in k.lower()}
+        keep_ids = pos_ids | neg_ids
         if not keep_ids:
             continue
         X = epochs.get_data()
@@ -151,12 +198,18 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
             per_fold_windows[subj] = [tuple(w) for w in p['proto_windows_ms']]
 
     # Compute mean windows across folds for aggregate figures
-    all_w = np.array([per_fold_windows[s] for s in subjects])
-    windows = [tuple(np.round(all_w[:, k, :].mean(0), 1))
-               for k in range(all_w.shape[1])]
-    print(f'  Dynamic windows (mean across {n_subj} folds): {windows}')
-
-    K = len(windows)
+    # Handle variable K across folds (auto mode may detect different peak counts)
+    fold_K = {s: len(per_fold_windows[s]) for s in subjects}
+    K = max(fold_K.values())
+    windows = []
+    for k in range(K):
+        k_windows = [per_fold_windows[s][k] for s in subjects if fold_K[s] > k]
+        mean_win = np.round(np.mean(k_windows, axis=0), 1)
+        windows.append(tuple(mean_win))
+    n_with_max_K = sum(1 for v in fold_K.values() if v == K)
+    if n_with_max_K < n_subj:
+        print(f'  Note: {n_subj - n_with_max_K}/{n_subj} folds have fewer than {K} prototypes')
+    print(f'  Dynamic windows (mean across folds): {windows}')
     C = len(channels)
     N_patches = all_attn[subjects[0]].shape[2]
     T = all_protos[subjects[0]].shape[2]
@@ -174,33 +227,35 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
     )
     for col, ch in enumerate(channels):
         axes[0, col].set_title(ch, fontsize=16, fontweight='bold')
+    # Scale per-fold alpha so overlapping traces/shading stay readable
+    trace_alpha = max(0.08, min(0.25, 3.0 / n_subj))
+    span_alpha = max(0.005, min(0.04, 0.5 / n_subj))
     for k in range(K):
         s_ms, e_ms = windows[k]
-        shades = _fold_shades(PROTO_COLORS[k], n_subj)
+        k_subjects = [s for s in subjects if fold_K[s] > k]
         for c in range(C):
             ax = axes[k, c]
-            traces = np.array([all_protos[s][k, c, :] for s in subjects])
+            traces = np.array([all_protos[s][k, c, :] for s in k_subjects])
             for ti, t in enumerate(traces):
-                ax.plot(time_ms, t, color=shades[ti], alpha=0.65, lw=1.2,
-                        zorder=2)
-                if subjects[ti] in per_fold_windows:
-                    fw = per_fold_windows[subjects[ti]]
+                ax.plot(time_ms, t, color=PROTO_COLORS[k], alpha=trace_alpha, lw=0.8)
+                subj = k_subjects[ti]
+                if subj in per_fold_windows:
+                    fw = per_fold_windows[subj]
                     ax.axvspan(fw[k][0], fw[k][1], color=PROTO_COLORS[k],
-                               alpha=0.04, zorder=1)
+                               alpha=span_alpha)
             mean = traces.mean(0)
             std = traces.std(0)
+            ax.plot(time_ms, mean, color=PROTO_COLORS[k], lw=2.5)
             ax.fill_between(time_ms, mean - std, mean + std,
-                            color=PROTO_COLORS[k], alpha=0.15, zorder=3)
-            ax.plot(time_ms, mean, color='black', lw=3.2, alpha=0.35,
-                    zorder=4)
-            ax.plot(time_ms, mean, color=PROTO_COLORS[k], lw=2.2,
-                    zorder=5)
-            ax.axvspan(s_ms, e_ms, color='gray', alpha=0.15, zorder=1)
-            ax.axhline(0, color='gray', lw=0.6, ls='--', zorder=2)
+                            color=PROTO_COLORS[k], alpha=0.15)
+            ax.axvspan(s_ms, e_ms, color='gray', alpha=0.15)
+            ax.axhline(0, color='gray', lw=0.5, ls='--')
             ax.tick_params(axis='both', labelsize=12)
+            n_k = len(k_subjects)
+            count_note = f' [n={n_k}]' if n_k < n_subj else ''
             if c == 0:
                 ax.set_ylabel(
-                    f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)\n(z-score)',
+                    f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms){count_note}\n(z-score)',
                     fontsize=14,
                 )
     for c in range(C):
@@ -224,7 +279,7 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
     auroc_vals = np.array(auroc_vals)
     r, _ = stats.pearsonr(entropies, auroc_vals)
 
-    ax.scatter(entropies, auroc_vals, s=140, c='#c0392b', zorder=5,
+    ax.scatter(entropies, auroc_vals, s=120, c='#c0392b', zorder=5,
                edgecolors='white', linewidth=1.5)
     for i, subj in enumerate(subjects):
         ax.annotate(subj, (entropies[i], auroc_vals[i]),
@@ -249,27 +304,29 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
     for k in range(K):
         ax = axes[k]
         s_ms, e_ms = windows[k]
+        k_subjects = [s for s in subjects if fold_K[s] > k]
+        n_k = len(k_subjects)
         err_tr, cor_tr = [], []
-        for subj in subjects:
+        for subj in k_subjects:
             attn = all_attn[subj].mean(axis=1)
             lab = all_labels[subj]
             err_tr.append(attn[lab == 1, :, k].mean(0) if (lab == 1).sum() else np.zeros(N_patches))
             cor_tr.append(attn[lab == 0, :, k].mean(0) if (lab == 0).sum() else np.zeros(N_patches))
         err_tr, cor_tr = np.array(err_tr), np.array(cor_tr)
         em, cm = err_tr.mean(0), cor_tr.mean(0)
-        es, cs = err_tr.std(0) / np.sqrt(n_subj), cor_tr.std(0) / np.sqrt(n_subj)
-        ax.plot(patch_ms, em, 'r-', lw=2.5, label='Error trials')
+        es, cs = err_tr.std(0) / np.sqrt(n_k), cor_tr.std(0) / np.sqrt(n_k)
+        ax.plot(patch_ms, em, 'r-', lw=2, label='Error trials')
         ax.fill_between(patch_ms, em - es, em + es, color='red', alpha=0.2)
-        ax.plot(patch_ms, cm, 'b-', lw=2.5, label='Correct trials')
+        ax.plot(patch_ms, cm, 'b-', lw=2, label='Correct trials')
         ax.fill_between(patch_ms, cm - cs, cm + cs, color='blue', alpha=0.2)
         ax.axvspan(s_ms, e_ms, color='gray', alpha=0.15)
         ax.set_xlabel('Time (ms)', fontsize=15)
-        ax.set_title(f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)',
-                     fontsize=16, fontweight='bold')
+        ax.set_title(f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)', fontsize=16,
+                     fontweight='bold')
         ax.tick_params(axis='both', labelsize=13)
         if k == 0:
-            ax.set_ylabel('Attention weight', fontsize=15)
-            ax.legend(fontsize=13)
+            ax.set_ylabel('Attention weight', fontsize=14)
+            ax.legend(fontsize=12)
     fig.tight_layout()
     fig.savefig(results_dir / 'fig_attn_timecourse.png', dpi=150,
                 bbox_inches='tight')
@@ -277,10 +334,12 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
     print(f'  Saved fig_attn_timecourse.png')
 
     # ── Fig 4: Attention difference overlay ──
-    fig, ax = plt.subplots(figsize=(9, 6))
+    fig, ax = plt.subplots(figsize=(8, 5.5))
     for k in range(K):
+        k_subjects = [s for s in subjects if fold_K[s] > k]
+        n_k = len(k_subjects)
         diffs = []
-        for subj in subjects:
+        for subj in k_subjects:
             attn = all_attn[subj].mean(axis=1)
             lab = all_labels[subj]
             em = attn[lab == 1, :, k].mean(0) if (lab == 1).sum() else np.zeros(N_patches)
@@ -288,9 +347,9 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
             diffs.append(em - cm)
         diffs = np.array(diffs)
         dm = diffs.mean(0)
-        ds = diffs.std(0) / np.sqrt(n_subj)
+        ds = diffs.std(0) / np.sqrt(n_k)
         s_ms, e_ms = windows[k]
-        ax.plot(patch_ms, dm, color=PROTO_COLORS[k], lw=2.8,
+        ax.plot(patch_ms, dm, color=PROTO_COLORS[k], lw=2.5,
                 label=f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)')
         ax.fill_between(patch_ms, dm - ds, dm + ds,
                         color=PROTO_COLORS[k], alpha=0.15)
@@ -301,14 +360,13 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
             ax.annotate(f'{sign}{pv:.3f}', (patch_ms[pi], pv),
                         textcoords='offset points',
                         xytext=(5, 8 if pv > 0 else -15),
-                        fontsize=12, color=PROTO_COLORS[k],
-                        fontweight='bold')
+                        fontsize=12, color=PROTO_COLORS[k])
     for b in boundaries:
         ax.axvline(b, color='gray', lw=0.8, ls=':')
     ax.axhline(0, color='gray', lw=0.8, ls='--')
     ax.set_xlabel('Time (ms)', fontsize=15)
     ax.set_ylabel('Attention diff (error \u2212 correct)', fontsize=15)
-    ax.set_title(dataset_label, fontsize=18, fontweight='bold')
+    ax.set_title(dataset_label, fontsize=17, fontweight='bold')
     ax.tick_params(axis='both', labelsize=13)
     ax.legend(fontsize=12, loc='best')
     fig.tight_layout()
@@ -318,42 +376,46 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
     print(f'  Saved fig_attn_diff_overlay.png')
 
     # ── Fig 5: Per-subject routing difference ──
-    fig, axes = plt.subplots(n_subj, 1, figsize=(12, 2.6 * n_subj),
+    fig, axes = plt.subplots(n_subj, 1, figsize=(10, 2.5 * n_subj),
                              sharex=True)
     if n_subj == 1:
         axes = [axes]
     fig.suptitle(f'Per-Subject Routing Difference \u2014 {dataset_label}',
-                 fontsize=18, fontweight='bold', y=1.00)
+                 fontsize=18, fontweight='bold', y=1.02)
     for i, subj in enumerate(subjects):
         ax = axes[i]
         attn = all_attn[subj].mean(axis=1)
         lab = all_labels[subj]
         auroc = aurocs[subj]
+        subj_K = fold_K[subj]
         for k in range(K):
-            em = attn[lab == 1, :, k].mean(0) if (lab == 1).sum() else np.zeros(N_patches)
-            cm = attn[lab == 0, :, k].mean(0) if (lab == 0).sum() else np.zeros(N_patches)
+            if k < subj_K:
+                em = attn[lab == 1, :, k].mean(0) if (lab == 1).sum() else np.zeros(N_patches)
+                cm = attn[lab == 0, :, k].mean(0) if (lab == 0).sum() else np.zeros(N_patches)
+                vals = em - cm
+            else:
+                vals = np.full(N_patches, np.nan)
             kw = {}
             if i == 0:
                 s_ms, e_ms = windows[k]
                 kw['label'] = f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)'
-            ax.plot(patch_ms, em - cm, color=PROTO_COLORS[k], lw=2.4, **kw)
-        ax.axhline(0, color='gray', lw=0.6, ls='--')
+            ax.plot(patch_ms, vals, color=PROTO_COLORS[k], lw=1.8, **kw)
+        ax.axhline(0, color='gray', lw=0.5, ls='--')
         for b in boundaries:
-            ax.axvline(b, color='gray', lw=0.6, ls=':')
+            ax.axvline(b, color='gray', lw=0.5, ls=':')
         ax.set_ylabel(subj, fontsize=14, fontweight='bold',
-                      rotation=0, labelpad=55, va='center')
+                      rotation=0, labelpad=50, va='center')
         ax.text(0.98, 0.85, f'AUROC={auroc:.3f}', transform=ax.transAxes,
-                fontsize=13, ha='right', va='top', fontweight='bold')
-        ax.tick_params(axis='both', labelsize=12)
+                fontsize=13, ha='right', va='top')
     axes[-1].set_xlabel('Time (ms)', fontsize=15)
     handles = [
-        plt.Line2D([0], [0], color=PROTO_COLORS[k], lw=2.5,
+        plt.Line2D([0], [0], color=PROTO_COLORS[k], lw=2,
                    label=f'{PROTO_NAMES[k]} ({windows[k][0]:.0f}\u2013{windows[k][1]:.0f} ms)')
         for k in range(K)
     ]
     fig.legend(handles=handles, loc='upper center', ncol=K, fontsize=12,
-               bbox_to_anchor=(0.5, 0.995))
-    fig.tight_layout(rect=[0, 0, 1, 0.97])
+               bbox_to_anchor=(0.5, 1.0))
+    fig.tight_layout()
     fig.savefig(results_dir / 'fig_per_subject_routing.png', dpi=150,
                 bbox_inches='tight')
     plt.close(fig)
@@ -367,7 +429,8 @@ def generate_attention_figures(results_dir, dataset_label, channels, sfreq):
 def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
                 dataset_label, tp_trial, tn_trial, probs, labels, attn,
                 proto_raw, proto_windows, sfreq, X_raw, cz_idx,
-                title_suffix, output_suffix):
+                title_suffix, output_suffix, detect_ch_name='Cz',
+                pos_label='Error', neg_label='Correct'):
     """Shared plotting logic for TP vs TN routing figures."""
     K = proto_raw.shape[0]
     T = proto_raw.shape[2]
@@ -384,10 +447,31 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
     tn_cz = X_raw[tn_trial, cz_idx, :] * 1e6
     proto_cz = proto_raw[:, cz_idx, :]
 
-    fig = plt.figure(figsize=(16, 11.5))
+    fig = plt.figure(figsize=(14, 10))
     gs = gridspec.GridSpec(3, 2, figure=fig,
                            height_ratios=[0.7, 1.2, 1],
-                           hspace=0.42, wspace=0.22)
+                           hspace=0.35, wspace=0.25)
+
+    # Compute per-fold proto names from actual polarity on detection channel
+    fold_names = list(PROTO_NAMES)  # default
+    if '_auto' in str(results_dir):
+        pos_count, neg_count = 0, 0
+        fold_names = []
+        for k in range(K):
+            s_ms, e_ms = proto_windows[k]
+            s_samp = int(round(s_ms / 1000 * sfreq))
+            e_samp = int(round(e_ms / 1000 * sfreq))
+            seg = proto_cz[k, s_samp:e_samp]
+            if len(seg) > 0:
+                peak_val = seg[int(np.argmax(np.abs(seg)))]
+            else:
+                peak_val = 0
+            if peak_val >= 0:
+                pos_count += 1
+                fold_names.append(f'P{pos_count}')
+            else:
+                neg_count += 1
+                fold_names.append(f'N{neg_count}')
 
     # Row 0: Prototype reference
     ax_proto = fig.add_subplot(gs[0, :])
@@ -399,22 +483,42 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
         s_samp = int(round(s_ms / 1000 * sfreq))
         e_samp = int(round(e_ms / 1000 * sfreq))
         ax_proto.plot(time_ms, proto_cz[k], color=PROTO_COLORS[k],
-                      lw=0.8, alpha=0.35, zorder=2)
+                      lw=0.6, alpha=0.3, zorder=2)
         ax_proto.plot(time_ms[s_samp:e_samp], proto_cz[k, s_samp:e_samp],
-                      color=PROTO_COLORS[k], lw=3.0, zorder=3,
-                      label=f'{PROTO_NAMES[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)')
-    ax_proto.axhline(0, color='gray', lw=0.6, ls='--')
+                      color=PROTO_COLORS[k], lw=2.5, zorder=3,
+                      label=f'{fold_names[k]} ({s_ms:.0f}\u2013{e_ms:.0f} ms)')
+    # Mark peak within each prototype's window
+    for k in range(K):
+        s_ms, e_ms = proto_windows[k]
+        s_samp = int(round(s_ms / 1000 * sfreq))
+        e_samp = int(round(e_ms / 1000 * sfreq))
+        window_signal = proto_cz[k, s_samp:e_samp]
+        if len(window_signal) > 0:
+            peak_offset = int(np.argmax(np.abs(window_signal)))
+            peak_samp = s_samp + peak_offset
+            peak_ms = time_ms[peak_samp]
+            peak_val = proto_cz[k, peak_samp]
+            ax_proto.plot(peak_ms, peak_val, 'o',
+                          color=PROTO_COLORS[k], markersize=7, zorder=5,
+                          markeredgecolor='white', markeredgewidth=1.0)
+            ax_proto.annotate(fold_names[k],
+                              (peak_ms, peak_val),
+                              textcoords="offset points",
+                              xytext=(0, 10 if peak_val >= 0 else -14),
+                              ha='center', fontsize=11, fontweight='bold',
+                              color=PROTO_COLORS[k])
+
+    ax_proto.axhline(0, color='gray', lw=0.5, ls='--')
     ax_proto.set_xlim(0, time_ms[-1])
-    ax_proto.set_ylabel('Prototype Cz (z-score)', fontsize=14)
-    ax_proto.set_title('Diff-Wave Prototypes (Cz channel)', fontsize=16,
+    ax_proto.set_ylabel(f'Prototype {detect_ch_name} (z-score)', fontsize=14)
+    ax_proto.set_title(f'Diff-Wave Prototypes ({detect_ch_name} channel)', fontsize=15,
                        fontweight='bold')
-    ax_proto.tick_params(axis='both', labelsize=12)
     ax_proto.legend(fontsize=12, loc='upper right', ncol=K)
 
     # Trial rows
     trials = [
-        (tp_cz, tp_attn, probs[tp_trial], 'Error trial (TP)', 0),
-        (tn_cz, tn_attn, probs[tn_trial], 'Correct trial (TN)', 1),
+        (tp_cz, tp_attn, probs[tp_trial], f'{pos_label} trial (TP)', 0),
+        (tn_cz, tn_attn, probs[tn_trial], f'{neg_label} trial (TN)', 1),
     ]
 
     ymax_cz = max(np.abs(tp_cz).max(), np.abs(tn_cz).max()) * 1.15
@@ -437,27 +541,25 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
             e_samp = min((p + 1) * patch_width + 1, T)
             dominant_k = np.argmax(trial_attn[p, :])
             ax1.plot(time_ms[s_samp:e_samp], cz[s_samp:e_samp],
-                     color=PROTO_COLORS[dominant_k], lw=3.0, zorder=3,
+                     color=PROTO_COLORS[dominant_k], lw=2.5, zorder=3,
                      solid_capstyle='round')
-        ax1.axhline(0, color='gray', lw=0.6, ls='--', zorder=2)
-        ax1.set_title(f'{title}\np(error) = {prob:.3f}', fontsize=16,
+        ax1.axhline(0, color='gray', lw=0.5, ls='--', zorder=2)
+        ax1.set_title(f'{title}\np({pos_label.lower()}) = {prob:.3f}', fontsize=15,
                       fontweight='bold')
-        ax1.set_ylabel('Cz amplitude (\u00b5V)', fontsize=14)
+        ax1.set_ylabel(f'{detect_ch_name} amplitude (\u00b5V)', fontsize=14)
         ax1.set_xlim(0, time_ms[-1])
         ax1.set_ylim(-ymax_cz, ymax_cz)
-        ax1.tick_params(axis='both', labelsize=12)
 
         ax2 = fig.add_subplot(gs[2, col])
         for k in range(K):
             ax2.plot(patch_centers_ms, trial_attn[:, k],
-                     color=PROTO_COLORS[k], lw=2.5,
-                     label=PROTO_NAMES[k] if col == 0 else None,
+                     color=PROTO_COLORS[k], lw=2.0,
+                     label=fold_names[k] if col == 0 else None,
                      zorder=3)
         ax2.set_xlabel('Time (ms)', fontsize=14)
         ax2.set_ylabel('Attention weight', fontsize=14)
         ax2.set_ylim(0, ymax_attn)
         ax2.set_xlim(0, time_ms[-1])
-        ax2.tick_params(axis='both', labelsize=12)
         if col == 0:
             ax2.legend(fontsize=12, loc='upper right')
 
@@ -472,14 +574,14 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
     print(f'  Saved {fname}')
 
 
-def generate_tp_tn_figures(results_dir, dataset_key, channel_config,
+def generate_tp_tn_figures(results_dir, cfg, channel_config,
                            subject, dataset_label):
     """Generate high-confidence and median-confidence TP vs TN figures.
 
     Args:
         results_dir: path to model results directory
-        dataset_key: "bnci" or "hri"
-        channel_config: "midline2", "midline3", or "full"
+        cfg: dataset config dict (loaded from dataset_config.json)
+        channel_config: channel preset name
         subject: subject ID (e.g. "sub-01")
         dataset_label: display label for figure title
     """
@@ -497,8 +599,13 @@ def generate_tp_tn_figures(results_dir, dataset_key, channel_config,
     proto_windows = [tuple(w) for w in proto_data['proto_windows_ms']]
     sfreq = float(proto_data['sfreq'])
 
-    X_raw, ch_names = load_subject_epochs(dataset_key, channel_config, subject)
-    cz_idx = ch_names.index('Cz') if 'Cz' in ch_names else 1
+    X_raw, ch_names = load_subject_epochs(cfg, channel_config, subject)
+    detect_ch_name = cfg.get('detection_channel', 'Cz')
+    cz_idx = ch_names.index(detect_ch_name) if detect_ch_name in ch_names else 1
+
+    # Class labels for figure titles
+    pos_label = cfg.get('label_map', {}).get('pos_key', 'error').replace('_', ' ').title()
+    neg_label = cfg.get('label_map', {}).get('neg_key', 'correct').replace('_', ' ').title()
 
     tp_mask = (labels == 1) & (probs >= 0.5)
     tn_mask = (labels == 0) & (probs < 0.5)
@@ -516,10 +623,11 @@ def generate_tp_tn_figures(results_dir, dataset_key, channel_config,
     print(f"  {subject} (AUROC={auroc:.4f})")
     print(f"    High-conf TP: idx={tp_high}, prob={probs[tp_high]:.4f}")
     print(f"    High-conf TN: idx={tn_high}, prob={probs[tn_high]:.4f}")
-    _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
+    _plot_tp_tn(results_dir, cfg, channel_config, subject,
                 dataset_label, tp_high, tn_high, probs, labels, attn,
                 proto_raw, proto_windows, sfreq, X_raw, cz_idx,
-                '', '_highconf')
+                '', '_highconf', detect_ch_name=detect_ch_name,
+                pos_label=pos_label, neg_label=neg_label)
 
     # Median confidence
     tp_sorted = tp_indices[np.argsort(probs[tp_indices])]
@@ -528,10 +636,307 @@ def generate_tp_tn_figures(results_dir, dataset_key, channel_config,
     tn_med = tn_sorted[len(tn_sorted) // 2]
     print(f"    Median TP: idx={tp_med}, prob={probs[tp_med]:.4f}")
     print(f"    Median TN: idx={tn_med}, prob={probs[tn_med]:.4f}")
-    _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
+    _plot_tp_tn(results_dir, cfg, channel_config, subject,
                 dataset_label, tp_med, tn_med, probs, labels, attn,
                 proto_raw, proto_windows, sfreq, X_raw, cz_idx,
-                ' (median conf.)', '_median')
+                ' (median conf.)', '_median', detect_ch_name=detect_ch_name,
+                pos_label=pos_label, neg_label=neg_label)
+
+
+# =====================================================================
+# ERP morphology figures (TP vs FN / TN vs FP)
+# =====================================================================
+
+def _plot_morphology(fig_path, title, ch_names, time_ms,
+                     tp_mean, tp_sem, fn_mean, fn_sem,
+                     tn_mean, tn_sem, fp_mean, fp_sem,
+                     counts=None, proto_windows=None,
+                     pos_label='Error', neg_label='Correct',
+                     footer=None):
+    """Shared 2 x C plotting for TP/FN and TN/FP morphology comparison.
+
+    Each row is one class (error/correct). Each col is one channel.
+    Per panel: two class-conditional means with SEM ribbons plus a thin
+    diff trace on the same axis (all in µV).
+    """
+    C = len(ch_names)
+    fig, axes = plt.subplots(2, C, figsize=(4.5 * C, 7), sharex=True,
+                             squeeze=False)
+
+    color_a_err = '#2ca02c'  # TP (green = correctly detected)
+    color_b_err = '#d62728'  # FN (red = missed)
+    color_a_cor = '#1f77b4'  # TN (blue = correctly rejected)
+    color_b_cor = '#ff7f0e'  # FP (orange = false alarm)
+
+    rows = [
+        {
+            'a_mean': tp_mean, 'a_sem': tp_sem,
+            'a_label': 'TP (hit)', 'a_color': color_a_err,
+            'b_mean': fn_mean, 'b_sem': fn_sem,
+            'b_label': 'FN (miss)', 'b_color': color_b_err,
+            'class_label': pos_label,
+        },
+        {
+            'a_mean': tn_mean, 'a_sem': tn_sem,
+            'a_label': 'TN (correct reject)', 'a_color': color_a_cor,
+            'b_mean': fp_mean, 'b_sem': fp_sem,
+            'b_label': 'FP (false alarm)', 'b_color': color_b_cor,
+            'class_label': neg_label,
+        },
+    ]
+
+    # Shared y-limits per row for visual comparison across channels
+    for r in rows:
+        stacked = []
+        for arr in (r['a_mean'], r['b_mean']):
+            if arr is not None:
+                stacked.append(np.abs(arr))
+        r['ymax'] = float(np.max(stacked)) * 1.2 if stacked else 1.0
+
+    for row_idx, r in enumerate(rows):
+        for c_idx, ch in enumerate(ch_names):
+            ax = axes[row_idx, c_idx]
+
+            # Prototype windows as faded colored background
+            if proto_windows:
+                for wk, win in enumerate(proto_windows):
+                    s_ms, e_ms = win
+                    ax.axvspan(
+                        s_ms, e_ms,
+                        color=PROTO_COLOR_PALETTE[wk % len(PROTO_COLOR_PALETTE)],
+                        alpha=0.08, zorder=1,
+                    )
+
+            if r['a_mean'] is not None:
+                ax.plot(time_ms, r['a_mean'][c_idx], color=r['a_color'],
+                        lw=2.0, label=r['a_label'], zorder=3)
+                if r['a_sem'] is not None:
+                    ax.fill_between(
+                        time_ms,
+                        r['a_mean'][c_idx] - r['a_sem'][c_idx],
+                        r['a_mean'][c_idx] + r['a_sem'][c_idx],
+                        color=r['a_color'], alpha=0.22, zorder=2,
+                    )
+
+            if r['b_mean'] is not None:
+                ax.plot(time_ms, r['b_mean'][c_idx], color=r['b_color'],
+                        lw=2.0, label=r['b_label'], zorder=3)
+                if r['b_sem'] is not None:
+                    ax.fill_between(
+                        time_ms,
+                        r['b_mean'][c_idx] - r['b_sem'][c_idx],
+                        r['b_mean'][c_idx] + r['b_sem'][c_idx],
+                        color=r['b_color'], alpha=0.22, zorder=2,
+                    )
+
+            ax.axhline(0, color='gray', lw=0.5, ls='--', zorder=1)
+            ax.set_ylim(-r['ymax'], r['ymax'])
+
+            if row_idx == 0:
+                ax.set_title(ch, fontsize=15, fontweight='bold')
+            if row_idx == 1:
+                ax.set_xlabel('Time (ms)', fontsize=14)
+            if c_idx == 0:
+                ax.set_ylabel(
+                    f'{r["class_label"]} class\namplitude (µV)',
+                    fontsize=13,
+                )
+            if c_idx == C - 1:
+                ax.legend(fontsize=11, loc='best', framealpha=0.8)
+
+    title_full = title
+    if counts is not None:
+        title_full += (
+            f'\nTP={counts["tp"]}, FN={counts["fn"]}, '
+            f'TN={counts["tn"]}, FP={counts["fp"]}'
+        )
+    fig.suptitle(title_full, fontsize=16, fontweight='bold', y=1.00)
+
+    if footer:
+        fig.text(0.5, -0.01, footer, ha='center', fontsize=12,
+                 color='gray', style='italic')
+
+    fig.tight_layout()
+    fig.savefig(fig_path, dpi=110, bbox_inches='tight',
+                pil_kwargs={'optimize': True, 'compress_level': 9})
+    plt.close(fig)
+
+
+def generate_morphology_figures(results_dir, cfg, channel_config,
+                                subjects, dataset_label):
+    """Per-subject and aggregate ERP morphology figures: TP vs FN, TN vs FP.
+
+    Uses only the held-out test subject's epochs per fold. Class assignment
+    comes from `predictions_<subj>.npz` (probs >= 0.5 threshold, matching
+    the balanced-accuracy cutoff used in training).
+
+    For ERPXTTN variants, prototype windows from each fold are overlaid as
+    faded background spans. For baselines (EEGNet, xDAWN+RG), no prototype
+    background is drawn.
+    """
+    results_dir = Path(results_dir)
+
+    pos_label = cfg.get('label_map', {}).get('pos_key', 'error') \
+        .replace('_', ' ').title()
+    neg_label = cfg.get('label_map', {}).get('neg_key', 'correct') \
+        .replace('_', ' ').title()
+
+    per_subj = {}
+    proto_windows_per_fold = {}
+    has_protos = False
+    ch_names_canonical = None
+    sfreq = 256.0
+
+    for subj in subjects:
+        pred_path = results_dir / f'predictions_{subj}.npz'
+        if not pred_path.exists():
+            print(f'  {subj}: no predictions, skipping')
+            continue
+        pred = np.load(pred_path)
+        probs = pred['probs']
+        labels = pred['labels']
+
+        proto_path = results_dir / f'prototypes_{subj}.npz'
+        if proto_path.exists():
+            has_protos = True
+            pdata = np.load(proto_path)
+            proto_windows_per_fold[subj] = [
+                (float(w[0]), float(w[1])) for w in pdata['proto_windows_ms']
+            ]
+            sfreq = float(pdata['sfreq'])
+
+        X_raw, ch_names = load_subject_epochs(cfg, channel_config, subj)
+        X_uV = X_raw * 1e6  # Volts -> microvolts
+
+        # For "full" variants (30+ channels), plotting every channel
+        # produces unreadable 20k-px-wide figures. Clamp to the dataset's
+        # detection channel only — matches the existing TP/TN routing
+        # figure convention for full variants.
+        if channel_config == 'full':
+            det_name = cfg.get('detection_channel', 'Cz')
+            det_idx = ch_names.index(det_name) if det_name in ch_names else min(1, len(ch_names) - 1)
+            X_uV = X_uV[:, det_idx:det_idx + 1, :]
+            ch_names = [ch_names[det_idx]]
+
+        if ch_names_canonical is None:
+            ch_names_canonical = ch_names
+
+        if len(probs) != X_uV.shape[0]:
+            print(f'  WARNING: {subj} predictions ({len(probs)}) do not match '
+                  f'epochs ({X_uV.shape[0]}), skipping')
+            continue
+
+        preds = (probs >= 0.5).astype(int)
+        tp_mask = (labels == 1) & (preds == 1)
+        fn_mask = (labels == 1) & (preds == 0)
+        tn_mask = (labels == 0) & (preds == 0)
+        fp_mask = (labels == 0) & (preds == 1)
+
+        def _mean(mask):
+            return X_uV[mask].mean(axis=0) if mask.sum() > 0 else None
+
+        def _sem(mask):
+            n = int(mask.sum())
+            if n <= 1:
+                return None
+            return X_uV[mask].std(axis=0, ddof=1) / np.sqrt(n)
+
+        per_subj[subj] = {
+            'tp_mean': _mean(tp_mask), 'tp_sem': _sem(tp_mask),
+            'fn_mean': _mean(fn_mask), 'fn_sem': _sem(fn_mask),
+            'tn_mean': _mean(tn_mask), 'tn_sem': _sem(tn_mask),
+            'fp_mean': _mean(fp_mask), 'fp_sem': _sem(fp_mask),
+            'counts': {
+                'tp': int(tp_mask.sum()), 'fn': int(fn_mask.sum()),
+                'tn': int(tn_mask.sum()), 'fp': int(fp_mask.sum()),
+            },
+            'auroc': float(pred['auroc']),
+            'n_times': X_uV.shape[2],
+        }
+
+    if not per_subj:
+        print('  No subjects with predictions; skipping morphology figures.')
+        return
+
+    T = per_subj[next(iter(per_subj))]['n_times']
+    time_ms = np.arange(T) / sfreq * 1000.0
+    C = len(ch_names_canonical)
+
+    # ── Per-subject figures ──
+    for subj, s in per_subj.items():
+        _plot_morphology(
+            fig_path=results_dir / f'fig_morphology_{subj}.png',
+            title=(f'Morphology by outcome — {dataset_label} '
+                   f'({subj}, AUROC={s["auroc"]:.3f})'),
+            ch_names=ch_names_canonical, time_ms=time_ms,
+            tp_mean=s['tp_mean'], tp_sem=s['tp_sem'],
+            fn_mean=s['fn_mean'], fn_sem=s['fn_sem'],
+            tn_mean=s['tn_mean'], tn_sem=s['tn_sem'],
+            fp_mean=s['fp_mean'], fp_sem=s['fp_sem'],
+            counts=s['counts'],
+            proto_windows=proto_windows_per_fold.get(subj),
+            pos_label=pos_label, neg_label=neg_label,
+        )
+        print(f'  Saved fig_morphology_{subj}.png  '
+              f'(TP={s["counts"]["tp"]}, FN={s["counts"]["fn"]}, '
+              f'TN={s["counts"]["tn"]}, FP={s["counts"]["fp"]})')
+
+    # ── Aggregate figure ──
+    def _agg(key):
+        means = [s[key] for s in per_subj.values() if s[key] is not None]
+        if not means:
+            return None, None, 0
+        stacked = np.stack(means, axis=0)
+        n = stacked.shape[0]
+        grand = stacked.mean(axis=0)
+        if n <= 1:
+            return grand, None, n
+        sem = stacked.std(axis=0, ddof=1) / np.sqrt(n)
+        return grand, sem, n
+
+    tp_a, tp_a_sem, n_tp = _agg('tp_mean')
+    fn_a, fn_a_sem, n_fn = _agg('fn_mean')
+    tn_a, tn_a_sem, n_tn = _agg('tn_mean')
+    fp_a, fp_a_sem, n_fp = _agg('fp_mean')
+
+    agg_proto_windows = None
+    if has_protos and proto_windows_per_fold:
+        fold_ws = list(proto_windows_per_fold.values())
+        K = max(len(w) for w in fold_ws)
+        agg_proto_windows = []
+        for k in range(K):
+            k_wins = [w[k] for w in fold_ws if len(w) > k]
+            if k_wins:
+                agg_proto_windows.append((
+                    float(np.mean([w[0] for w in k_wins])),
+                    float(np.mean([w[1] for w in k_wins])),
+                ))
+
+    n_subjects = len(per_subj)
+    footer_bits = [f'n_subjects={n_subjects}']
+    if min(n_tp, n_fn, n_tn, n_fp) < n_subjects:
+        footer_bits.append(
+            f'subject contributions TP/FN/TN/FP = '
+            f'{n_tp}/{n_fn}/{n_tn}/{n_fp} '
+            f'(subjects with 0 trials in a category drop out of that mean)'
+        )
+    footer = '  |  '.join(footer_bits)
+
+    _plot_morphology(
+        fig_path=results_dir / 'fig_morphology_aggregate.png',
+        title=(f'Aggregate morphology by outcome — {dataset_label} '
+               f'({n_subjects} subjects, grand-average ± SEM across subjects)'),
+        ch_names=ch_names_canonical, time_ms=time_ms,
+        tp_mean=tp_a, tp_sem=tp_a_sem,
+        fn_mean=fn_a, fn_sem=fn_a_sem,
+        tn_mean=tn_a, tn_sem=tn_a_sem,
+        fp_mean=fp_a, fp_sem=fp_a_sem,
+        counts=None, proto_windows=agg_proto_windows,
+        pos_label=pos_label, neg_label=neg_label,
+        footer=footer,
+    )
+    print(f'  Saved fig_morphology_aggregate.png  '
+          f'(subject contributions TP/FN/TN/FP = {n_tp}/{n_fn}/{n_tn}/{n_fp})')
 
 
 # =====================================================================
@@ -541,38 +946,79 @@ def generate_tp_tn_figures(results_dir, dataset_key, channel_config,
 def main():
     parser = argparse.ArgumentParser(
         description="Generate all ERP-XTTN attention figures")
-    parser.add_argument("--dataset", required=True, choices=["bnci", "hri"])
-    parser.add_argument("--channels", required=True,
-                        choices=["midline2", "midline3", "full"])
+    parser.add_argument("--dataset", required=True,
+                        choices=_discover_datasets())
+    parser.add_argument("--channels", required=True)
+    parser.add_argument("--model", default="erpxttn_auto",
+                        help="Model results directory name (default: erpxttn_auto)")
+    parser.add_argument("--partial", action="store_true",
+                        help="Generate figures from partial results (no results.json needed)")
+    parser.add_argument("--morphology-only", action="store_true",
+                        help="Only generate morphology figures (skip attention and TP/TN routing)")
     args = parser.parse_args()
 
-    cfg = DATASET_CONFIG[args.dataset]
+    cfg = load_dataset_config(args.dataset)
+
+    if args.channels not in cfg["variants"]:
+        valid = list(cfg["variants"].keys())
+        parser.error(f"Invalid channels '{args.channels}' for dataset "
+                     f"'{args.dataset}'. Valid: {valid}")
     variant = cfg["variants"][args.channels]
     results_dir = (DATASETS_DIR / cfg["name"] / "results" / "tmin0ms_tmax800ms"
-                   / variant / "erpxttn")
+                   / variant / args.model)
+
+    global PROTO_NAMES, PROTO_COLORS
+    PROTO_NAMES, PROTO_COLORS = get_proto_config(cfg, results_dir=results_dir)
 
     if not results_dir.exists():
         print(f"Results directory not found: {results_dir}")
         return
 
-    channel_names = get_channel_names(args.dataset, args.channels)
-    dataset_label = f'{args.dataset.upper()} \u2014 ERP-XTTN'
+    channel_names = get_channel_names(cfg, args.channels)
+    model_label = args.model.upper().replace("_", " ")
+    dataset_label = f'{args.dataset.upper()} \u2014 {model_label}'
 
-    print(f'=== Attention analysis figures ===')
-    generate_attention_figures(results_dir, dataset_label, channel_names, 256)
+    # Discover subjects (results.json takes priority, fallback to prediction files)
+    if args.partial or not (results_dir / 'results.json').exists():
+        import glob
+        pred_files = sorted(glob.glob(str(results_dir / 'predictions_sub-*.npz')))
+        subjects = [Path(p).stem.replace('predictions_', '') for p in pred_files]
+        print(f'  Discovered {len(subjects)} subjects from prediction files')
+    else:
+        with open(results_dir / 'results.json') as f:
+            results = json.load(f)
+        subjects = [r['test_subject'] for r in results['folds']]
 
-    with open(results_dir / 'results.json') as f:
-        results = json.load(f)
-    subjects = [r['test_subject'] for r in results['folds']]
+    has_attention = any(
+        (results_dir / f'attention_{s}.npz').exists() for s in subjects
+    )
 
-    print(f'\n=== TP/TN routing figures ===')
-    for subj in subjects:
-        attn_path = results_dir / f'attention_{subj}.npz'
-        if not attn_path.exists():
-            print(f'  {subj}: attention file not found, skipping')
-            continue
-        generate_tp_tn_figures(results_dir, args.dataset, args.channels,
-                               subj, dataset_label)
+    if args.morphology_only:
+        print(f'=== --morphology-only: skipping attention and TP/TN routing ===')
+    else:
+        if has_attention and not args.partial:
+            print(f'=== Attention analysis figures ===')
+            generate_attention_figures(results_dir, dataset_label, channel_names, 256)
+        elif not has_attention:
+            print(f'=== Skipping attention analysis figures '
+                  f'(no attention files — expected for baselines) ===')
+
+        if has_attention:
+            print(f'\n=== TP/TN routing figures ===')
+            for subj in subjects:
+                attn_path = results_dir / f'attention_{subj}.npz'
+                if not attn_path.exists():
+                    print(f'  {subj}: attention file not found, skipping')
+                    continue
+                generate_tp_tn_figures(results_dir, cfg, args.channels,
+                                       subj, dataset_label)
+        else:
+            print(f'\n=== Skipping TP/TN routing figures '
+                  f'(no attention files) ===')
+
+    print(f'\n=== Morphology figures (TP vs FN / TN vs FP) ===')
+    generate_morphology_figures(results_dir, cfg, args.channels,
+                                subjects, dataset_label)
 
     print('\nDone!')
 

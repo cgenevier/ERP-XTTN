@@ -2,8 +2,8 @@
 """04_train.py — LOSO cross-validation training for EEGNet and ERP-XTTN.
 
 Usage:
-    python 04_train.py --dataset bnci --channels midline3 --model eegnet
-    python 04_train.py --dataset hri  --channels midline3 --model erpxttn
+    python 04_train.py --dataset bnci_errp_013-2015 --channels midline3 --model eegnet
+    python 04_train.py --dataset hri_errp_cursor    --channels midline3 --model erpxttn
 
 Training logs go to: logs/<timestamp>_<dataset>_<channels>_<model>/
 Results go to:       datasets/<name>/results/tmin0ms_tmax800ms/<variant>/<model>/
@@ -22,18 +22,20 @@ import mne
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from sklearn.metrics import balanced_accuracy_score, roc_auc_score
 from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import DataLoader, TensorDataset
 
 from eegnet import EEGNet
 from erpxttn import ERPXTTN
+from xdawn_rg import XDawnRG
 
 # ──────────────────────────────────────────────────────────────────────
 # Constants
 # ──────────────────────────────────────────────────────────────────────
 SEED = 42
-BATCH_SIZE = 32
+BATCH_SIZE = 128
 MAX_EPOCHS = 250
 PATIENCE = 15
 LR = 1e-3
@@ -48,26 +50,37 @@ VAL_FRACTION = 0.15
 REPO_ROOT = Path(__file__).resolve().parent
 DATASETS_DIR = REPO_ROOT / "datasets"
 
-DATASET_CONFIG = {
-    "bnci": {
-        "name": "bnci_horizon_2020_ErrP",
-        "subjects": ["sub-01", "sub-02", "sub-03", "sub-04", "sub-05", "sub-06"],
-        "variants": {
-            "midline2": "noref_midline2_rs256_iir_fwd_bp-1-10",
-            "midline3": "noref_midline3_rs256_iir_fwd_bp-1-10",
-            "full":     "noref_rs256_iir_fwd_bp-1-10",
-        },
-    },
-    "hri": {
-        "name": "hri_cursor",
-        "subjects": [f"sub-{i:02d}" for i in [2,3,4,5,6,7,8,9,10,11,13]],
-        "variants": {
-            "midline2": "noref_midline2_iir_fwd_bp-1-10",
-            "midline3": "noref_midline3_iir_fwd_bp-1-10",
-            "full":     "noref_iir_fwd_bp-1-10",
-        },
-    },
-}
+def _discover_datasets() -> list[str]:
+    """Scan datasets/ for directories containing dataset_config.json."""
+    found = []
+    for d in sorted(DATASETS_DIR.iterdir()):
+        if d.is_dir() and (d / "dataset_config.json").exists():
+            found.append(d.name)
+    return found
+
+
+def _resolve_dataset_dir(dataset_key: str) -> Path:
+    """Resolve dataset key (directory name) to dataset path."""
+    dataset_dir = DATASETS_DIR / dataset_key
+    if not (dataset_dir / "dataset_config.json").exists():
+        raise FileNotFoundError(
+            f"No dataset_config.json found in {dataset_dir}. "
+            f"Available datasets: {_discover_datasets()}"
+        )
+    return dataset_dir
+
+
+def load_dataset_config(dataset_key: str) -> dict:
+    """Load dataset config from JSON, keyed by alias or directory name."""
+    dataset_dir = _resolve_dataset_dir(dataset_key)
+    cfg_path = dataset_dir / "dataset_config.json"
+    with open(cfg_path) as f:
+        cfg = json.load(f)
+    # Ensure 'name' field is the directory name (for path construction)
+    cfg.setdefault("name", dataset_dir.name)
+    # Default peak_prominence
+    cfg.setdefault("peak_prominence", 0.1)
+    return cfg
 
 
 def set_seed(seed: int):
@@ -83,7 +96,7 @@ def set_seed(seed: int):
 # Data loading
 # ──────────────────────────────────────────────────────────────────────
 
-def load_all_subjects(dataset_key: str, channel_config: str
+def load_all_subjects(cfg: dict, channel_config: str
                       ) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]], int]:
     """Load all subjects' data from epoched FIF files.
 
@@ -91,9 +104,13 @@ def load_all_subjects(dataset_key: str, channel_config: str
         ({subject_id: (X, y)}, srate)
         where X is (n_epochs, C, T), y is (n_epochs,), srate is sampling rate in Hz
     """
-    cfg = DATASET_CONFIG[dataset_key]
     variant = cfg["variants"][channel_config]
     base = DATASETS_DIR / cfg["name"] / "epoched_fif" / "tmin0ms_tmax800ms" / variant
+
+    pos_key = cfg["label_map"]["pos_key"]   # class 1 (e.g. "error", "unrelated")
+    neg_key = cfg["label_map"]["neg_key"]   # class 0 (e.g. "correct", "related")
+    # Optional label_groups for multi-event-code grouping
+    label_groups = cfg.get("label_groups")
 
     data = {}
     srate = None
@@ -105,9 +122,17 @@ def load_all_subjects(dataset_key: str, channel_config: str
             if srate is None:
                 srate = int(epochs.info["sfreq"])
             event_id = epochs.event_id
-            error_ids = {v for k, v in event_id.items() if "error" in k.lower()}
-            correct_ids = {v for k, v in event_id.items() if "correct" in k.lower()}
-            keep_ids = error_ids | correct_ids
+            if label_groups:
+                # Explicit event-name → class mapping
+                pos_names = set(label_groups.get(pos_key, []))
+                neg_names = set(label_groups.get(neg_key, []))
+                pos_ids = {v for k, v in event_id.items() if k in pos_names}
+                neg_ids = {v for k, v in event_id.items() if k in neg_names}
+            else:
+                # Substring matching (original behavior)
+                pos_ids = {v for k, v in event_id.items() if pos_key in k.lower()}
+                neg_ids = {v for k, v in event_id.items() if neg_key in k.lower()}
+            keep_ids = pos_ids | neg_ids
             if not keep_ids:
                 continue
 
@@ -116,15 +141,18 @@ def load_all_subjects(dataset_key: str, channel_config: str
             mask = np.isin(event_codes, list(keep_ids))
             X = X[mask]
             codes = event_codes[mask]
-            y = np.array([1 if c in error_ids else 0 for c in codes])
+            y = np.array([1 if c in pos_ids else 0 for c in codes])
             all_X.append(X)
             all_y.append(y)
 
+        if not all_X:
+            logging.info(f"  {subj}: [SKIP] no epoch files found")
+            continue
         X_subj = np.concatenate(all_X, axis=0).astype(np.float32)
         y_subj = np.concatenate(all_y, axis=0).astype(np.int64)
         data[subj] = (X_subj, y_subj)
         logging.info(f"  {subj}: {len(y_subj)} epochs "
-                     f"({y_subj.sum()} error, {(1-y_subj).sum()} correct)")
+                     f"({y_subj.sum()} {pos_key}, {(1-y_subj).sum()} {neg_key})")
     return data, srate
 
 
@@ -197,16 +225,38 @@ def set_lr(optimizer, lr: float):
 # Training loops
 # ──────────────────────────────────────────────────────────────────────
 
+XTTN_MODELS = {"erpxttn"}
+
+# Sklearn-based models (no GPU, single-phase fit)
+SKLEARN_MODELS = {"xdawn_rg"}
+
+
 def make_model(model_name: str, n_channels: int, n_times: int,
                srate: int, device: torch.device,
-               channel_names: list[str] = None):
+               channel_names: list[str] = None,
+               polarity_pattern: list[str] = None,
+               peak_prominence: float = 0.1,
+               detection_channel: str = None,
+               peak_mode: str = 'constrained',
+               max_k: int = 4):
     if model_name == "eegnet":
         return EEGNet(n_channels, n_times, srate=srate).to(device)
     elif model_name == "erpxttn":
+        if peak_mode == 'auto':
+            n_proto = max_k  # will be adjusted in set_prototypes
+        else:
+            n_proto = len(polarity_pattern) if polarity_pattern else 4
         return ERPXTTN(
             n_channels, n_times, channel_names=channel_names,
-            sfreq=float(srate),
+            sfreq=float(srate), n_proto=n_proto,
+            polarity_pattern=polarity_pattern,
+            peak_prominence=peak_prominence,
+            detection_channel=detection_channel,
+            peak_mode=peak_mode,
+            max_k=max_k,
         ).to(device)
+    elif model_name == "xdawn_rg":
+        return XDawnRG(nfilter=4)
     else:
         raise ValueError(f"Unknown model: {model_name}")
 
@@ -218,13 +268,14 @@ def train_one_epoch(model, loader, optimizer, criterion, device, model_name):
         X_batch, y_batch = X_batch.to(device), y_batch.to(device).float()
         optimizer.zero_grad()
 
-        if model_name == "erpxttn":
+        if model_name in XTTN_MODELS:
             logits, _ = model(X_batch)
+            logits = logits.squeeze(-1)
+            loss = criterion(logits, y_batch)
         else:
             logits = model(X_batch)
-        logits = logits.squeeze(-1)
-
-        loss = criterion(logits, y_batch)
+            logits = logits.squeeze(-1)
+            loss = criterion(logits, y_batch)
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), GRAD_CLIP)
         optimizer.step()
@@ -250,7 +301,7 @@ def evaluate(model, loader, device, model_name):
     all_attn = []
     for X_batch, y_batch in loader:
         X_batch = X_batch.to(device)
-        if model_name == "erpxttn":
+        if model_name in XTTN_MODELS:
             logits, attn = model(X_batch)
             all_attn.append(attn.cpu())
         else:
@@ -273,7 +324,13 @@ def evaluate(model, loader, device, model_name):
 def run_fold(fold_idx: int, test_subj: str,
              all_data: dict, model_name: str, srate: int,
              device: torch.device, results_dir: Path,
-             channel_names: list[str] = None) -> dict:
+             channel_names: list[str] = None,
+             polarity_pattern: list[str] = None,
+             peak_prominence: float = 0.1,
+             pos_key: str = "error", neg_key: str = "correct",
+             detection_channel: str = None,
+             peak_mode: str = 'constrained',
+             max_k: int = 4) -> dict:
     """Run one LOSO fold: Phase 1 (find best epoch) + Phase 2 (retrain)."""
 
     logging.info(f"\n{'='*60}")
@@ -293,9 +350,42 @@ def run_fold(fold_idx: int, test_subj: str,
     n_channels, n_times = X_train_pool.shape[1], X_train_pool.shape[2]
 
     logging.info(f"  Train pool: {len(y_train_pool)} epochs "
-                 f"({y_train_pool.sum()} error, {(1-y_train_pool).sum()} correct)")
+                 f"({y_train_pool.sum()} {pos_key}, {(1-y_train_pool).sum()} {neg_key})")
     logging.info(f"  Test:       {len(y_test)} epochs "
-                 f"({y_test.sum()} error, {(1-y_test).sum()} correct)")
+                 f"({y_test.sum()} {pos_key}, {(1-y_test).sum()} {neg_key})")
+
+    # ── Sklearn models: single-phase fit ──
+    if model_name in SKLEARN_MODELS:
+        mean, std = compute_channel_stats(X_train_pool)
+        X_pool_n = (X_train_pool - mean) / std
+        X_test_n = (X_test - mean) / std
+
+        model = make_model(model_name, n_channels, n_times, srate, device,
+                           channel_names=channel_names,
+                           detection_channel=detection_channel)
+        model.fit(X_pool_n, y_train_pool)
+        probs = model.predict_proba(X_test_n)[:, 1]
+        labels = y_test
+
+        auroc = roc_auc_score(labels, probs)
+        preds = (probs >= 0.5).astype(int)
+        bal_acc = balanced_accuracy_score(labels, preds)
+
+        logging.info(f"  Test: AUROC={auroc:.4f}  BalAcc={bal_acc:.4f}")
+
+        np.savez(results_dir / f"predictions_{test_subj}.npz",
+                 probs=probs, labels=labels,
+                 auroc=auroc, bal_acc=bal_acc)
+        logging.info(f"  Saved predictions to {results_dir / f'predictions_{test_subj}.npz'}")
+
+        return {
+            "fold": fold_idx,
+            "test_subject": test_subj,
+            "best_epoch": 0,
+            "best_val_auroc": 0.0,
+            "test_auroc": float(auroc),
+            "test_bal_acc": float(bal_acc),
+        }
 
     # ── Phase 1: find best_epoch with val split ──
 
@@ -329,9 +419,13 @@ def run_fold(fold_idx: int, test_subj: str,
 
     set_seed(SEED)
     model = make_model(model_name, n_channels, n_times, srate, device,
-                       channel_names=channel_names)
+                       channel_names=channel_names,
+                       polarity_pattern=polarity_pattern,
+                       peak_prominence=peak_prominence,
+                       detection_channel=detection_channel,
+                       peak_mode=peak_mode, max_k=max_k)
 
-    if model_name == "erpxttn":
+    if model_name in XTTN_MODELS:
         model.set_prototypes(torch.from_numpy(X_train_n), torch.from_numpy(y_train))
         logging.info(f"  Phase 1 detected windows (ms): {model.detected_windows_ms}")
 
@@ -395,9 +489,13 @@ def run_fold(fold_idx: int, test_subj: str,
 
     set_seed(SEED)
     model2 = make_model(model_name, n_channels, n_times, srate, device,
-                        channel_names=channel_names)
+                        channel_names=channel_names,
+                        polarity_pattern=polarity_pattern,
+                        peak_prominence=peak_prominence,
+                        detection_channel=detection_channel,
+                        peak_mode=peak_mode, max_k=max_k)
 
-    if model_name == "erpxttn":
+    if model_name in XTTN_MODELS:
         model2.set_prototypes(torch.from_numpy(X_pool_n),
                                torch.from_numpy(y_train_pool))
         logging.info(f"  Phase 2 detected windows (ms): {model2.detected_windows_ms}")
@@ -428,7 +526,7 @@ def run_fold(fold_idx: int, test_subj: str,
         "test_auroc": float(auroc),
         "test_bal_acc": float(bal_acc),
     }
-    if model_name == "erpxttn":
+    if model_name in XTTN_MODELS:
         fold_result["detected_windows_ms"] = model2.detected_windows_ms
 
     preds_path = results_dir / f"predictions_{test_subj}.npz"
@@ -471,15 +569,35 @@ def run_fold(fold_idx: int, test_subj: str,
 # ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="LOSO training for ErrP classifiers")
-    parser.add_argument("--dataset", required=True, choices=["bnci", "hri"])
-    parser.add_argument("--channels", required=True, choices=["midline2", "midline3", "full"])
-    parser.add_argument("--model", required=True, choices=["eegnet", "erpxttn"])
+    parser = argparse.ArgumentParser(description="LOSO training for ERP classifiers")
+    available = _discover_datasets()
+    parser.add_argument("--dataset", required=True, choices=available)
+    parser.add_argument("--channels", required=True)
+    parser.add_argument("--model", required=True, choices=["eegnet", "erpxttn", "xdawn_rg"])
+    parser.add_argument("--resume", action="store_true",
+                        help="Skip folds that already have predictions (for resuming interrupted runs)")
+    parser.add_argument("--peak-mode", choices=["constrained", "auto"], default="auto",
+                        help="Peak detection mode: 'auto' (data-driven; default, the v2.0.0 / paper model) "
+                             "or 'constrained' (dataset-configured polarity pattern; the v1.0.0 model)")
+    parser.add_argument("--max-k", type=int, default=4,
+                        help="Max number of prototypes in auto mode (default: 4)")
     args = parser.parse_args()
+
+    # Constrained ERPXTTN results live in erpxttn_constrained/ to distinguish
+    # them from auto mode runs in erpxttn_auto/.
+    model_dir_name = args.model
+    if args.model == "erpxttn":
+        if args.peak_mode == "auto":
+            if args.max_k != 4:
+                model_dir_name = f"erpxttn_auto{args.max_k}"
+            else:
+                model_dir_name = "erpxttn_auto"
+        else:
+            model_dir_name = "erpxttn_constrained"
 
     # Setup logging
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_name = f"{timestamp}_{args.dataset}_{args.channels}_{args.model}"
+    run_name = f"{timestamp}_{args.dataset}_{args.channels}_{model_dir_name}"
     log_dir = REPO_ROOT / "logs" / run_name
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -493,10 +611,14 @@ def main():
         ],
     )
 
-    cfg = DATASET_CONFIG[args.dataset]
+    cfg = load_dataset_config(args.dataset)
+    if args.channels not in cfg["variants"]:
+        valid = list(cfg["variants"].keys())
+        parser.error(f"Invalid channels '{args.channels}' for dataset "
+                     f"'{args.dataset}'. Valid options: {valid}")
     variant = cfg["variants"][args.channels]
     results_dir = (DATASETS_DIR / cfg["name"] / "results" / "tmin0ms_tmax800ms"
-                   / variant / args.model)
+                   / variant / model_dir_name)
     results_dir.mkdir(parents=True, exist_ok=True)
 
     logging.info(f"Run: {run_name}")
@@ -510,13 +632,13 @@ def main():
     set_seed(SEED)
 
     logging.info(f"Loading {args.dataset} / {args.channels}...")
-    all_data, srate = load_all_subjects(args.dataset, args.channels)
+    all_data, srate = load_all_subjects(cfg, args.channels)
     logging.info(f"Sampling rate: {srate} Hz")
     subjects = list(all_data.keys())
 
     # Read channel names (needed for ERP-XTTN Cz detection)
     channel_names = None
-    if args.model == "erpxttn":
+    if args.model in XTTN_MODELS:
         base = (DATASETS_DIR / cfg["name"] / "epoched_fif" / "tmin0ms_tmax800ms"
                 / variant)
         first_fif = next((base / cfg["subjects"][0]).rglob("*-epo.fif"))
@@ -525,12 +647,36 @@ def main():
         logging.info(f"Channels ({len(channel_names)}): {channel_names}")
 
     # LOSO cross-validation
+    polarity_pattern = cfg.get("polarity_pattern")
+    peak_prominence = cfg.get("peak_prominence", 0.1)
+    pos_key = cfg["label_map"]["pos_key"]
+    neg_key = cfg["label_map"]["neg_key"]
     results = []
     t0 = time.time()
     for i, test_subj in enumerate(subjects):
+        # --resume: skip folds that already have predictions
+        if args.resume:
+            pred_path = results_dir / f"predictions_{test_subj}.npz"
+            if pred_path.exists():
+                _d = np.load(pred_path)
+                fold_result = {
+                    "fold": i, "test_subject": test_subj,
+                    "best_epoch": 0,
+                    "test_auroc": float(_d["auroc"]),
+                    "test_bal_acc": float(_d["bal_acc"]),
+                }
+                logging.info(f"[resume] {test_subj}: AUROC={_d['auroc']:.4f} (cached)")
+                results.append(fold_result)
+                continue
         fold_result = run_fold(i, test_subj, all_data, args.model, srate,
                                device, results_dir,
-                               channel_names=channel_names)
+                               channel_names=channel_names,
+                               polarity_pattern=polarity_pattern,
+                               peak_prominence=peak_prominence,
+                               pos_key=pos_key, neg_key=neg_key,
+                               detection_channel=cfg.get("detection_channel"),
+                               peak_mode=args.peak_mode,
+                               max_k=args.max_k)
         results.append(fold_result)
 
     elapsed = time.time() - t0

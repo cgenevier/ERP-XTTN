@@ -1,0 +1,128 @@
+{
+    "dataset_name": "ERP CORE N2pc",
+    "description": "N2pc attention component from visual search task. 40 neurotypical adults. Part of the ERP CORE project (Kappenman et al., 2021).",
+    "citation": "Kappenman, E. S., Farrens, J. L., Zhang, W., Stewart, A. X., & Luck, S. J. (2021). ERP CORE: An open resource for human event-related potential research. NeuroImage, 225, 117465.",
+    "input_format": "eeglab",
+    "file_glob": "*/*_eeg.set",
+    "filename_regex": "^sub-(?P<sub>\\d+)_ses-(?P<ses>[^_]+)_task-[^_]+_eeg\\.set$",
+    "channel_type": "eeg",
+    "eog_channels": [
+        "HEOG_left",
+        "HEOG_right",
+        "VEOG_lower"
+    ],
+    "assume_microvolts": false,
+    "montage": "standard_1020",
+    "bids_task": "n2pc",
+    "export_mode": "single",
+    "event_id": {
+        "blue_left_top": "111",
+        "blue_left_bottom": "112",
+        "blue_right_top": "121",
+        "blue_right_bottom": "122",
+        "pink_left_top": "211",
+        "pink_left_bottom": "212",
+        "pink_right_top": "221",
+        "pink_right_bottom": "222",
+        "correct_response": "201",
+        "incorrect_response": "202"
+    },
+    "epoching": {
+        "mode": "event_lock",
+        "event_subset": [
+            "blue_left_top",
+            "blue_left_bottom",
+            "blue_right_top",
+            "blue_right_bottom",
+            "pink_left_top",
+            "pink_left_bottom",
+            "pink_right_top",
+            "pink_right_bottom"
+        ]
+    },
+    "notes": "EEGLAB .set/.fdt format. 33 channels. Visual search: find target color among distractors and report gap position. Codes: 1st digit = target color (1=blue, 2=pink), 2nd digit = target side (1=left, 2=right), 3rd digit = gap position (1=top, 2=bottom). For N2pc classification: target left (x1x) vs target right (x2x). N2pc expected at PO7/PO8/P7/P8, 200-350ms post-stimulus, more negative contralateral to target.",
+    "dataset_id": "erpcore_n2pc",
+    "subjects": [
+        "sub-01",
+        "sub-02",
+        "sub-03",
+        "sub-04",
+        "sub-05",
+        "sub-06",
+        "sub-07",
+        "sub-08",
+        "sub-09",
+        "sub-10",
+        "sub-11",
+        "sub-12",
+        "sub-13",
+        "sub-14",
+        "sub-15",
+        "sub-16",
+        "sub-17",
+        "sub-18",
+        "sub-19",
+        "sub-20",
+        "sub-21",
+        "sub-22",
+        "sub-23",
+        "sub-24",
+        "sub-25",
+        "sub-26",
+        "sub-27",
+        "sub-28",
+        "sub-29",
+        "sub-30",
+        "sub-31",
+        "sub-32",
+        "sub-33",
+        "sub-34",
+        "sub-35",
+        "sub-36",
+        "sub-37",
+        "sub-38",
+        "sub-39",
+        "sub-40"
+    ],
+    "variants": {
+        "posterior3_n2pc": "noref_posterior3_n2pc_rs256_iir_fwd_bp-1-10",
+        "full": "noref_rs256_iir_fwd_bp-1-10"
+    },
+    "label_map": {
+        "pos_key": "target_left",
+        "neg_key": "target_right"
+    },
+    "label_groups": {
+        "target_left": [
+            "blue_left_top",
+            "blue_left_bottom",
+            "pink_left_top",
+            "pink_left_bottom"
+        ],
+        "target_right": [
+            "blue_right_top",
+            "blue_right_bottom",
+            "pink_right_top",
+            "pink_right_bottom"
+        ]
+    },
+    "polarity_pattern": [
+        "neg",
+        "pos",
+        "neg"
+    ],
+    "peak_prominence": 0.02,
+    "channel_presets": {
+        "posterior3_n2pc": [
+            "PO7",
+            "Pz",
+            "PO8"
+        ]
+    },
+    "proto_names": [
+        "N2pc-diff",
+        "SPCN-diff",
+        "LateN-diff"
+    ],
+    "detection_channel": "PO7"
+}
