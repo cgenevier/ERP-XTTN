@@ -1,18 +1,18 @@
 # ERP-XTTN: Interpretable Cross-Attention ERP Classifier
 
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20087550-blue)](https://doi.org/10.5281/zenodo.20087550)
-[![arXiv](https://img.shields.io/badge/arXiv-XXXX.XXXXX-b31b1b.svg)](https://arxiv.org/abs/XXXX.XXXXX)
+[![arXiv](https://img.shields.io/badge/arXiv-2606.02939-b31b1b.svg)](https://arxiv.org/abs/2606.02939)
 
 Code repository for ERP-XTTN, an interpretable cross-attention architecture for ERP classification from EEG signals.
 
-> **Version 2.0.0** — This release extends the v1.0.0 *Graz BCI 2026* work to the full ERP CORE benchmark (seven paradigms) alongside the BNCI and HRI ErrP datasets, adding EEGNet and xDAWN+RG baselines and an auto peak-detection ERPXTTN variant. It accompanies the ERP-XTTN extension paper (preprint: [arXiv:XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX)). For the frozen Graz conference release, see the [`v1.0.0` release](https://github.com/cgenevier/ERP-XTTN/releases/tag/v1.0.0).
+> **Version 2.0.0** — This release extends the v1.0.0 *Graz BCI 2026* work to the full ERP CORE benchmark (seven paradigms) alongside the BNCI and HRI ErrP datasets, adding EEGNet and xDAWN+RG baselines and an auto peak-detection ERPXTTN variant. It accompanies the ERP-XTTN extension paper (preprint: [arXiv:2606.02939](https://arxiv.org/abs/2606.02939)). For the frozen Graz conference release, see the [`v1.0.0` release](https://github.com/cgenevier/ERP-XTTN/releases/tag/v1.0.0).
 
 ## Versions
 
 - **[v2.0.0](https://github.com/cgenevier/ERP-XTTN/releases/tag/v2.0.0)** *(this release)* — Extension paper covering the full ERP CORE
   benchmark (seven paradigms) plus the BNCI and HRI ErrP datasets, with EEGNet
   and xDAWN+RG baselines and constrained/auto ERPXTTN variants.
-  - Preprint: [arXiv:XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX)
+  - Preprint: [arXiv:2606.02939](https://arxiv.org/abs/2606.02939)
   - Archived on Zenodo: [10.5281/zenodo.20497891](https://doi.org/10.5281/zenodo.20497891)
 - **[v1.0.0](https://github.com/cgenevier/ERP-XTTN/releases/tag/v1.0.0)** — Code for Wyman & Hirshfield, *Graz BCI 2026* (conference paper).
   - Paper DOI: [pending]
@@ -395,7 +395,7 @@ If you use this code (v2.0.0), please cite the **extension paper preprint** and 
   title={ERP-XTTN: Interpretable Prototype-Guided Cross-Attention for Cross-Subject ERP Classification},
   author={Wyman, Charlotte Genevier and Hirshfield, Leanne},
   year={2026},
-  eprint={XXXX.XXXXX},
+  eprint={2606.02939},
   archivePrefix={arXiv},
   primaryClass={eess.SP},
   note={Preprint. Full publication metadata will be added upon acceptance.}
@@ -424,4 +424,4 @@ The earlier **v1.0.0 conference release** (*Graz BCI 2026*) is archived separate
 }
 ```
 
-The `@software` DOI above (`10.5281/zenodo.20497891`) is specific to v2.0.0; the badge links the Zenodo concept DOI (`10.5281/zenodo.20087550`), which always resolves to the latest release. The preprint arXiv identifier will be added once posted. Machine-readable metadata is in [CITATION.cff](CITATION.cff).
+The `@software` DOI above (`10.5281/zenodo.20497891`) is specific to v2.0.0; the badge links the Zenodo concept DOI (`10.5281/zenodo.20087550`), which always resolves to the latest release. Machine-readable metadata is in [CITATION.cff](CITATION.cff).
