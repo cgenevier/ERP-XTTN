@@ -446,9 +446,15 @@ function authUrl(path) {
   return _jupyterToken ? path + sep + 'token=' + _jupyterToken : path;
 }
 
-const KNOWN_MODELS = ['xdawn_rg', 'eegnet', 'erpxttn_constrained', 'erpxttn_auto'];
+const KNOWN_MODELS = ['erpxttn_auto', 'eegnet', 'eeg_deformer', 'epmn', 'xdawn_rg', 'erpxttn_constrained'];
+// Seeds probed per model. Neural models sweep 1..5; xDAWN+RG is deterministic
+// (seed-1 only). Missing seed dirs are simply skipped.
+const SEED_CANDIDATES = [1, 2, 3, 4, 5];
+const EXPECTED_SEEDS = (m) => (m === 'xdawn_rg' ? 1 : 5);
 function modelDisplay(m) {
   if (m === 'eegnet') return 'EEGNet';
+  if (m === 'eeg_deformer') return 'EEG-Deformer';
+  if (m === 'epmn') return 'EPMN';
   if (m === 'erpxttn_auto') return 'ERP-XTTN Auto';
   const xttnAutoKMatch = m.match(/^erpxttn_auto(\d+)$/);
   if (xttnAutoKMatch) {
@@ -725,6 +731,61 @@ async function fetchJson(relPath) {
 }
 
 
+function _mean(a) { return a.reduce((x, y) => x + y, 0) / a.length; }
+function _std(a) {
+  if (a.length < 2) return 0;
+  const m = _mean(a);
+  return Math.sqrt(a.reduce((s, v) => s + (v - m) * (v - m), 0) / (a.length - 1));
+}
+
+// Aggregate per-seed results.json into one results object: each subject's
+// AUROC/bal-acc is averaged over the available seeds. Adds _seedInfo for the
+// progress/status display.
+function aggregateSeeds(seedResults, expectedSeeds) {
+  const bySubj = new Map();
+  let elapsed = 0;
+  for (const { results } of seedResults) {
+    if (results.elapsed_seconds != null) elapsed += results.elapsed_seconds;
+    for (const f of (results.folds || [])) {
+      if (!bySubj.has(f.test_subject)) bySubj.set(f.test_subject, { a: [], b: [] });
+      const e = bySubj.get(f.test_subject);
+      if (f.test_auroc != null) e.a.push(f.test_auroc);
+      if (f.test_bal_acc != null) e.b.push(f.test_bal_acc);
+    }
+  }
+  const folds = [];
+  for (const [subj, e] of bySubj) {
+    folds.push({
+      test_subject: subj,
+      test_auroc: e.a.length ? _mean(e.a) : null,
+      test_bal_acc: e.b.length ? _mean(e.b) : null,
+      n_seeds: e.a.length,
+    });
+  }
+  const aurocs = folds.map(f => f.test_auroc).filter(v => v != null);
+  // Per-seed dataset-mean AUROC (seed stability).
+  const seedMeans = seedResults.map(sr => {
+    const a = (sr.results.folds || []).map(f => f.test_auroc).filter(v => v != null);
+    return a.length ? _mean(a) : null;
+  }).filter(v => v != null);
+  const seedsPresent = seedResults.map(s => s.seed).sort((x, y) => x - y);
+  return {
+    mean_auroc: aurocs.length ? _mean(aurocs) : null,
+    std_auroc: aurocs.length > 1 ? _std(aurocs) : 0,
+    folds: folds,
+    elapsed_seconds: elapsed || null,
+    _seedInfo: {
+      seedsPresent: seedsPresent,
+      nSeeds: seedsPresent.length,
+      expectedSeeds: expectedSeeds,
+      complete: seedsPresent.length >= expectedSeeds,
+      seedMean: seedMeans.length ? _mean(seedMeans) : null,
+      seedSd: seedMeans.length > 1 ? _std(seedMeans) : 0,
+      foldsPerSeed: seedResults.map(s => (s.results.folds || []).length),
+    },
+  };
+}
+
 async function scanDatasets() {
   if (IS_FILE_PROTOCOL && !localFiles) {
     renderLocalPrompt();
@@ -779,14 +840,24 @@ async function scanDatasets() {
     const variantProbes = Object.entries(variants).map(async ([variantKey, variantDirName]) => {
       const variantPath = 'datasets/' + dirName + '/results/tmin0ms_tmax800ms/' + variantDirName;
 
-      // Probe all 4 models for results.json in parallel
+      // Probe each model across seed-<N>/ dirs and aggregate.
       const ERPXTTN_FAMILY = KNOWN_MODELS.filter(m => m.startsWith('erpxttn'));
       const modelProbes = await Promise.all(KNOWN_MODELS.map(async modelName => {
-        const modelPath = variantPath + '/' + modelName;
-        const results = await fetchJson(modelPath + '/results.json');
-        if (!results) return null;
+        const modelDir = variantPath + '/' + modelName;
+        // Probe candidate seeds in parallel.
+        const seedResults = (await Promise.all(SEED_CANDIDATES.map(async seed => {
+          const seedPath = modelDir + '/seed-' + seed;
+          const r = await fetchJson(seedPath + '/results.json');
+          return r ? { seed, results: r, path: seedPath } : null;
+        }))).filter(Boolean);
+        if (seedResults.length === 0) return null;
 
-        const modelData = { results: results, figures: {}, basePath: modelPath };
+        // Seed-averaged results object (compatible with the renderers).
+        const results = aggregateSeeds(seedResults, EXPECTED_SEEDS(modelName));
+        // Figures (if generated) live under the lowest present seed dir.
+        const modelPath = seedResults[0].path;
+        const modelData = { results: results, figures: {}, basePath: modelPath,
+                            seedInfo: results._seedInfo };
 
         const subjects = config.subjects || [];
         if (ERPXTTN_FAMILY.includes(modelName)) {
@@ -1013,7 +1084,17 @@ function renderOverviewTable(filterCategory) {
       const r = modelMap[m]?.results;
       if (r && r.mean_auroc != null) {
         const isBest = m === bestModel;
-        html += '<td><span class="auroc-cell' + (isBest ? ' cell-best' : '') + '" style="background:' + aurocColor(r.mean_auroc) + '">' + fmt(r.mean_auroc) + ' &plusmn; ' + fmt(r.std_auroc) + '</span></td>';
+        const si = r._seedInfo;
+        let seedBadge = '';
+        if (si) {
+          const color = si.complete ? 'var(--text-secondary)' : '#ffb74d';
+          const tip = 'seeds present: [' + si.seedsPresent.join(', ') + ']'
+            + ' (' + si.nSeeds + '/' + si.expectedSeeds + ')'
+            + (si.seedMean != null ? '\nper-seed mean ' + fmt(si.seedMean) + ' ± ' + fmt(si.seedSd) : '');
+          seedBadge = ' <span title="' + escapeHtml(tip) + '" style="font-size:0.68rem;color:' + color + ';">'
+            + si.nSeeds + '/' + si.expectedSeeds + 's' + (si.complete ? '' : ' &#9203;') + '</span>';
+        }
+        html += '<td><span class="auroc-cell' + (isBest ? ' cell-best' : '') + '" style="background:' + aurocColor(r.mean_auroc) + '">' + fmt(r.mean_auroc) + ' &plusmn; ' + fmt(r.std_auroc) + '</span>' + seedBadge + '</td>';
       } else {
         html += '<td><span class="cell-missing">&mdash;</span></td>';
       }
@@ -1446,14 +1527,22 @@ const ANALYSIS_COLUMNS = [
     extractor: c => c.auroc ? c.auroc.mean : null, isNum: true, digits: 3},
   {id: 'auroc_sd', label: 'AUROC SD', metricKey: 'auroc',
     extractor: c => c.auroc ? c.auroc.sd : null, isNum: true, digits: 3},
-  {id: 'tax_eegnet', label: 'Tax vs EEGNet', metricKey: 'tax',
-    extractor: c => c.tax && c.tax.eegnet ? c.tax.eegnet.mean_delta : null,
-    secondary: c => c.tax && c.tax.eegnet ? c.tax.eegnet.sem : null,
-    isNum: true, digits: 3, fmtFn: (v, s) => v==null ? '' : v.toFixed(3) + (s!=null ? ' ±' + s.toFixed(3) : '')},
-  {id: 'tax_xdawn', label: 'Tax vs xDAWN+RG', metricKey: 'tax',
-    extractor: c => c.tax && c.tax.xdawn_rg ? c.tax.xdawn_rg.mean_delta : null,
-    secondary: c => c.tax && c.tax.xdawn_rg ? c.tax.xdawn_rg.sem : null,
-    isNum: true, digits: 3, fmtFn: (v, s) => v==null ? '' : v.toFixed(3) + (s!=null ? ' ±' + s.toFixed(3) : '')},
+  ...['eegnet', 'eeg_deformer', 'epmn', 'xdawn_rg'].map(bl => ({
+    id: 'tax_' + bl, label: 'Tax vs ' + modelDisplay(bl), metricKey: 'tax',
+    extractor: c => c.tax && c.tax[bl] ? c.tax[bl].mean_delta : null,
+    secondary: c => c.tax && c.tax[bl] ? c.tax[bl] : null,
+    isNum: true, digits: 3,
+    // Δ ±sem  (effect size r, FDR-corrected q or raw p)
+    fmtFn: (v, s) => {
+      if (v == null) return '';
+      let t = v.toFixed(3);
+      if (s && s.sem != null) t += ' ±' + s.sem.toFixed(3);
+      if (s && s.rank_biserial != null) t += '  r=' + s.rank_biserial.toFixed(2);
+      if (s && s.wilcoxon_p_corrected != null) t += '  q=' + s.wilcoxon_p_corrected.toFixed(3);
+      else if (s && s.wilcoxon_p != null) t += '  p=' + s.wilcoxon_p.toFixed(3);
+      return t;
+    },
+  })),
   {id: 'balance', label: 'Class balance', metricKey: 'class_balance_minority',
     extractor: c => c.class_balance_minority, isNum: true, digits: 3},
   {id: 'k_mode', label: 'K (mode)', metricKey: 'k_stats',
@@ -1591,7 +1680,7 @@ function renderAnalysisTable(combos, descriptions) {
   let html = '<h3 style="margin:12px 0;color:var(--accent);">Metrics by dataset × variant</h3>';
   html += '<div class="table-container"><table><thead><tr>';
   for (const col of ANALYSIS_COLUMNS) {
-    const desc = col.metricKey && descriptions[col.metricKey] ? descriptions[col.metricKey] : '';
+    const desc = col.metricKey && descriptions && descriptions[col.metricKey] ? descriptions[col.metricKey] : '';
     const title = desc ? ' title="' + escapeHtml(desc) + '"' : '';
     html += '<th' + title + '>' + escapeHtml(col.label) + '</th>';
   }
@@ -1624,12 +1713,14 @@ function renderAnalysisScatters(combos) {
   ];
   const baselines = [
     {taxKey: 'tax_eegnet', label: 'vs EEGNet'},
-    {taxKey: 'tax_xdawn', label: 'vs xDAWN+RG'},
+    {taxKey: 'tax_eeg_deformer', label: 'vs EEG-Deformer'},
+    {taxKey: 'tax_epmn', label: 'vs EPMN'},
+    {taxKey: 'tax_xdawn_rg', label: 'vs xDAWN+RG'},
   ];
   const taxLabel = 'Interpretability tax (baseline − ERPXTTN Auto AUROC)';
 
   let html = '<h3 style="margin:20px 0 8px;color:var(--accent);">Tax vs interpretability metrics</h3>';
-  html += '<div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:12px;">Each row = one metric. Left column uses EEGNet as the tax baseline, right column uses xDAWN+RG. Each point is a (dataset, variant) — <span style="color:#4fc3f7;">● 3-channel preset</span>, <span style="color:#ffb74d;">● full montage</span>. Spearman ρ is reported per-variant (n=9 each) to avoid the same x value contributing twice for montage-invariant metrics. n is low; treat ρ as a trend indicator, not a significance test. Hover a point for details.</div>';
+  html += '<div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:12px;">Plots are grouped by metric, with one panel per baseline (EEGNet, EEG-Deformer, EPMN, xDAWN+RG). Each point is a (dataset, variant) — <span style="color:#4fc3f7;">● 3-channel preset</span>, <span style="color:#ffb74d;">● full montage</span>. Spearman ρ is reported per-variant (n=9 each) to avoid the same x value contributing twice for montage-invariant metrics. n is low; treat ρ as a trend indicator, not a significance test. Hover a point for details.</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:16px;">';
   for (const sc of scatterCols) {
     const col = ANALYSIS_COLUMNS.find(cc => cc.id === sc.id);
