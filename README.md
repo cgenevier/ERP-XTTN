@@ -36,6 +36,8 @@ ERP-XTTN/
 ├── run_manager.py          # Batch launcher / status monitor for experiment runs
 ├── dashboard.html          # Browser dashboard for browsing saved results
 ├── eegnet.py               # EEGNet baseline (Lawhern et al., 2018)
+├── eeg_deformer.py         # EEG-Deformer baseline (Ding et al., 2025)
+├── epmn.py                 # ERP Prototypical Matching Net baseline (Wei et al., 2022)
 ├── erpxttn.py              # ERP-XTTN model + automatic peak detection
 ├── xdawn_rg.py             # xDAWN + Riemannian Geometry baseline
 ├── analysis_summary.json   # Cached cross-dataset analysis output (from 06)
@@ -70,9 +72,13 @@ Each dataset directory contains:
 | Model | Description |
 |-------|-------------|
 | **EEGNet** | Lawhern et al. (2018) compact CNN baseline |
+| **EEG-Deformer** | Ding et al. (2025) dense convolutional transformer baseline (faithful port of the official implementation) |
+| **EPMN** | Wei et al. (2022) ERP Prototypical Matching Net — metric-based meta-learning baseline (episodic training) |
 | **xDAWN+RG** | xDAWN spatial filtering + Riemannian geometry classifier (classical ML baseline) |
 | **ERPXTTN Constrained** | Cross-attention prototype model with dataset-configured polarity pattern; results saved under `erpxttn_constrained/` |
 | **ERPXTTN Auto** | Auto peak-detection variant of ERPXTTN; results saved under `erpxttn_auto/` |
+
+All neural models are trained under the shared LOSO two-phase protocol (Section 2.5 of the paper); EPMN additionally uses its native episodic meta-learning. Results for stochastic models are produced across **5 seeds**; the deterministic xDAWN+RG uses one. Per-seed outputs are written under `.../<model>/seed-<N>/` and aggregated by `06_gen_analysis.py` and `07_gen_paper_figures.py`.
 
 ## Requirements
 
@@ -144,22 +150,27 @@ python 03_preprocess.py --dataset datasets/erpcore_n400 --channels full         
 ### 5. Train (LOSO Cross-Validation)
 
 ```bash
-# EEGNet baseline
-python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model eegnet
-
-# xDAWN+RG classical baseline
-python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model xdawn_rg
+# Baselines (one seed shown; sweep uses --seed 1..5 for neural models)
+python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model eegnet        --seed 1
+python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model eeg_deformer  --seed 1
+python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model epmn          --seed 1
+python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model xdawn_rg      --seed 1   # deterministic
 
 # ERPXTTN — auto peak-detection (default; the model reported in the paper)
-python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn
+python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn       --seed 1
 
 # ERPXTTN — constrained variant (dataset-configured polarity pattern; the v1.0.0 model)
 python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn --peak-mode constrained
+
+# ERPXTTN ablations (write to a separate erpxttn_auto_<tag>/ dir via --ablation-tag)
+python 04_train.py --dataset hri_errp_cursor --channels midline3 --model erpxttn --xattn-mode qkv --ablation-tag qkv   --seed 1
+python 04_train.py --dataset hri_errp_cursor --channels midline3 --model erpxttn --no-self-attn    --ablation-tag nosa --seed 1
+python 04_train.py --dataset hri_errp_cursor --channels midline3 --model erpxttn --max-k 2         --ablation-tag k2   --seed 1
 ```
 
-`--model erpxttn` selects the ERPXTTN architecture and **defaults to auto peak-detection** (saved under `erpxttn_auto/`; accepts `--max-k` to cap the number of detected prototypes, default 4). Pass `--peak-mode constrained` for the v1.0.0 constrained variant (saved under `erpxttn_constrained/`).
+`--model erpxttn` selects the ERPXTTN architecture and **defaults to auto peak-detection** (saved under `erpxttn_auto/`; accepts `--max-k` to cap the number of detected prototypes, default 4). Pass `--peak-mode constrained` for the v1.0.0 constrained variant (saved under `erpxttn_constrained/`). Ablation knobs (`--xattn-mode qkv`, `--no-self-attn`, `--num-heads`, `--patch-width`, `--d-model`, `--peak-prominence`) require an `--ablation-tag` so runs land in their own subdirectory.
 
-Results are saved to `datasets/<name>/results/<window>/<variant>/<model>/results.json`.
+Results are saved to `datasets/<name>/results/<window>/<variant>/<model>/seed-<N>/results.json`. The full multi-seed sweep (all models × datasets × montages × 5 seeds, plus the ablation grid) is orchestrated by `run_manager.py` — see the reproduction section below.
 
 ### 6. Generate Figures (ERPXTTN only)
 
@@ -199,21 +210,27 @@ python 07_gen_paper_figures.py
 | erpcore_n400 | midline3_n400 |
 | erpcore_p300 | midline3 |
 
+The full sweep is 5 seeds × {EEGNet, EEG-Deformer, EPMN, ERP-XTTN} + 1-seed xDAWN+RG, across all datasets and both montages, plus the ERP-XTTN ablation grid (QK-only vs QKV, self-attention on/off, K, peak prominence, heads) on HRI/P300/N400 at 3 channels. `run_manager.py` enumerates and launches it:
+
 ```bash
-# Paper model (auto ERPXTTN, the default) — repeat per dataset/preset from the
-# table above, and again with `--channels full` for the full-channel analysis.
-python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn
+# Batch-launch the whole matrix (3ch + full + ablations), respecting MAX_GPU_JOBS.
+python run_manager.py --launch-all --include-full --include-ablation
 
-# Baselines (same dataset/preset)
-python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model eegnet
-python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model xdawn_rg
+# Or run as a daemon that keeps GPU slots filled:
+python run_manager.py --daemon --include-full --include-ablation
 
-# Then aggregate analysis + paper figures (read the erpxttn_auto runs)
-python 06_gen_analysis.py
-python 07_gen_paper_figures.py
+# Then aggregate seed-averaged analysis + stats + paper figures:
+python 06_gen_analysis.py      # -> analysis_summary.json + stats_summary.csv (Wilcoxon + effect sizes + BH-FDR)
+python 07_gen_paper_figures.py # -> paper_figures/ (incl. per-subject AUROC point figures)
 ```
 
-Equivalently, `python run_manager.py --launch-all --include-full` batch-launches the same auto ERPXTTN runs plus baselines across all datasets.
+A single (dataset, preset, model, seed) can also be run directly, e.g.:
+
+```bash
+python 04_train.py --dataset erpcore_n400 --channels midline3_n400 --model erpxttn --seed 3
+```
+
+`06_gen_analysis.py` aggregates each subject's AUROC over all available seeds before computing the paired Wilcoxon signed-rank tests, rank-biserial effect sizes, and Benjamini–Hochberg FDR correction, and reports per-seed dataset-mean AUROC as a stability check.
 
 ## Architecture
 
@@ -254,6 +271,14 @@ Attention weights are averaged across heads, flattened to N·K dimensions, and p
 ### EEGNet (Baseline)
 
 EEGNet (Lawhern et al., 2018) is used as a compact CNN baseline. It applies temporal convolution, depthwise spatial convolution, separable convolution, and average pooling, with max-norm weight constraints. Implementation follows Table 2 of the original paper with F1=8, D=2, F2=16, dropout=0.25.
+
+### EEG-Deformer (Baseline)
+
+EEG-Deformer (Ding et al., 2025) is a dense convolutional transformer: a CNN shallow encoder, a stack of Hierarchical Coarse-to-fine Transformer (HCT) blocks with a fine-grained temporal-learning branch, and dense information-purification (IP) units feeding an MLP head. `eeg_deformer.py` is a faithful port of the official implementation (einops replaced with plain torch, no new dependency); the temporal kernel is set to the nearest odd integer to 0.1·fs (27 at 256 Hz), other hyperparameters are the paper defaults (depth 4, 16 heads, 64 kernels). Trained under the shared protocol.
+
+### EPMN (Baseline)
+
+ERP Prototypical Matching Net (Wei et al., 2022) is a metric-based meta-learning baseline for zero-calibration ERP classification, and the closest published prototype-based competitor to ERP-XTTN. `epmn.py` reimplements the Manor-CNN feature extractor (paper Table 2), squared-Euclidean prototype distance, softmax attention kernel, and the classification + metric losses (Eqs. 1–8). Training (`run_fold_epmn` in `04_train.py`) is faithful episodic meta-learning: each episode uses one training subject as the query domain and builds class prototypes from the remaining (support) subjects' ERP templates. Preprocessing, channels, folds, seeds, the two-phase early-stopping protocol, and evaluation are held identical to the other models; the subject-level validation split is intrinsic to meta-learning.
 
 ### xDAWN + Riemannian Geometry (Baseline)
 
@@ -322,7 +347,7 @@ For each ERPXTTN fold, the following are saved:
 | `fig_tp_tn_routing_sub-*_highconf.png` | High-confidence TP/TN trial attention maps |
 | `fig_tp_tn_routing_sub-*_median.png` | Median-confidence TP/TN trial attention maps |
 
-EEGNet and xDAWN+RG save `results.json`, `predictions_sub-*.npz`, and (for EEGNet) `curves_sub-*.npz`.
+The classifier baselines (EEGNet, EEG-Deformer, EPMN, xDAWN+RG) save `results.json` and `predictions_sub-*.npz` (plus `curves_sub-*.npz` for the two-phase neural models); only ERP-XTTN additionally saves `attention_*.npz` and `prototypes_*.npz`. All artifacts live under a per-seed `seed-<N>/` directory.
 
 ## Datasets
 
@@ -340,7 +365,7 @@ EEGNet and xDAWN+RG save `results.json`, `predictions_sub-*.npz`, and (for EEGNe
 
 ## Results
 
-Main result artifacts are included in the repo under `datasets/*/results/`. Use the dashboard to browse saved numbers and figures, or `python run_manager.py` to monitor / launch future reruns.
+Result artifacts are written under `datasets/*/results/.../seed-<N>/` when the sweep is run. Use the dashboard to browse saved numbers and figures, or `python run_manager.py` to monitor / launch runs.
 
 Per-subject LOSO results for the v1.0.0 Graz paper (BNCI + HRI, midline2 / midline3 / full) are frozen on the `v1.0.0` tag.
 

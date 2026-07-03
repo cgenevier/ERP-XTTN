@@ -258,14 +258,22 @@ class ERPXTTN(nn.Module):
                  max_window_ms: float = 200.0,
                  detection_channel: str = None,
                  peak_mode: str = 'auto',
-                 max_k: int = 4):
+                 max_k: int = 4,
+                 xattn_mode: str = 'qk',
+                 use_self_attn: bool = True):
         super().__init__()
+        if d_model % num_heads != 0:
+            raise ValueError(f"d_model ({d_model}) must be divisible by num_heads ({num_heads})")
+        if xattn_mode not in ('qk', 'qkv'):
+            raise ValueError(f"xattn_mode must be 'qk' or 'qkv', got {xattn_mode}")
         self.n_channels = n_channels
         self.n_times = n_times
         self.d_model = d_model
         self.num_heads = num_heads
         self.d_head = d_model // num_heads
         self.patch_width = patch_width
+        self.xattn_mode = xattn_mode
+        self.use_self_attn = use_self_attn
         self.K = n_proto
         self.polarity_pattern = polarity_pattern or ['pos', 'neg', 'pos', 'neg']
         self.peak_prominence = peak_prominence
@@ -306,8 +314,16 @@ class ERPXTTN(nn.Module):
         self.W_q = nn.Linear(d_model, d_model)
         self.W_k = nn.Linear(d_model, d_model)
 
-        # Classification from attention weights
+        # Classification from attention weights (QK-only, the paper model)
         self.head = nn.Linear(self.N * self.K, 1)
+
+        # Ablation: standard cross-attention WITH value projection. Classifies
+        # from the attended value output (mean-pooled over patches) instead of
+        # from the attention-weight distribution. Only instantiated in 'qkv'
+        # mode so 'qk' mode is bit-for-bit identical to the published model.
+        if self.xattn_mode == 'qkv':
+            self.W_v = nn.Linear(d_model, d_model)
+            self.head_qkv = nn.Linear(d_model, 1)
 
         self.dropout_layer = nn.Dropout(dropout)
 
@@ -396,8 +412,10 @@ class ERPXTTN(nn.Module):
                 self.proto_center_patch_idx = nn.Parameter(
                     torch.zeros(self.K, dtype=torch.long),
                     requires_grad=False)
-                # Resize head: input is N_patches * K
-                self.head = nn.Linear(self.N * self.K, 1)
+                # Resize head: input is N_patches * K (QK-only head only;
+                # the QKV head is K-independent so needs no resize)
+                if self.xattn_mode == 'qk':
+                    self.head = nn.Linear(self.N * self.K, 1)
                 self.to(next(self.parameters()).device)
         else:
             peaks = detect_alternating_peaks(
@@ -441,7 +459,8 @@ class ERPXTTN(nn.Module):
                     self.proto_center_patch_idx = nn.Parameter(
                         torch.zeros(self.K, dtype=torch.long),
                         requires_grad=False)
-                    self.head = nn.Linear(self.N * self.K, 1)
+                    if self.xattn_mode == 'qk':
+                        self.head = nn.Linear(self.N * self.K, 1)
                     self.to(next(self.parameters()).device)
 
         windows_samples = raw_windows
@@ -521,16 +540,18 @@ class ERPXTTN(nn.Module):
         z = self.dropout_layer(z)
 
         # --- Self-attention (pre-cross-attention) ---
-        z = self._self_attention(z)    # (B, N, d)
+        if self.use_self_attn:
+            z = self._self_attention(z)    # (B, N, d)
 
         # --- Prototype embedding + positional encoding ---
         p = self._embed_prototypes()   # (K, d)
         proto_pe = self.pos_embed[0, self.proto_center_patch_idx, :]  # (K, d)
         p = p + proto_pe
+        p_exp = p.unsqueeze(0).expand(B, -1, -1)                      # (B, K, d)
 
-        # --- Cross-attention (QK only) ---
+        # --- Cross-attention (QK) ---
         q = self.W_q(self.ln_q(z))                                    # (B, N, d)
-        k = self.W_k(self.ln_kv(p.unsqueeze(0).expand(B, -1, -1)))   # (B, K, d)
+        k = self.W_k(self.ln_kv(p_exp))                              # (B, K, d)
 
         # Reshape to multi-head
         q = q.view(B, self.N, H, d_h).permute(0, 2, 1, 3)     # (B, H, N, d_h)
@@ -541,9 +562,19 @@ class ERPXTTN(nn.Module):
         logits = logits.clamp(-10, 10)
         attn_weights = F.softmax(logits, dim=-1)    # (B, H, N, K)
 
-        # --- Classification from attention ---
-        attn_avg = attn_weights.mean(dim=1)         # (B, N, K)
-        attn_flat = attn_avg.reshape(B, -1)         # (B, N*K)
-        out = self.head(attn_flat)                   # (B, 1)
+        # --- Classification ---
+        if self.xattn_mode == 'qkv':
+            # Ablation: standard value-projection cross-attention. Classify
+            # from the attended value output rather than the attention weights.
+            v = self.W_v(self.ln_kv(p_exp))                       # (B, K, d)
+            v = v.view(B, self.K, H, d_h).permute(0, 2, 1, 3)     # (B, H, K, d_h)
+            ctx = torch.matmul(attn_weights, v)                   # (B, H, N, d_h)
+            ctx = ctx.permute(0, 2, 1, 3).reshape(B, self.N, self.d_model)
+            out = self.head_qkv(ctx.mean(dim=1))                  # (B, 1)
+        else:
+            # QK-only (paper model): classify from the attention distribution.
+            attn_avg = attn_weights.mean(dim=1)         # (B, N, K)
+            attn_flat = attn_avg.reshape(B, -1)         # (B, N*K)
+            out = self.head(attn_flat)                   # (B, 1)
 
         return out, attn_weights

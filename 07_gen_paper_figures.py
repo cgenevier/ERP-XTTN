@@ -37,6 +37,35 @@ OUT_DIR = REPO / 'paper_figures'
 CACHE_DIR = OUT_DIR / 'morphology_cache'
 ANALYSIS = REPO / 'analysis_summary.json'
 
+# Results are stored per seed under <model>/seed-<N>/. Interpretability figures
+# (routing, prototypes, morphology) use a single reference seed; the per-subject
+# AUROC figure averages each subject over all seeds.
+REF_SEED = 1
+
+
+def _seed_dir(ds_dir, var_dir, model='erpxttn_auto'):
+    """Reference-seed results dir (seed-REF_SEED, else lowest seed present)."""
+    base = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / model
+    ref = base / f'seed-{REF_SEED}'
+    if ref.exists():
+        return ref
+    seeds = sorted(base.glob('seed-*'), key=lambda d: int(d.name.split('-')[1]))
+    return seeds[0] if seeds else ref
+
+
+def _persubj_auroc(ds_dir, var_dir, model):
+    """{subject: seed-averaged LOSO AUROC} across all seed dirs for a model."""
+    from collections import defaultdict
+    base = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / model
+    acc = defaultdict(list)
+    for sd in sorted(base.glob('seed-*')):
+        rj = sd / 'results.json'
+        if not rj.exists():
+            continue
+        for f in json.load(open(rj)).get('folds', []):
+            acc[f['test_subject']].append(float(f['test_auroc']))
+    return {s: float(np.mean(v)) for s, v in acc.items()}
+
 # --------------------------------------------------------------
 # Style
 # --------------------------------------------------------------
@@ -290,7 +319,7 @@ def _patch_centers_ms(N_patches, sfreq, pw=8):
 def _load_routing_data(ds_dir, var_dir):
     """Return dict with: subjects, attn[subj], labels[subj], aurocs[subj],
     fold_K[subj], windows (mean across folds), N_patches, K, sfreq."""
-    rdir = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / 'erpxttn_auto'
+    rdir = _seed_dir(ds_dir, var_dir)
     res = json.load(open(rdir / 'results.json'))
     subjects = [r['test_subject'] for r in res['folds']]
     aurocs = {r['test_subject']: r['test_auroc'] for r in res['folds']}
@@ -484,7 +513,7 @@ def _build_morphology_cache(ds_label, ds_dir, var_dir, det_idx, cache_path):
     neg_key = cfg['label_map']['neg_key']
     label_groups = cfg.get('label_groups')
 
-    rdir = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / 'erpxttn_auto'
+    rdir = _seed_dir(ds_dir, var_dir)
     res = json.load(open(rdir / 'results.json'))
     subjects = [r['test_subject'] for r in res['folds']]
     proto_windows_per_fold = {}
@@ -993,7 +1022,7 @@ def fig_tp_tn_two_subjects(ds_label, ds_dir, var_dir, det_idx,
     neg_label = cfg['label_map']['neg_key'].replace('_', ' ').title()
     det_name = cfg.get('detection_channel', 'Cz')
 
-    rdir = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / 'erpxttn_auto'
+    rdir = _seed_dir(ds_dir, var_dir)
 
     # Load shared prototypes from the first subject (windows + waveforms
     # are per-fold, but the *reference* panel uses one subject's prototypes
@@ -1169,7 +1198,7 @@ def fig_prototypes_single_dataset(ds_label, ds_dir, var_dir, det_idx,
     Mirrors fig_prototypes.png from 05_gen_figures.py but with C=1
     (detection channel only) and a horizontal layout.
     """
-    rdir = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / 'erpxttn_auto'
+    rdir = _seed_dir(ds_dir, var_dir)
     proto_files = sorted(rdir.glob('prototypes_*.npz'))
 
     all_protos = {}
@@ -1259,7 +1288,7 @@ def fig_prototypes_all_datasets():
     per_ds = []
     K_max = 0
     for name, ds_dir, c3, cf, k3, kf, det_idx in datasets_ordered:
-        rdir = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / c3 / 'erpxttn_auto'
+        rdir = _seed_dir(ds_dir, c3)
         proto_files = sorted(rdir.glob('prototypes_*.npz'))
         if not proto_files:
             continue
@@ -1368,12 +1397,87 @@ def fig_prototypes_all_datasets():
 
 
 # ====================================================================
+# Per-subject AUROC (individual points, all models) — Editor request
+# ====================================================================
+
+MODELS_FOR_AUROC = [
+    ('ERP-XTTN',     'erpxttn_auto',  '#c0392b'),
+    ('EEGNet',       'eegnet',        '#2980b9'),
+    ('xDAWN+RG',     'xdawn_rg',      '#7f8c8d'),
+    ('EEG-Deformer', 'eeg_deformer',  '#27ae60'),
+    ('EPMN',         'epmn',          '#8e44ad'),
+]
+
+
+def fig_persubject_auroc(montage, out_name):
+    """Per-subject LOSO AUROC (seed-averaged) for every model and dataset.
+
+    Individual subject points + a mean bar per model, so the reader sees the
+    full cross-subject distribution rather than only group means (Editor
+    request). ``montage`` is '3ch' or 'full'.
+    """
+    var_pick = 2 if montage == '3ch' else 3  # index into DATASETS tuple
+    n_models = len(MODELS_FOR_AUROC)
+    group_w = 0.82
+    slot = group_w / n_models
+
+    fig, ax = plt.subplots(figsize=(13.5, 5.2))
+    any_data = False
+    for di, row in enumerate(DATASETS):
+        var_dir = row[var_pick]
+        for mi, (mlabel, model, color) in enumerate(MODELS_FOR_AUROC):
+            pa = _persubj_auroc(row[1], var_dir, model)
+            if not pa:
+                continue
+            any_data = True
+            vals = np.array(list(pa.values()))
+            xc = di + (mi - (n_models - 1) / 2) * slot
+            rng = np.random.RandomState(di * 100 + mi)
+            jit = (rng.rand(len(vals)) - 0.5) * slot * 0.75
+            ax.scatter(np.full(len(vals), xc) + jit, vals, s=9, color=color,
+                       alpha=0.55, edgecolor='none', zorder=2)
+            ax.plot([xc - slot * 0.4, xc + slot * 0.4], [vals.mean()] * 2,
+                    color=color, lw=2.2, zorder=3, solid_capstyle='round')
+
+    if not any_data:
+        plt.close(fig)
+        print(f'  (no results yet for {montage}; skipping {out_name})')
+        return
+
+    ax.axhline(0.5, ls='--', color='gray', lw=0.7, zorder=1)
+    ax.set_xticks(range(len(DATASETS)))
+    ax.set_xticklabels([r[0] for r in DATASETS])
+    ax.set_ylabel('LOSO AUROC (per subject, seed-averaged)', fontsize=10)
+    ax.set_xlim(-0.6, len(DATASETS) - 0.4)
+    label = '3-channel' if montage == '3ch' else 'Full montage'
+    ax.set_title(f'Per-subject cross-subject AUROC — {label}', fontsize=11)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    from matplotlib.lines import Line2D
+    handles = [Line2D([0], [0], marker='o', lw=0, color=c, markersize=7, label=l)
+               for l, _, c in MODELS_FOR_AUROC]
+    ax.legend(handles=handles, ncol=n_models, loc='lower center',
+              frameon=False, fontsize=9, bbox_to_anchor=(0.5, -0.16))
+
+    fig.tight_layout()
+    out = OUT_DIR / out_name
+    fig.savefig(out, bbox_inches='tight', pad_inches=0.05)
+    plt.close(fig)
+    print(f'  wrote {out}')
+
+
+# ====================================================================
 # Main
 # ====================================================================
 
 def main():
     OUT_DIR.mkdir(exist_ok=True)
     CACHE_DIR.mkdir(exist_ok=True)
+
+    print('Per-subject AUROC (individual points)...')
+    fig_persubject_auroc('3ch', 'fig_persubject_auroc_3ch.png')
+    fig_persubject_auroc('full', 'fig_persubject_auroc_full.png')
 
     print('Tax-driver scatter...')
     fig_tax_drivers()

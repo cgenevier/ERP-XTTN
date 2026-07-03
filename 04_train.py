@@ -28,6 +28,9 @@ from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import DataLoader, TensorDataset
 
 from eegnet import EEGNet
+from eeg_deformer import EEGDeformer
+from epmn import (EPMN, build_prototypes, class_template, epmn_class_logits,
+                  epmn_metric_loss, squared_distances)
 from erpxttn import ERPXTTN
 from xdawn_rg import XDawnRG
 
@@ -227,6 +230,9 @@ def set_lr(optimizer, lr: float):
 
 XTTN_MODELS = {"erpxttn"}
 
+# Metric-based meta-learning model with its own (episodic) training loop.
+EPMN_MODELS = {"epmn"}
+
 # Sklearn-based models (no GPU, single-phase fit)
 SKLEARN_MODELS = {"xdawn_rg"}
 
@@ -238,9 +244,18 @@ def make_model(model_name: str, n_channels: int, n_times: int,
                peak_prominence: float = 0.02,
                detection_channel: str = None,
                peak_mode: str = 'auto',
-               max_k: int = 4):
+               max_k: int = 4,
+               num_heads: int = 4,
+               patch_width: int = 8,
+               d_model: int = 64,
+               xattn_mode: str = 'qk',
+               use_self_attn: bool = True):
     if model_name == "eegnet":
         return EEGNet(n_channels, n_times, srate=srate).to(device)
+    elif model_name == "eeg_deformer":
+        return EEGDeformer(n_channels, n_times, srate=srate).to(device)
+    elif model_name == "epmn":
+        return EPMN(n_channels, n_times).to(device)
     elif model_name == "erpxttn":
         if peak_mode == 'auto':
             n_proto = max_k  # will be adjusted in set_prototypes
@@ -249,11 +264,14 @@ def make_model(model_name: str, n_channels: int, n_times: int,
         return ERPXTTN(
             n_channels, n_times, channel_names=channel_names,
             sfreq=float(srate), n_proto=n_proto,
+            d_model=d_model, num_heads=num_heads, patch_width=patch_width,
             polarity_pattern=polarity_pattern,
             peak_prominence=peak_prominence,
             detection_channel=detection_channel,
             peak_mode=peak_mode,
             max_k=max_k,
+            xattn_mode=xattn_mode,
+            use_self_attn=use_self_attn,
         ).to(device)
     elif model_name == "xdawn_rg":
         return XDawnRG(nfilter=4)
@@ -321,6 +339,190 @@ def evaluate(model, loader, device, model_name):
     return auroc, bal_acc, probs, labels, attn_out
 
 
+def _augment_batch(X: torch.Tensor) -> torch.Tensor:
+    """Batched temporal jitter + Gaussian noise (matches AugmentedDataset)."""
+    B, C, T = X.shape
+    out = X.clone()
+    shifts = torch.randint(-JITTER_MAX, JITTER_MAX + 1, (B,))
+    for i in range(B):
+        s = int(shifts[i].item())
+        if s > 0:
+            out[i, :, s:] = X[i, :, :T - s]
+            out[i, :, :s] = 0
+        elif s < 0:
+            out[i, :, :T + s] = X[i, :, -s:]
+            out[i, :, T + s:] = 0
+    out = out + NOISE_SCALE * torch.randn_like(out)
+    return out
+
+
+def run_fold_epmn(fold_idx: int, test_subj: str, all_data: dict, srate: int,
+                  device: torch.device, results_dir: Path,
+                  pos_key: str = "error", neg_key: str = "correct") -> dict:
+    """One LOSO fold for EPMN (Wei et al. 2022).
+
+    Faithful episodic meta-learning: each episode picks one training subject as
+    the query domain and builds class prototypes from the remaining (support)
+    subjects' ERP templates; the feature extractor is updated to pull query
+    samples toward their own-class prototype (classification + metric loss).
+    Wrapped in the shared two-phase / early-stopping protocol: Phase 1 selects
+    the epoch count on a held-out validation SUBJECT split, Phase 2 retrains on
+    all training subjects, and evaluation is on the held-out test subject.
+    Preprocessing, channels, folds, seeds, and evaluation are identical to the
+    other models; the subject-level (rather than trial-level) validation split
+    is intrinsic to meta-learning.
+    """
+    train_subjects = [s for s in all_data if s != test_subj]
+    n_channels, n_times = all_data[train_subjects[0]][0].shape[1:]
+
+    # Class weight (mirror the BCE pos_weight used by the other models)
+    y_all = np.concatenate([all_data[s][1] for s in train_subjects])
+    n_neg = int((y_all == 0).sum())
+    n_pos = int((y_all == 1).sum())
+    class_weights = torch.tensor([1.0, n_neg / max(n_pos, 1)],
+                                 dtype=torch.float32, device=device)
+
+    def pooled_stats(subjects):
+        X = np.concatenate([all_data[s][0] for s in subjects])
+        return compute_channel_stats(X)
+
+    def normalize_subjects(subjects, mean, std):
+        out = {}
+        for s in subjects:
+            X, y = all_data[s]
+            Xn = ((X - mean) / std).astype(np.float32)
+            out[s] = (torch.from_numpy(Xn), torch.from_numpy(y))
+        return out
+
+    def build_templates(norm_data, subjects):
+        tmpl = {}
+        for s in subjects:
+            Xn, y = norm_data[s]
+            tmpl[s] = {k: class_template(Xn, y, k) for k in (0, 1)}
+        return tmpl
+
+    def train_epoch(model, optimizer, query_subs, norm_data, templates):
+        model.train()
+        order = list(query_subs)
+        np.random.shuffle(order)
+        epoch_loss, n_ep = 0.0, 0
+        for q in order:
+            support = [s for s in query_subs if s != q]
+            if len(support) < 1:
+                continue
+            protos = build_prototypes(model, [templates[s] for s in support], device)
+            Xn, y = norm_data[q]
+            # Sample one query minibatch for this episode
+            if len(Xn) > BATCH_SIZE:
+                idx = torch.randperm(len(Xn))[:BATCH_SIZE]
+                xb, yb = Xn[idx], y[idx]
+            else:
+                xb, yb = Xn, y
+            xb = _augment_batch(xb).to(device)
+            yb = yb.to(device)
+            emb = model(xb)
+            d = squared_distances(emb, protos)
+            loss = (F.cross_entropy(epmn_class_logits(d), yb, weight=class_weights)
+                    + epmn_metric_loss(d, yb))
+            optimizer.zero_grad()
+            loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), GRAD_CLIP)
+            optimizer.step()
+            epoch_loss += float(loss.item())
+            n_ep += 1
+        return epoch_loss / max(n_ep, 1)
+
+    @torch.no_grad()
+    def eval_auroc(model, support_subs, templates, query_norm, query_subs):
+        model.eval()
+        protos = build_prototypes(model, [templates[s] for s in support_subs], device)
+        probs_all, labels_all = [], []
+        for s in query_subs:
+            Xn, y = query_norm[s]
+            for i in range(0, len(Xn), BATCH_SIZE):
+                emb = model(Xn[i:i + BATCH_SIZE].to(device))
+                d = squared_distances(emb, protos)
+                p1 = torch.softmax(epmn_class_logits(d), dim=1)[:, 1]
+                probs_all.append(p1.cpu().numpy())
+            labels_all.append(y.numpy())
+        probs = np.concatenate(probs_all)
+        labels = np.concatenate(labels_all)
+        return roc_auc_score(labels, probs), probs, labels
+
+    # ── Phase 1: subject-level validation split for epoch selection ──
+    rng = np.random.default_rng(SEED)
+    shuffled = list(train_subjects)
+    rng.shuffle(shuffled)
+    n_val = max(1, int(round(VAL_FRACTION * len(train_subjects))))
+    n_val = min(n_val, len(train_subjects) - 2)  # keep >=2 phase-1 train subjects
+    n_val = max(n_val, 1) if len(train_subjects) >= 3 else 0
+    val_subs = shuffled[:n_val]
+    p1_train = shuffled[n_val:]
+
+    logging.info(f"  EPMN Phase 1: {len(p1_train)} train subj, {len(val_subs)} val subj")
+
+    best_val_auroc, best_epoch, no_improve = -1.0, 0, 0
+    if val_subs:
+        mean1, std1 = pooled_stats(p1_train)
+        norm1 = normalize_subjects(train_subjects, mean1, std1)
+        tmpl1 = build_templates(norm1, p1_train)
+
+        set_seed(SEED)
+        model = make_model("epmn", n_channels, n_times, srate, device)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+        for epoch in range(MAX_EPOCHS):
+            set_lr(optimizer, get_lr(epoch, LR_SCHEDULE_TOTAL))
+            loss = train_epoch(model, optimizer, p1_train, norm1, tmpl1)
+            va, _, _ = eval_auroc(model, p1_train, tmpl1, norm1, val_subs)
+            if va > best_val_auroc:
+                best_val_auroc, best_epoch, no_improve = va, epoch, 0
+            else:
+                no_improve += 1
+            if epoch % 10 == 0 or no_improve == 0:
+                logging.info(f"    Epoch {epoch:3d}  loss={loss:.4f}  "
+                             f"val_auroc={va:.4f}  best={best_val_auroc:.4f}@{best_epoch}")
+            if no_improve >= PATIENCE:
+                logging.info(f"    Early stop at epoch {epoch}")
+                break
+    else:
+        best_epoch = 50  # fallback for tiny datasets (no val split possible)
+        logging.info(f"  EPMN Phase 1 skipped (too few subjects); using {best_epoch} epochs")
+
+    retrain_epochs = best_epoch + 1
+
+    # ── Phase 2: retrain on all training subjects, evaluate on test ──
+    mean2, std2 = pooled_stats(train_subjects)
+    norm2 = normalize_subjects(train_subjects + [test_subj], mean2, std2)
+    tmpl2 = build_templates(norm2, train_subjects)
+
+    set_seed(SEED)
+    model2 = make_model("epmn", n_channels, n_times, srate, device)
+    optimizer2 = torch.optim.AdamW(model2.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+    logging.info(f"  EPMN Phase 2: retraining for {retrain_epochs} epochs")
+    for epoch in range(retrain_epochs):
+        set_lr(optimizer2, get_lr(epoch, LR_SCHEDULE_TOTAL))
+        loss = train_epoch(model2, optimizer2, train_subjects, norm2, tmpl2)
+        if epoch % 10 == 0 or epoch == retrain_epochs - 1:
+            logging.info(f"    Epoch {epoch:3d}  loss={loss:.4f}")
+
+    auroc, probs, labels = eval_auroc(model2, train_subjects, tmpl2, norm2, [test_subj])
+    preds = (probs >= 0.5).astype(int)
+    bal_acc = balanced_accuracy_score(labels, preds)
+    logging.info(f"  Test: AUROC={auroc:.4f}  BalAcc={bal_acc:.4f}")
+
+    np.savez_compressed(str(results_dir / f"predictions_{test_subj}.npz"),
+                        probs=probs, labels=labels, auroc=auroc, bal_acc=bal_acc)
+
+    return {
+        "fold": fold_idx,
+        "test_subject": test_subj,
+        "best_epoch": best_epoch,
+        "best_val_auroc": float(best_val_auroc),
+        "test_auroc": float(auroc),
+        "test_bal_acc": float(bal_acc),
+    }
+
+
 def run_fold(fold_idx: int, test_subj: str,
              all_data: dict, model_name: str, srate: int,
              device: torch.device, results_dir: Path,
@@ -330,12 +532,26 @@ def run_fold(fold_idx: int, test_subj: str,
              pos_key: str = "error", neg_key: str = "correct",
              detection_channel: str = None,
              peak_mode: str = 'auto',
-             max_k: int = 4) -> dict:
+             max_k: int = 4,
+             num_heads: int = 4,
+             patch_width: int = 8,
+             d_model: int = 64,
+             xattn_mode: str = 'qk',
+             use_self_attn: bool = True) -> dict:
     """Run one LOSO fold: Phase 1 (find best epoch) + Phase 2 (retrain)."""
 
     logging.info(f"\n{'='*60}")
     logging.info(f"Fold {fold_idx}: test={test_subj}")
     logging.info(f"{'='*60}")
+
+    # EPMN uses its own episodic meta-training loop.
+    if model_name in EPMN_MODELS:
+        return run_fold_epmn(fold_idx, test_subj, all_data, srate, device,
+                             results_dir, pos_key=pos_key, neg_key=neg_key)
+
+    _xttn_kwargs = dict(num_heads=num_heads, patch_width=patch_width,
+                        d_model=d_model, xattn_mode=xattn_mode,
+                        use_self_attn=use_self_attn)
 
     # --- Collect train/test data ---
     train_subjects = [s for s in all_data if s != test_subj]
@@ -423,7 +639,7 @@ def run_fold(fold_idx: int, test_subj: str,
                        polarity_pattern=polarity_pattern,
                        peak_prominence=peak_prominence,
                        detection_channel=detection_channel,
-                       peak_mode=peak_mode, max_k=max_k)
+                       peak_mode=peak_mode, max_k=max_k, **_xttn_kwargs)
 
     if model_name in XTTN_MODELS:
         model.set_prototypes(torch.from_numpy(X_train_n), torch.from_numpy(y_train))
@@ -493,7 +709,7 @@ def run_fold(fold_idx: int, test_subj: str,
                         polarity_pattern=polarity_pattern,
                         peak_prominence=peak_prominence,
                         detection_channel=detection_channel,
-                        peak_mode=peak_mode, max_k=max_k)
+                        peak_mode=peak_mode, max_k=max_k, **_xttn_kwargs)
 
     if model_name in XTTN_MODELS:
         model2.set_prototypes(torch.from_numpy(X_pool_n),
@@ -573,7 +789,10 @@ def main():
     available = _discover_datasets()
     parser.add_argument("--dataset", required=True, choices=available)
     parser.add_argument("--channels", required=True)
-    parser.add_argument("--model", required=True, choices=["eegnet", "erpxttn", "xdawn_rg"])
+    parser.add_argument("--model", required=True,
+                        choices=["eegnet", "eeg_deformer", "epmn", "erpxttn", "xdawn_rg"])
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed. Results are written under seed-<N>/ (default: 42)")
     parser.add_argument("--resume", action="store_true",
                         help="Skip folds that already have predictions (for resuming interrupted runs)")
     parser.add_argument("--peak-mode", choices=["constrained", "auto"], default="auto",
@@ -581,19 +800,46 @@ def main():
                              "or 'constrained' (dataset-configured polarity pattern; the v1.0.0 model)")
     parser.add_argument("--max-k", type=int, default=4,
                         help="Max number of prototypes in auto mode (default: 4)")
+    # ── Ablation knobs (ERP-XTTN only) ──────────────────────────────────
+    parser.add_argument("--xattn-mode", choices=["qk", "qkv"], default="qk",
+                        help="Cross-attention mode: 'qk' (QK-only, paper model) or "
+                             "'qkv' (add value projection). Ablation.")
+    parser.add_argument("--no-self-attn", action="store_true",
+                        help="Disable the self-attention layer. Ablation.")
+    parser.add_argument("--num-heads", type=int, default=4,
+                        help="ERP-XTTN attention heads (default: 4). Ablation.")
+    parser.add_argument("--patch-width", type=int, default=8,
+                        help="ERP-XTTN patch width in samples (default: 8). Ablation.")
+    parser.add_argument("--d-model", type=int, default=64,
+                        help="ERP-XTTN embedding dim (default: 64). Ablation.")
+    parser.add_argument("--peak-prominence", type=float, default=None,
+                        help="Override peak prominence threshold (default: dataset config). Ablation.")
+    parser.add_argument("--ablation-tag", default=None,
+                        help="Suffix appended to the results dir (e.g. 'qkv', 'nosa', 'k2') to "
+                             "keep ablation runs separate from the main model.")
     args = parser.parse_args()
+
+    # Seed drives set_seed(), the validation split, and the output path.
+    global SEED
+    SEED = args.seed
 
     # Constrained ERPXTTN results live in erpxttn_constrained/ to distinguish
     # them from auto mode runs in erpxttn_auto/.
     model_dir_name = args.model
     if args.model == "erpxttn":
         if args.peak_mode == "auto":
-            if args.max_k != 4:
+            model_dir_name = "erpxttn_auto"
+            # Legacy max-k suffix (e.g. erpxttn_auto2) only when NOT an ablation
+            # run; ablations use the explicit --ablation-tag as the sole
+            # disambiguator so the dir name is predictable (erpxttn_auto_k2).
+            if args.max_k != 4 and not args.ablation_tag:
                 model_dir_name = f"erpxttn_auto{args.max_k}"
-            else:
-                model_dir_name = "erpxttn_auto"
         else:
             model_dir_name = "erpxttn_constrained"
+    # Ablation runs write to a separate subdirectory so they never overwrite
+    # the main model's results.
+    if args.ablation_tag:
+        model_dir_name = f"{model_dir_name}_{args.ablation_tag}"
 
     # Setup logging
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -618,7 +864,7 @@ def main():
                      f"'{args.dataset}'. Valid options: {valid}")
     variant = cfg["variants"][args.channels]
     results_dir = (DATASETS_DIR / cfg["name"] / "results" / "tmin0ms_tmax800ms"
-                   / variant / model_dir_name)
+                   / variant / model_dir_name / f"seed-{SEED}")
     results_dir.mkdir(parents=True, exist_ok=True)
 
     logging.info(f"Run: {run_name}")
@@ -648,7 +894,8 @@ def main():
 
     # LOSO cross-validation
     polarity_pattern = cfg.get("polarity_pattern")
-    peak_prominence = cfg.get("peak_prominence", 0.02)
+    peak_prominence = (args.peak_prominence if args.peak_prominence is not None
+                       else cfg.get("peak_prominence", 0.02))
     pos_key = cfg["label_map"]["pos_key"]
     neg_key = cfg["label_map"]["neg_key"]
     results = []
@@ -676,7 +923,12 @@ def main():
                                pos_key=pos_key, neg_key=neg_key,
                                detection_channel=cfg.get("detection_channel"),
                                peak_mode=args.peak_mode,
-                               max_k=args.max_k)
+                               max_k=args.max_k,
+                               num_heads=args.num_heads,
+                               patch_width=args.patch_width,
+                               d_model=args.d_model,
+                               xattn_mode=args.xattn_mode,
+                               use_self_attn=not args.no_self_attn)
         results.append(fold_result)
 
     elapsed = time.time() - t0
