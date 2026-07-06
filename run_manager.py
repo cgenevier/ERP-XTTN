@@ -123,6 +123,22 @@ def build_ablation_queue():
 QUEUE_ABLATION = build_ablation_queue()
 
 
+# ── Native-recipe EPMN robustness runs (writes to epmn_native/) ─────────
+def build_epmn_native_queue():
+    """EPMN under its own native recipe, across all datasets and both montages."""
+    runs = []
+    for label, ds, preset3 in DATASETS:
+        for ch in (preset3, "full"):
+            for seed in SEEDS:
+                runs.append(Run(f"{label} {ch} epmn-native s{seed}",
+                                ds, ch, "epmn", seed,
+                                ["--epmn-recipe", "native"], None))
+    return runs
+
+
+QUEUE_EPMN_NATIVE = build_epmn_native_queue()
+
+
 def log(msg):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{ts}] {msg}", flush=True)
@@ -134,6 +150,13 @@ def get_model_dir_name(model, tag=None):
     if tag:
         name = f"{name}_{tag}"
     return name
+
+
+def run_model_dir(run):
+    """Results subdir for a run, accounting for the native-EPMN recipe."""
+    if run.model == "epmn" and "--epmn-recipe" in run.extra and "native" in run.extra:
+        return "epmn_native"
+    return get_model_dir_name(run.model, run.tag)
 
 
 def get_variant_dir(dataset_id, channel_preset):
@@ -149,7 +172,7 @@ def results_dir_for(run):
     if not variant_dir:
         return None
     return (DATASETS_DIR / run.dataset / "results" / "tmin0ms_tmax800ms" /
-            variant_dir / get_model_dir_name(run.model, run.tag) / f"seed-{run.seed}")
+            variant_dir / run_model_dir(run) / f"seed-{run.seed}")
 
 
 def _parse_train_cmdline(line):
@@ -162,12 +185,15 @@ def _parse_train_cmdline(line):
         return None
     seed = grab("seed") or "42"
     tag = grab("ablation-tag")
-    return (ds, ch, get_model_dir_name(model, tag), seed)
+    if model == "epmn" and grab("epmn-recipe") == "native":
+        model_dir = "epmn_native"
+    else:
+        model_dir = get_model_dir_name(model, tag)
+    return (ds, ch, model_dir, seed)
 
 
 def _run_key(run):
-    return (run.dataset, run.channels, get_model_dir_name(run.model, run.tag),
-            str(run.seed))
+    return (run.dataset, run.channels, run_model_dir(run), str(run.seed))
 
 
 def _is_process_running(run):
@@ -297,15 +323,24 @@ def main():
                         help="Include full-montage runs")
     parser.add_argument("--include-ablation", action="store_true",
                         help="Include the ERP-XTTN ablation grid (HRI/P300/N400, 3ch)")
+    parser.add_argument("--include-epmn-native", action="store_true",
+                        help="Include the native-recipe EPMN robustness runs (epmn_native/)")
+    parser.add_argument("--only-epmn-native", action="store_true",
+                        help="Run ONLY the native-recipe EPMN robustness runs")
     args = parser.parse_args()
 
     LOGS_DIR.mkdir(exist_ok=True)
 
-    queue = list(QUEUE_3CH)
-    if args.include_full:
-        queue += QUEUE_FULL
-    if args.include_ablation:
-        queue += QUEUE_ABLATION
+    if args.only_epmn_native:
+        queue = list(QUEUE_EPMN_NATIVE)
+    else:
+        queue = list(QUEUE_3CH)
+        if args.include_full:
+            queue += QUEUE_FULL
+        if args.include_ablation:
+            queue += QUEUE_ABLATION
+        if args.include_epmn_native:
+            queue += QUEUE_EPMN_NATIVE
 
     if args.daemon:
         log(f"Daemon started. Every {DAEMON_INTERVAL}s. MAX_GPU_JOBS={MAX_GPU_JOBS}")

@@ -446,7 +446,7 @@ function authUrl(path) {
   return _jupyterToken ? path + sep + 'token=' + _jupyterToken : path;
 }
 
-const KNOWN_MODELS = ['erpxttn_auto', 'eegnet', 'eeg_deformer', 'epmn', 'xdawn_rg', 'erpxttn_constrained'];
+const KNOWN_MODELS = ['erpxttn_auto', 'eegnet', 'eeg_deformer', 'epmn', 'epmn_native', 'xdawn_rg', 'erpxttn_constrained'];
 // Seeds probed per model. Neural models sweep 1..5; xDAWN+RG is deterministic
 // (seed-1 only). Missing seed dirs are simply skipped.
 const SEED_CANDIDATES = [1, 2, 3, 4, 5];
@@ -455,6 +455,7 @@ function modelDisplay(m) {
   if (m === 'eegnet') return 'EEGNet';
   if (m === 'eeg_deformer') return 'EEG-Deformer';
   if (m === 'epmn') return 'EPMN';
+  if (m === 'epmn_native') return 'EPMN (native)';
   if (m === 'erpxttn_auto') return 'ERP-XTTN Auto';
   const xttnAutoKMatch = m.match(/^erpxttn_auto(\d+)$/);
   if (xttnAutoKMatch) {

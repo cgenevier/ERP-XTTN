@@ -523,6 +523,197 @@ def run_fold_epmn(fold_idx: int, test_subj: str, all_data: dict, srate: int,
     }
 
 
+def run_fold_epmn_native(fold_idx: int, test_subj: str, all_data: dict, srate: int,
+                         device: torch.device, results_dir: Path,
+                         pos_key: str = "error", neg_key: str = "correct") -> dict:
+    """Native-recipe EPMN (Wei et al. 2022) — robustness variant of run_fold_epmn.
+
+    Uses EPMN's own protocol rather than the shared one, to show the ranking is
+    unchanged under the method's native recipe. Differences from run_fold_epmn:
+      (1) input time axis resampled to 64 samples;
+      (2) SGD (lr 1e-4, momentum 0.9) with the LR halved every 5 epochs;
+      (3) episodes use N_q=12 query samples and templates built from N_s=18
+          sampled trials per class (re-sampled each episode);
+      (4) class balance by majority-class down-sampling with unweighted
+          cross-entropy (no class weighting);
+      (5) no data augmentation.
+    The two-phase subject-level validation scaffolding is kept identical to the
+    shared version so ONLY the training recipe differs. Results are written to
+    epmn_native/ (set by the caller). Template sampling at evaluation uses a
+    fixed-seed RNG for reproducibility.
+    """
+    from scipy.signal import resample as _scipy_resample
+    T_NATIVE, N_Q, N_S = 64, 12, 18
+    NAT_LR, NAT_MOMENTUM, NAT_STEP, NAT_GAMMA = 1e-4, 0.9, 5, 0.5
+
+    train_subjects = [s for s in all_data if s != test_subj]
+    n_channels = all_data[train_subjects[0]][0].shape[1]
+
+    # (1) Native input: resample the time axis to 64 samples.
+    data = {s: (_scipy_resample(all_data[s][0], T_NATIVE, axis=2).astype(np.float32),
+                all_data[s][1]) for s in all_data}
+    n_times = T_NATIVE
+
+    def pooled_stats(subjects):
+        X = np.concatenate([data[s][0] for s in subjects])
+        return compute_channel_stats(X)
+
+    def normalize_subjects(subjects, mean, std):
+        out = {}
+        for s in subjects:
+            X, y = data[s]
+            Xn = ((X - mean) / std).astype(np.float32)
+            out[s] = (torch.from_numpy(Xn), torch.from_numpy(y))
+        return out
+
+    # (3) Prototypes from N_S sampled trials per class (re-sampled per call).
+    def sample_prototypes(model, support_subs, norm_data, rng):
+        tmpls = []
+        for s in support_subs:
+            Xn, y = norm_data[s]
+            yy = y.numpy()
+            d = {}
+            for k in (0, 1):
+                idx = np.where(yy == k)[0]
+                if len(idx) == 0:
+                    d[k] = None
+                    continue
+                pick = rng.choice(idx, size=min(N_S, len(idx)), replace=False)
+                d[k] = Xn[pick].mean(dim=0)
+            tmpls.append(d)
+        return build_prototypes(model, tmpls, device)
+
+    # (4) Down-sample the majority class to balance the query minibatch.
+    def sample_query(Xn, y, rng):
+        yy = y.numpy()
+        pos, neg = np.where(yy == 1)[0], np.where(yy == 0)[0]
+        m = min(len(pos), len(neg), N_Q // 2)
+        if m == 0:
+            idx = rng.choice(len(Xn), size=min(N_Q, len(Xn)), replace=False)
+        else:
+            idx = np.concatenate([rng.choice(pos, m, replace=False),
+                                  rng.choice(neg, m, replace=False)])
+        return Xn[idx], y[idx]
+
+    def train_epoch(model, optimizer, query_subs, norm_data, rng):
+        model.train()
+        perm = rng.permutation(len(query_subs))
+        order = [query_subs[i] for i in perm]
+        epoch_loss, n_ep = 0.0, 0
+        for q in order:
+            support = [s for s in query_subs if s != q]
+            if len(support) < 1:
+                continue
+            protos = sample_prototypes(model, support, norm_data, rng)
+            Xn, y = norm_data[q]
+            xb, yb = sample_query(Xn, y, rng)      # (4) balanced, (5) no augmentation
+            xb, yb = xb.to(device), yb.to(device)
+            emb = model(xb)
+            d = squared_distances(emb, protos)
+            loss = (F.cross_entropy(epmn_class_logits(d), yb)   # (4) unweighted
+                    + epmn_metric_loss(d, yb))
+            optimizer.zero_grad()
+            loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), GRAD_CLIP)
+            optimizer.step()
+            epoch_loss += float(loss.item())
+            n_ep += 1
+        return epoch_loss / max(n_ep, 1)
+
+    @torch.no_grad()
+    def eval_auroc(model, support_subs, norm_data, query_subs):
+        model.eval()
+        protos = sample_prototypes(model, support_subs, norm_data,
+                                   np.random.default_rng(SEED))
+        probs_all, labels_all = [], []
+        for s in query_subs:
+            Xn, y = norm_data[s]
+            for i in range(0, len(Xn), BATCH_SIZE):
+                emb = model(Xn[i:i + BATCH_SIZE].to(device))
+                d = squared_distances(emb, protos)
+                probs_all.append(torch.softmax(epmn_class_logits(d), dim=1)[:, 1].cpu().numpy())
+            labels_all.append(y.numpy())
+        probs = np.concatenate(probs_all)
+        labels = np.concatenate(labels_all)
+        return roc_auc_score(labels, probs), probs, labels
+
+    def make_sgd(model):
+        opt = torch.optim.SGD(model.parameters(), lr=NAT_LR, momentum=NAT_MOMENTUM)
+        sched = torch.optim.lr_scheduler.StepLR(opt, step_size=NAT_STEP, gamma=NAT_GAMMA)
+        return opt, sched
+
+    # ── Phase 1: subject-level validation split for epoch selection ──
+    rng_split = np.random.default_rng(SEED)
+    shuffled = list(train_subjects)
+    rng_split.shuffle(shuffled)
+    n_val = max(1, int(round(VAL_FRACTION * len(train_subjects))))
+    n_val = min(n_val, len(train_subjects) - 2)
+    n_val = max(n_val, 1) if len(train_subjects) >= 3 else 0
+    val_subs = shuffled[:n_val]
+    p1_train = shuffled[n_val:]
+
+    logging.info(f"  EPMN-native Phase 1: {len(p1_train)} train subj, {len(val_subs)} val subj")
+
+    best_val_auroc, best_epoch, no_improve = -1.0, 0, 0
+    if val_subs:
+        mean1, std1 = pooled_stats(p1_train)
+        norm1 = normalize_subjects(train_subjects, mean1, std1)
+        set_seed(SEED)
+        model = make_model("epmn", n_channels, n_times, srate, device)
+        optimizer, sched = make_sgd(model)
+        train_rng = np.random.default_rng(SEED)
+        for epoch in range(MAX_EPOCHS):
+            loss = train_epoch(model, optimizer, p1_train, norm1, train_rng)
+            sched.step()
+            va, _, _ = eval_auroc(model, p1_train, norm1, val_subs)
+            if va > best_val_auroc:
+                best_val_auroc, best_epoch, no_improve = va, epoch, 0
+            else:
+                no_improve += 1
+            if epoch % 10 == 0 or no_improve == 0:
+                logging.info(f"    Epoch {epoch:3d}  loss={loss:.4f}  "
+                             f"val_auroc={va:.4f}  best={best_val_auroc:.4f}@{best_epoch}")
+            if no_improve >= PATIENCE:
+                logging.info(f"    Early stop at epoch {epoch}")
+                break
+    else:
+        best_epoch = 50
+        logging.info(f"  EPMN-native Phase 1 skipped (too few subjects); using {best_epoch} epochs")
+
+    retrain_epochs = best_epoch + 1
+
+    # ── Phase 2: retrain on all training subjects, evaluate on test ──
+    mean2, std2 = pooled_stats(train_subjects)
+    norm2 = normalize_subjects(train_subjects + [test_subj], mean2, std2)
+    set_seed(SEED)
+    model2 = make_model("epmn", n_channels, n_times, srate, device)
+    optimizer2, sched2 = make_sgd(model2)
+    train_rng2 = np.random.default_rng(SEED)
+    logging.info(f"  EPMN-native Phase 2: retraining for {retrain_epochs} epochs")
+    for epoch in range(retrain_epochs):
+        loss = train_epoch(model2, optimizer2, train_subjects, norm2, train_rng2)
+        sched2.step()
+        if epoch % 10 == 0 or epoch == retrain_epochs - 1:
+            logging.info(f"    Epoch {epoch:3d}  loss={loss:.4f}")
+
+    auroc, probs, labels = eval_auroc(model2, train_subjects, norm2, [test_subj])
+    preds = (probs >= 0.5).astype(int)
+    bal_acc = balanced_accuracy_score(labels, preds)
+    logging.info(f"  Test: AUROC={auroc:.4f}  BalAcc={bal_acc:.4f}")
+
+    np.savez_compressed(str(results_dir / f"predictions_{test_subj}.npz"),
+                        probs=probs, labels=labels, auroc=auroc, bal_acc=bal_acc)
+
+    return {
+        "fold": fold_idx,
+        "test_subject": test_subj,
+        "best_epoch": best_epoch,
+        "best_val_auroc": float(best_val_auroc),
+        "test_auroc": float(auroc),
+        "test_bal_acc": float(bal_acc),
+    }
+
+
 def run_fold(fold_idx: int, test_subj: str,
              all_data: dict, model_name: str, srate: int,
              device: torch.device, results_dir: Path,
@@ -537,17 +728,19 @@ def run_fold(fold_idx: int, test_subj: str,
              patch_width: int = 8,
              d_model: int = 64,
              xattn_mode: str = 'qk',
-             use_self_attn: bool = True) -> dict:
+             use_self_attn: bool = True,
+             epmn_recipe: str = 'shared') -> dict:
     """Run one LOSO fold: Phase 1 (find best epoch) + Phase 2 (retrain)."""
 
     logging.info(f"\n{'='*60}")
     logging.info(f"Fold {fold_idx}: test={test_subj}")
     logging.info(f"{'='*60}")
 
-    # EPMN uses its own episodic meta-training loop.
+    # EPMN uses its own episodic meta-training loop (shared or native recipe).
     if model_name in EPMN_MODELS:
-        return run_fold_epmn(fold_idx, test_subj, all_data, srate, device,
-                             results_dir, pos_key=pos_key, neg_key=neg_key)
+        epmn_fn = run_fold_epmn_native if epmn_recipe == "native" else run_fold_epmn
+        return epmn_fn(fold_idx, test_subj, all_data, srate, device,
+                       results_dir, pos_key=pos_key, neg_key=neg_key)
 
     _xttn_kwargs = dict(num_heads=num_heads, patch_width=patch_width,
                         d_model=d_model, xattn_mode=xattn_mode,
@@ -814,6 +1007,9 @@ def main():
                         help="ERP-XTTN embedding dim (default: 64). Ablation.")
     parser.add_argument("--peak-prominence", type=float, default=None,
                         help="Override peak prominence threshold (default: dataset config). Ablation.")
+    parser.add_argument("--epmn-recipe", choices=["shared", "native"], default="shared",
+                        help="EPMN training recipe: 'shared' (matched protocol; default) or "
+                             "'native' (Wei et al.'s own recipe; robustness variant, writes to epmn_native/).")
     parser.add_argument("--ablation-tag", default=None,
                         help="Suffix appended to the results dir (e.g. 'qkv', 'nosa', 'k2') to "
                              "keep ablation runs separate from the main model.")
@@ -836,6 +1032,9 @@ def main():
                 model_dir_name = f"erpxttn_auto{args.max_k}"
         else:
             model_dir_name = "erpxttn_constrained"
+    # Native-recipe EPMN robustness runs write to their own directory.
+    if args.model == "epmn" and args.epmn_recipe == "native":
+        model_dir_name = "epmn_native"
     # Ablation runs write to a separate subdirectory so they never overwrite
     # the main model's results.
     if args.ablation_tag:
@@ -928,7 +1127,8 @@ def main():
                                patch_width=args.patch_width,
                                d_model=args.d_model,
                                xattn_mode=args.xattn_mode,
-                               use_self_attn=not args.no_self_attn)
+                               use_self_attn=not args.no_self_attn,
+                               epmn_recipe=args.epmn_recipe)
         results.append(fold_result)
 
     elapsed = time.time() - t0
