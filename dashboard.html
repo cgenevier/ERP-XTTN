@@ -395,6 +395,7 @@ tbody tr.clickable { cursor: pointer; }
   <button class="tab-btn" data-tab="figures">Figures</button>
   <button class="tab-btn" data-tab="compare">Compare</button>
   <button class="tab-btn" data-tab="analysis">Analysis</button>
+  <button class="tab-btn" data-tab="ablations">Ablations</button>
 </div>
 
 <div class="main">
@@ -422,6 +423,10 @@ tbody tr.clickable { cursor: pointer; }
   <div id="panelAnalysis" class="tab-panel">
     <div id="analysisControls" class="controls-row"></div>
     <div id="analysisContent"></div>
+  </div>
+
+  <div id="panelAblations" class="tab-panel">
+    <div id="ablationsContent"></div>
   </div>
 </div>
 
@@ -494,6 +499,9 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
       // Lazy-build controls once, then render
       if (!document.getElementById('analVarBtns')) renderAnalysisControls();
       renderAnalysis();
+    }
+    if (btn.dataset.tab === 'ablations') {
+      renderAblations();
     }
   });
 });
@@ -785,6 +793,113 @@ function aggregateSeeds(seedResults, expectedSeeds) {
       foldsPerSeed: seedResults.map(s => (s.results.folds || []).length),
     },
   };
+}
+
+/* ── Ablations tab ── */
+const ABL_DATASETS = [
+  {label: 'HRI ErrP', dir: 'hri_errp_cursor', preset: 'midline3'},
+  {label: 'P300',     dir: 'erpcore_p300',    preset: 'midline3'},
+  {label: 'N400',     dir: 'erpcore_n400',    preset: 'midline3_n400'},
+];
+const ABL_CONFIGS = [
+  {tag: null,       label: 'Base — QK-only',    axis: '—'},
+  {tag: 'qkv',      label: '+ value proj (QKV)',     axis: 'Cross-attention'},
+  {tag: 'nosa',     label: 'No self-attention',      axis: 'Self-attention'},
+  {tag: 'k2',       label: 'K = 2',                  axis: '# prototypes'},
+  {tag: 'k6',       label: 'K = 6',                  axis: '# prototypes'},
+  {tag: 'prom0.01', label: 'Prominence 0.01',        axis: 'Peak detection'},
+  {tag: 'prom0.05', label: 'Prominence 0.05',        axis: 'Peak detection'},
+  {tag: 'h2',       label: '2 heads',                axis: 'Attention heads'},
+  {tag: 'h8',       label: '8 heads',                axis: 'Attention heads'},
+];
+
+async function ablAuroc(dir, variantDir, modelDir) {
+  const base = 'datasets/' + dir + '/results/tmin0ms_tmax800ms/' + variantDir + '/' + modelDir;
+  const bySubj = {};
+  const seedMeans = [];
+  let nSeeds = 0;
+  for (const seed of SEED_CANDIDATES) {
+    const r = await fetchJson(base + '/seed-' + seed + '/results.json');
+    if (!r) continue;
+    nSeeds++;
+    const a = [];
+    for (const f of (r.folds || [])) {
+      if (f.test_auroc != null) {
+        (bySubj[f.test_subject] = bySubj[f.test_subject] || []).push(f.test_auroc);
+        a.push(f.test_auroc);
+      }
+    }
+    if (a.length) seedMeans.push(_mean(a));
+  }
+  const perSubj = Object.values(bySubj).map(v => _mean(v));
+  return {
+    mean: perSubj.length ? _mean(perSubj) : null,
+    sd: perSubj.length > 1 ? _std(perSubj) : 0,
+    nSubjects: perSubj.length, nSeeds,
+    seedSd: seedMeans.length > 1 ? _std(seedMeans) : 0,
+  };
+}
+
+async function renderAblations() {
+  const container = document.getElementById('ablationsContent');
+  if (!allData.length) {
+    container.innerHTML = '<div class="no-fig" style="padding:32px;">Load a repo first (Overview tab).</div>';
+    return;
+  }
+  container.innerHTML = '<div class="no-fig" style="padding:24px;">Loading ablation results…</div>';
+
+  let html = '<div style="color:var(--text-secondary);font-size:0.85rem;margin:8px 0 16px;">'
+    + 'ERP-XTTN, 3-channel, seed-averaged. Each config is a single-axis change from the base (QK-only) paper model. '
+    + '&Delta; = config &minus; base per-subject AUROC; green = higher than base, red = lower. Runs on HRI, P300, N400.</div>';
+
+  let any = false;
+  for (const ds of ABL_DATASETS) {
+    const cfg = await fetchJson('datasets/' + ds.dir + '/dataset_config.json');
+    if (!cfg || !cfg.variants || !cfg.variants[ds.preset]) continue;
+    const variantDir = cfg.variants[ds.preset];
+    const baseAuroc = await ablAuroc(ds.dir, variantDir, 'erpxttn_auto');
+
+    const rows = [];
+    for (const c of ABL_CONFIGS) {
+      const modelDir = c.tag ? 'erpxttn_auto_' + c.tag : 'erpxttn_auto';
+      const r = await ablAuroc(ds.dir, variantDir, modelDir);
+      const delta = (r.mean != null && baseAuroc.mean != null) ? r.mean - baseAuroc.mean : null;
+      rows.push({...c, ...r, delta, isBase: !c.tag});
+    }
+    if (rows.some(r => r.nSeeds > 0)) any = true;
+
+    html += '<h3 style="margin:18px 0 8px;color:var(--accent);">' + escapeHtml(ds.label) + '</h3>';
+    html += '<div class="table-container"><table><thead><tr>'
+      + '<th>Axis</th><th>Config</th><th>AUROC (mean &plusmn; SD)</th><th>&Delta; vs base</th><th>seeds</th></tr></thead><tbody>';
+    for (const r of rows) {
+      const rowStyle = r.isBase ? ' style="font-weight:600;"' : '';
+      const aurocCell = r.mean != null
+        ? '<span class="auroc-cell" style="background:' + aurocColor(r.mean) + '">' + fmt(r.mean) + ' &plusmn; ' + fmt(r.sd) + '</span>'
+        : '<span class="cell-missing">&mdash;</span>';
+      let deltaCell;
+      if (r.isBase) {
+        deltaCell = '<span style="color:var(--text-secondary);">(base)</span>';
+      } else if (r.delta != null) {
+        const col = r.delta >= 0 ? '#4caf50' : '#e57373';
+        deltaCell = '<span style="color:' + col + ';font-variant-numeric:tabular-nums;">'
+          + (r.delta >= 0 ? '+' : '') + r.delta.toFixed(3) + '</span>';
+      } else {
+        deltaCell = '<span class="cell-missing">&mdash;</span>';
+      }
+      const seedCell = r.nSeeds > 0
+        ? (r.nSeeds + '/5' + (r.nSeeds < 5 ? ' &#9203;' : ''))
+        : '<span class="cell-missing">&mdash;</span>';
+      html += '<tr' + rowStyle + '><td style="color:var(--text-secondary);font-size:0.8rem;">' + escapeHtml(r.axis)
+        + '</td><td>' + escapeHtml(r.label) + '</td><td>' + aurocCell + '</td><td>' + deltaCell
+        + '</td><td style="font-size:0.75rem;color:var(--text-secondary);">' + seedCell + '</td></tr>';
+    }
+    html += '</tbody></table></div>';
+  }
+
+  if (!any) {
+    html += '<div class="no-fig" style="padding:24px;">No ablation results yet. They appear here as the ablation grid completes.</div>';
+  }
+  container.innerHTML = html;
 }
 
 async function scanDatasets() {
