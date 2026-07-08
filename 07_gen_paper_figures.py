@@ -114,6 +114,11 @@ def fig_tax_drivers():
     summary = load_analysis()
     combos = summary['combos']
 
+    def _taxd(src, bl):
+        # Tax mean_delta for a baseline; np.nan if that baseline isn't in yet.
+        t = src.get('tax', {}).get(bl)
+        return t['mean_delta'] if t and t.get('mean_delta') is not None else np.nan
+
     rows_full, rows_3ch = [], []
     for name, ds_dir, c3, cf, k3, kf, _ in DATASETS:
         cf_obj = combos[kf]
@@ -121,8 +126,10 @@ def fig_tax_drivers():
         for src, rows in [(cf_obj, rows_full), (c3_obj, rows_3ch)]:
             rows.append({
                 'name': name,
-                'tax_eeg': src['tax']['eegnet']['mean_delta'],
-                'tax_xdr': src['tax']['xdawn_rg']['mean_delta'],
+                'tax_eeg':  _taxd(src, 'eegnet'),
+                'tax_xdr':  _taxd(src, 'xdawn_rg'),
+                'tax_def':  _taxd(src, 'eeg_deformer'),
+                'tax_epmn': _taxd(src, 'epmn'),
                 'H_attn':  src['attention_entropy']['mean_entropy'],
                 'R_disc':  src['routing_discriminability']['mean_distance'],
                 'P_stab':  src['proto_stability']['mean_pairwise_r'],
@@ -138,8 +145,10 @@ def fig_tax_drivers():
         ('SNR',    'SNR\nproxy',                 palette[3]),
     ]
     TAXES = [
-        ('tax_eeg', r'$\Delta$ vs EEGNet'),
-        ('tax_xdr', r'$\Delta$ vs xDAWN+RG'),
+        ('tax_eeg',  r'$\Delta$ vs EEGNet'),
+        ('tax_def',  r'$\Delta$ vs EEG-Deformer'),
+        ('tax_epmn', r'$\Delta$ vs EPMN'),
+        ('tax_xdr',  r'$\Delta$ vs xDAWN+RG'),
     ]
 
     # Compute ρ values: rho[tax_key][predictor_key] = (rho_full, rho_3ch)
@@ -154,7 +163,7 @@ def fig_tax_drivers():
             rho_3ch,  _ = spearmanr(x_3ch,  y_3ch)
             rho[tax_key][pkey] = (rho_full, rho_3ch)
 
-    fig, axes = plt.subplots(1, 2, figsize=(8.5, 4.5), sharey=True)
+    fig, axes = plt.subplots(1, 4, figsize=(15.5, 4.5), sharey=True)
 
     n_pred = len(PREDICTORS)
     x_pos = np.arange(n_pred)
@@ -197,11 +206,11 @@ def fig_tax_drivers():
         ax.spines['right'].set_visible(False)
         ax.tick_params(axis='x', length=0)
 
-    # 'n = 9 per subset' — bottom-right corner of right panel, unobtrusive
-    axes[1].text(0.98, 0.02, 'n = 9 per subset',
-                 transform=axes[1].transAxes,
-                 fontsize=7.5, ha='right', va='bottom',
-                 color='gray')
+    # 'n = 9 per subset' — bottom-right corner of last panel, unobtrusive
+    axes[-1].text(0.98, 0.02, 'n = 9 per subset',
+                  transform=axes[-1].transAxes,
+                  fontsize=7.5, ha='right', va='bottom',
+                  color='gray')
 
     # Legend: one column per predictor (Full filled on top, 3-channel open
     # below). Handles are interleaved [Full, 3ch] per predictor because
