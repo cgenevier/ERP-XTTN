@@ -91,9 +91,9 @@ QUEUE_FULL = build_main_queue(lambda p3: "full")
 
 # ── Ablation grid (ERP-XTTN, 3-channel, HRI / P300 / N400) ──────────────
 ABLATION_DATASETS = [
-    ("HRI",  "hri_errp_cursor", "midline3"),
-    ("P300", "erpcore_p300",    "midline3"),
-    ("N400", "erpcore_n400",    "midline3_n400"),
+    ("ERN",  "erpcore_ern",  "midline3_ern"),
+    ("P300", "erpcore_p300", "midline3"),
+    ("N400", "erpcore_n400", "midline3_n400"),
 ]
 
 # (tag, extra CLI args). The base (qk, self-attn on, auto K=4, prom from config,
@@ -125,9 +125,11 @@ QUEUE_ABLATION = build_ablation_queue()
 
 # ── Native-recipe EPMN robustness runs (writes to epmn_native/) ─────────
 def build_epmn_native_queue():
-    """EPMN under its own native recipe, across all datasets and both montages."""
+    """EPMN under its own native recipe, on the robustness-subset datasets
+    (ERN/P300/N400 — same as the ablation grid; ERN is the key imbalance test),
+    both montages."""
     runs = []
-    for label, ds, preset3 in DATASETS:
+    for label, ds, preset3 in ABLATION_DATASETS:
         for ch in (preset3, "full"):
             for seed in SEEDS:
                 runs.append(Run(f"{label} {ch} epmn-native s{seed}",
