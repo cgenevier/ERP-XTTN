@@ -245,6 +245,87 @@ def fig_tax_drivers():
 
 
 # ====================================================================
+# A2. Interpretability gap vs SNR proxy (main-text "Option B")
+# ====================================================================
+
+# Baselines shown against the SNR proxy (colors match MODELS_FOR_AUROC).
+_SNR_BASELINES = [
+    ('EEGNet',       'eegnet',        '#2980b9', 'o'),
+    ('xDAWN+RG',     'xdawn_rg',      '#7f8c8d', 's'),
+    ('EEG-Deformer', 'eeg_deformer',  '#27ae60', '^'),
+    ('EPMN',         'epmn',          '#8e44ad', 'D'),
+]
+
+
+def fig_snr_gap():
+    """Per-dataset interpretability gap (Delta = baseline - ERP-XTTN) against the
+    SNR proxy, one panel per montage. Shows the single robust association from
+    the fuller predictor analysis (fig_tax_drivers / Table SXX): at full montage
+    the gap to every baseline widens with SNR, whereas at 3 channels it is small
+    and unrelated to SNR. Trend lines and Spearman rho are per baseline (n=9
+    datasets; descriptive, not a significance test)."""
+    from scipy.stats import spearmanr
+    from matplotlib.lines import Line2D
+    summary = load_analysis()
+    combos = summary['combos']
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.6), sharey=True)
+    # combo-key indices in the DATASETS tuple: 4 = 3-channel, 5 = full montage.
+    montages = [('3ch', '3-channel', 4), ('full', 'Full montage', 5)]
+
+    for ax, (mkey, mlabel, var_idx) in zip(axes, montages):
+        legend_rhos = []
+        for blabel, model, color, marker in _SNR_BASELINES:
+            xs, ys = [], []
+            for row in DATASETS:
+                key = row[var_idx]                # 3ch_combo_key / full_combo_key
+                c = combos.get(key)
+                if not c:
+                    continue
+                t = c.get('tax', {}).get(model)
+                snr = c.get('snr_proxy', {}).get('mean_snr')
+                if not t or t.get('mean_delta') is None or snr is None:
+                    continue
+                xs.append(snr)
+                ys.append(t['mean_delta'])
+            if len(xs) < 3:
+                continue
+            xs, ys = np.array(xs), np.array(ys)
+            ax.scatter(xs, ys, s=42, color=color, marker=marker, alpha=0.85,
+                       edgecolor='white', linewidths=0.6, zorder=3, label=blabel)
+            # Trend line (least-squares) for a visual guide.
+            b1, b0 = np.polyfit(xs, ys, 1)
+            xr = np.array([xs.min(), xs.max()])
+            ax.plot(xr, b0 + b1 * xr, color=color, lw=1.4, alpha=0.7, zorder=2)
+            rho, _ = spearmanr(xs, ys)
+            legend_rhos.append((blabel, color, rho))
+
+        ax.axhline(0.0, color='0.3', lw=1.0, ls='--', zorder=1)
+        ax.set_title(mlabel, fontsize=11)
+        ax.set_xlabel('SNR proxy  (|diff-wave| / trial SD)', fontsize=9)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        # Per-baseline Spearman rho as a text legend.
+        txt = '\n'.join([r'$\rho$=' + f'{r:+.2f}  {l}' for l, _, r in legend_rhos])
+        ax.text(0.03, 0.97, txt, transform=ax.transAxes, va='top', ha='left',
+                fontsize=7.5, linespacing=1.4,
+                bbox=dict(boxstyle='round', fc='white', ec='0.8', alpha=0.85))
+
+    axes[0].set_ylabel(r'$\Delta$ AUROC  (baseline $-$ ERP-XTTN)', fontsize=9)
+    handles = [Line2D([0], [0], marker=mk, lw=0, color=c, markersize=8,
+                      markeredgecolor='white', label=l)
+               for l, _, c, mk in _SNR_BASELINES]
+    fig.legend(handles=handles, ncol=4, loc='lower center', frameon=False,
+               fontsize=9, bbox_to_anchor=(0.5, -0.02))
+    fig.suptitle('Interpretability gap vs signal strength', fontsize=12, y=1.0)
+    fig.tight_layout(rect=(0, 0.05, 1, 0.97))
+    out = OUT_DIR / 'fig_snr_gap.png'
+    fig.savefig(out, bbox_inches='tight', pad_inches=0.05)
+    plt.close(fig)
+    print(f'  wrote {out}')
+
+
+# ====================================================================
 # B. TP↔FP / TP↔TN bar chart
 # ====================================================================
 
@@ -1532,6 +1613,9 @@ def main():
 
     print('Tax-driver scatter...')
     fig_tax_drivers()
+
+    print('SNR-vs-gap scatter (main-text)...')
+    fig_snr_gap()
 
     print('TP↔FP / TP↔TN bar chart...')
     fig_tpfp_tptn()
