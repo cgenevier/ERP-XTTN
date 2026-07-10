@@ -797,9 +797,18 @@ function aggregateSeeds(seedResults, expectedSeeds) {
 
 /* ── Ablations tab ── */
 const ABL_DATASETS = [
+  // Full config grid (8 single-axis changes) on these three:
   {label: 'ERN',  dir: 'erpcore_ern',  preset: 'midline3_ern'},
   {label: 'P300', dir: 'erpcore_p300', preset: 'midline3'},
   {label: 'N400', dir: 'erpcore_n400', preset: 'midline3_n400'},
+  // Self-attention (nosa) ablation extended to the rest of the benchmark;
+  // other configs show — where not run:
+  {label: 'N170', dir: 'erpcore_n170',       preset: 'occipital3_n170'},
+  {label: 'BNCI', dir: 'bnci_errp_013-2015', preset: 'midline3'},
+  {label: 'HRI',  dir: 'hri_errp_cursor',    preset: 'midline3'},
+  {label: 'N2pc', dir: 'erpcore_n2pc',       preset: 'posterior3_n2pc'},
+  {label: 'LRP',  dir: 'erpcore_lrp',        preset: 'lateral3_lrp'},
+  {label: 'MMN',  dir: 'erpcore_mmn',        preset: 'midline3'},
 ];
 const ABL_CONFIGS = [
   {tag: null,       label: 'Base — QK-only',    axis: '—'},
@@ -818,8 +827,11 @@ async function ablAuroc(dir, variantDir, modelDir) {
   const bySubj = {};
   const seedMeans = [];
   let nSeeds = 0;
-  for (const seed of SEED_CANDIDATES) {
-    const r = await fetchJson(base + '/seed-' + seed + '/results.json');
+  // Fetch all seeds concurrently (missing seeds return null, not a hang).
+  const seedResults = await Promise.all(
+    SEED_CANDIDATES.map(seed => fetchJson(base + '/seed-' + seed + '/results.json'))
+  );
+  for (const r of seedResults) {
     if (!r) continue;
     nSeeds++;
     const a = [];
@@ -848,10 +860,14 @@ async function renderAblations() {
   }
   container.innerHTML = '<div class="no-fig" style="padding:24px;">Loading ablation results…</div>';
 
-  let html = '<div style="color:var(--text-secondary);font-size:0.85rem;margin:8px 0 16px;">'
+  const intro = '<div style="color:var(--text-secondary);font-size:0.85rem;margin:8px 0 16px;">'
     + 'ERP-XTTN, 3-channel, seed-averaged. Each config is a single-axis change from the base (QK-only) paper model. '
-    + '&Delta; = config &minus; base per-subject AUROC; green = higher than base, red = lower. Runs on HRI, P300, N400.</div>';
+    + '&Delta; = config &minus; base per-subject AUROC; green = higher than base, red = lower. '
+    + 'Full 8-config grid on ERN, P300, N400; the no-self-attention (nosa) ablation extends to all 9 datasets '
+    + '(remaining configs show &mdash; where not run).</div>';
 
+  try {
+  let html = intro;
   let any = false;
   for (const ds of ABL_DATASETS) {
     const cfg = await fetchJson('datasets/' + ds.dir + '/dataset_config.json');
@@ -859,13 +875,13 @@ async function renderAblations() {
     const variantDir = cfg.variants[ds.preset];
     const baseAuroc = await ablAuroc(ds.dir, variantDir, 'erpxttn_auto');
 
-    const rows = [];
-    for (const c of ABL_CONFIGS) {
+    // All configs for this dataset fetched concurrently.
+    const rows = await Promise.all(ABL_CONFIGS.map(async c => {
       const modelDir = c.tag ? 'erpxttn_auto_' + c.tag : 'erpxttn_auto';
       const r = await ablAuroc(ds.dir, variantDir, modelDir);
       const delta = (r.mean != null && baseAuroc.mean != null) ? r.mean - baseAuroc.mean : null;
-      rows.push({...c, ...r, delta, isBase: !c.tag});
-    }
+      return {...c, ...r, delta, isBase: !c.tag};
+    }));
     if (rows.some(r => r.nSeeds > 0)) any = true;
 
     html += '<h3 style="margin:18px 0 8px;color:var(--accent);">' + escapeHtml(ds.label) + '</h3>';
@@ -894,12 +910,17 @@ async function renderAblations() {
         + '</td><td style="font-size:0.75rem;color:var(--text-secondary);">' + seedCell + '</td></tr>';
     }
     html += '</tbody></table></div>';
+    container.innerHTML = html;   // progressive: paint each dataset as it completes
   }
 
   if (!any) {
     html += '<div class="no-fig" style="padding:24px;">No ablation results yet. They appear here as the ablation grid completes.</div>';
   }
   container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '<div class="no-fig" style="padding:24px;">Ablation render error: '
+      + escapeHtml(String((e && e.message) || e)) + '</div>';
+  }
 }
 
 async function scanDatasets() {
