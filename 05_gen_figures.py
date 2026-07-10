@@ -70,8 +70,10 @@ def get_proto_config(cfg: dict, results_dir=None):
     # If results_dir provided, try to infer names from prototype data
     if results_dir is not None:
         results_dir = Path(results_dir)
-        # Check if this is an auto-mode run by looking at the dir name
-        if '_auto' in results_dir.name:
+        # Check if this is an auto-mode run by looking at the path (path, not
+        # just .name, so it also fires when results_dir is a seed subdir like
+        # erpxttn_auto/seed-1 — matches the check at fig_tp_tn use below).
+        if '_auto' in str(results_dir):
             # Load prototype file with the most prototypes (K varies across folds)
             proto_files = sorted(results_dir.glob("prototypes_sub-*.npz"))
             if proto_files:
@@ -955,6 +957,9 @@ def main():
                         help="Generate figures from partial results (no results.json needed)")
     parser.add_argument("--morphology-only", action="store_true",
                         help="Only generate morphology figures (skip attention and TP/TN routing)")
+    parser.add_argument("--seed", type=int, default=1,
+                        help="Reference seed subdir to read for seeded runs "
+                             "(default: 1; matches 06/07 REF_SEED)")
     args = parser.parse_args()
 
     cfg = load_dataset_config(args.dataset)
@@ -966,6 +971,15 @@ def main():
     variant = cfg["variants"][args.channels]
     results_dir = (DATASETS_DIR / cfg["name"] / "results" / "tmin0ms_tmax800ms"
                    / variant / args.model)
+
+    # Seed-aware: seeded runs store per-fold results under <model>/seed-N/. If the
+    # model dir has no results.json but the requested seed subdir exists, descend
+    # into it (matches 06/07 REF_SEED). Flat/legacy layouts already have
+    # results.json at the model root and are left unchanged.
+    if not (results_dir / "results.json").exists():
+        seed_dir = results_dir / f"seed-{args.seed}"
+        if seed_dir.exists():
+            results_dir = seed_dir
 
     global PROTO_NAMES, PROTO_COLORS
     PROTO_NAMES, PROTO_COLORS = get_proto_config(cfg, results_dir=results_dir)
