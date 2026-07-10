@@ -89,7 +89,7 @@ QUEUE_3CH = build_main_queue(lambda p3: p3)
 QUEUE_FULL = build_main_queue(lambda p3: "full")
 
 
-# ── Ablation grid (ERP-XTTN, 3-channel, HRI / P300 / N400) ──────────────
+# ── Ablation grid (ERP-XTTN, 3-channel, ERN / P300 / N400) ──────────────
 ABLATION_DATASETS = [
     ("ERN",  "erpcore_ern",  "midline3_ern"),
     ("P300", "erpcore_p300", "midline3"),
@@ -324,7 +324,7 @@ def main():
     parser.add_argument("--include-full", action="store_true",
                         help="Include full-montage runs")
     parser.add_argument("--include-ablation", action="store_true",
-                        help="Include the ERP-XTTN ablation grid (HRI/P300/N400, 3ch)")
+                        help="Include the ERP-XTTN ablation grid (ERN/P300/N400, 3ch)")
     parser.add_argument("--include-epmn-native", action="store_true",
                         help="Include the native-recipe EPMN robustness runs (epmn_native/)")
     parser.add_argument("--only-epmn-native", action="store_true",

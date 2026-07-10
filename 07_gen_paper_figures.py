@@ -1417,59 +1417,101 @@ MODELS_FOR_AUROC = [
     ('EPMN',         'epmn',          '#8e44ad'),
 ]
 
+# Axis labels for the faceted small-multiples (full method names).
+_MODEL_SHORT = {
+    'ERP-XTTN': 'ERP-XTTN', 'EEGNet': 'EEGNet', 'xDAWN+RG': 'xDAWN+RG',
+    'EEG-Deformer': 'EEG-Deformer', 'EPMN': 'EPMN',
+}
+
 
 def fig_persubject_auroc(montage, out_name):
     """Per-subject LOSO AUROC (seed-averaged) for every model and dataset.
 
-    Individual subject points + a mean bar per model, so the reader sees the
-    full cross-subject distribution rather than only group means (Editor
-    request). ``montage`` is '3ch' or 'full'.
+    One panel per dataset (3x3 small-multiples). Within each panel every model
+    is shown as a box (median + IQR + whiskers) with the individual subject
+    AUROCs jittered over it and the group mean marked by a diamond, so the
+    reader sees the full cross-subject distribution rather than only the group
+    means reported in the tables (Editor request). ``montage`` is '3ch' or
+    'full'; a shared y-axis makes the across-component difficulty ordering
+    directly comparable.
     """
+    from matplotlib.lines import Line2D
     var_pick = 2 if montage == '3ch' else 3  # index into DATASETS tuple
     n_models = len(MODELS_FOR_AUROC)
-    group_w = 0.82
-    slot = group_w / n_models
 
-    fig, ax = plt.subplots(figsize=(13.5, 5.2))
+    fig, axes = plt.subplots(3, 3, figsize=(13.5, 11), sharey=True)
+    axes = axes.ravel()
     any_data = False
+
     for di, row in enumerate(DATASETS):
+        ax = axes[di]
         var_dir = row[var_pick]
+        n_subj = 0
         for mi, (mlabel, model, color) in enumerate(MODELS_FOR_AUROC):
             pa = _persubj_auroc(row[1], var_dir, model)
             if not pa:
                 continue
             any_data = True
             vals = np.array(list(pa.values()))
-            xc = di + (mi - (n_models - 1) / 2) * slot
+            n_subj = max(n_subj, len(vals))
+            emph = (model == 'erpxttn_auto')
+
+            # Box: median + IQR + whiskers (robust for n as small as 6).
+            bp = ax.boxplot(
+                vals, positions=[mi], widths=0.62, showfliers=False,
+                patch_artist=True, zorder=2,
+                medianprops=dict(color=color, lw=1.6),
+                whiskerprops=dict(color=color, lw=0.9),
+                capprops=dict(color=color, lw=0.9),
+                boxprops=dict(edgecolor=color, lw=1.9 if emph else 1.0))
+            for patch in bp['boxes']:
+                patch.set_facecolor(color)
+                patch.set_alpha(0.14)
+
+            # Individual subjects, jittered.
             rng = np.random.RandomState(di * 100 + mi)
-            jit = (rng.rand(len(vals)) - 0.5) * slot * 0.75
-            ax.scatter(np.full(len(vals), xc) + jit, vals, s=9, color=color,
-                       alpha=0.55, edgecolor='none', zorder=2)
-            ax.plot([xc - slot * 0.4, xc + slot * 0.4], [vals.mean()] * 2,
-                    color=color, lw=2.2, zorder=3, solid_capstyle='round')
+            jit = (rng.rand(len(vals)) - 0.5) * 0.42
+            ax.scatter(np.full(len(vals), mi) + jit, vals, s=9, color=color,
+                       alpha=0.55, edgecolor='none', zorder=3)
+
+            # Group mean (matches the value tabulated in Table 2).
+            ax.scatter([mi], [vals.mean()], marker='D', s=30, color='white',
+                       edgecolor=color, linewidths=1.5, zorder=5)
+
+        ax.axhline(0.5, ls='--', color='gray', lw=0.7, zorder=1)
+        ax.set_title(f'{row[0]}' + (f'  (n={n_subj})' if n_subj else ''),
+                     fontsize=10)
+        ax.set_xticks(range(n_models))
+        ax.set_xticklabels([_MODEL_SHORT[l] for l, _, _ in MODELS_FOR_AUROC],
+                           rotation=30, ha='right', fontsize=7)
+        ax.set_xlim(-0.6, n_models - 0.4)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        if di % 3 == 0:
+            ax.set_ylabel('LOSO AUROC (per subject)', fontsize=9)
 
     if not any_data:
         plt.close(fig)
         print(f'  (no results yet for {montage}; skipping {out_name})')
         return
 
-    ax.axhline(0.5, ls='--', color='gray', lw=0.7, zorder=1)
-    ax.set_xticks(range(len(DATASETS)))
-    ax.set_xticklabels([r[0] for r in DATASETS])
-    ax.set_ylabel('LOSO AUROC (per subject, seed-averaged)', fontsize=10)
-    ax.set_xlim(-0.6, len(DATASETS) - 0.4)
+    axes[0].set_ylim(0.35, 1.02)
+    for ax in axes[len(DATASETS):]:
+        ax.axis('off')
+
+    handles = [
+        Line2D([0], [0], marker='D', lw=0, color='white', markeredgecolor='k',
+               markersize=7, label='Group mean'),
+        Line2D([0], [0], marker='o', lw=0, color='0.4', markersize=6,
+               alpha=0.6, label='Individual subject'),
+    ]
+    fig.legend(handles=handles, ncol=2, loc='lower center', frameon=False,
+               fontsize=9, bbox_to_anchor=(0.5, 0.005))
+
     label = '3-channel' if montage == '3ch' else 'Full montage'
-    ax.set_title(f'Per-subject cross-subject AUROC — {label}', fontsize=11)
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-
-    from matplotlib.lines import Line2D
-    handles = [Line2D([0], [0], marker='o', lw=0, color=c, markersize=7, label=l)
-               for l, _, c in MODELS_FOR_AUROC]
-    ax.legend(handles=handles, ncol=n_models, loc='lower center',
-              frameon=False, fontsize=9, bbox_to_anchor=(0.5, -0.16))
-
-    fig.tight_layout()
+    fig.suptitle(f'Per-subject cross-subject AUROC — {label}', fontsize=12,
+                 y=0.995)
+    fig.tight_layout(rect=(0, 0.03, 1, 0.985))
     out = OUT_DIR / out_name
     fig.savefig(out, bbox_inches='tight', pad_inches=0.05)
     plt.close(fig)
