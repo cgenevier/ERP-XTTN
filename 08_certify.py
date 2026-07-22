@@ -505,9 +505,9 @@ def run_self_test(device):
     X = (rng.standard_normal((N, C, T)) * 0.5).astype(np.float32)
     y = (np.arange(N) % 2).astype(np.float32)
     X[y == 1, 1] += (np.sin(2 * np.pi * 3 * t) * 1.5).astype(np.float32)
-    Xt, yt = torch.from_numpy(X), torch.from_numpy(y)
+    Xt, yt = torch.from_numpy(X).to(device), torch.from_numpy(y).to(device)
     model = ERPXTTN(C, T, channel_names=["Fz", "Cz", "Pz"], detection_channel="Cz",
-                    n_proto=4, max_k=4)
+                    n_proto=4, max_k=4).to(device)
     model.set_prototypes(Xt, yt)
     opt = torch.optim.AdamW(model.parameters(), lr=1e-3)
     crit = torch.nn.BCEWithLogitsLoss()
