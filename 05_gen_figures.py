@@ -576,73 +576,197 @@ def _plot_tp_tn(results_dir, dataset_key, channel_config, subject,
     print(f'  Saved {fname}')
 
 
+# Original ERP-XTTN component palette (P1 orange, N1 green, P2 blue, N2 purple…).
+PROTO_COLORS = ['#d1710a', '#2e7d32', '#1565c0', '#8e24aa', '#c62828', '#00838f']
+
+
+def _component_names(proto_det, windows_ms, sfreq):
+    """Name each prototype P1/N1/… from its window's dominant polarity."""
+    names, npos, nneg = [], 0, 0
+    for k, (s_ms, e_ms) in enumerate(windows_ms):
+        s, e = int(s_ms / 1000 * sfreq), int(e_ms / 1000 * sfreq)
+        seg = proto_det[k, s:e]
+        v = seg[int(np.argmax(np.abs(seg)))] if len(seg) else 0.0
+        if v >= 0:
+            npos += 1; names.append(f'P{npos}')
+        else:
+            nneg += 1; names.append(f'N{nneg}')
+    return names
+
+
+def _select_routing(labels, probs, mode):
+    """(left, right) trial indices + captions for a confidence/error mode."""
+    err, cor = np.where(labels == 1)[0], np.where(labels == 0)[0]
+
+    def cap(i):
+        truth = 'Error' if labels[i] == 1 else 'Correct'
+        ok = (labels[i] == 1) == (probs[i] >= 0.5)
+        return f"{truth} trial — p(err)={probs[i]:.2f} → {'✓' if ok else '✗ MISCLASSIFIED'}"
+
+    if mode in ('high', 'median', 'low'):
+        tp = err[probs[err] >= 0.5]; tn = cor[probs[cor] < 0.5]
+        if len(tp) == 0 or len(tn) == 0:
+            return None
+        tp = tp[np.argsort(probs[tp])]; tn = tn[np.argsort(probs[tn])]
+        if mode == 'high':
+            L, R = tp[-1], tn[0]
+        elif mode == 'low':
+            L, R = tp[0], tn[-1]
+        else:
+            L, R = tp[len(tp) // 2], tn[len(tn) // 2]
+    elif mode == 'wrong':
+        missed = err[probs[err] < 0.5]; alarms = cor[probs[cor] >= 0.5]
+        L = missed[np.argmin(probs[missed])] if len(missed) else err[np.argmin(probs[err])]
+        R = alarms[np.argmax(probs[alarms])] if len(alarms) else cor[np.argmax(probs[cor])]
+    else:  # confident
+        L = err[np.argmax(probs[err])]; R = cor[np.argmin(probs[cor])]
+    return (int(L), cap(L)), (int(R), cap(R))
+
+
+def plot_peak_routing(npz_path, out_png, dataset_label='ERP',
+                      subject='sub-01', mode='high'):
+    """Per-peak routing figure (TP vs TN) from a self-contained routing dump.
+
+    Each detected peak is a unit; similarity m and attention a are per-(peak,
+    prototype) stems at the peak's centre. The signal row shades each peak's
+    variable-width window coloured by the prototype it most contributes to
+    (argmax |a·m|); a filled ▼ marks a resemblance (m>0), a hollow ▽ an
+    anti-match (m<0).
+    """
+    import matplotlib.gridspec as gridspec
+    z = np.load(npz_path, allow_pickle=True)
+    A, M = z['a'], z['m']
+    mask, center, bounds = z['mask'], z['center'], z['bounds']
+    X, labels, probs = z['X'], z['labels'], z['probs']
+    proto_raw, windows = z['proto_raw'], z['proto_windows_ms']
+    sfreq = float(z['sfreq'])
+    chans = [str(c) for c in z['channel_names']] if len(z['channel_names']) else ['ch0']
+    det_name = str(z['detection_channel']) if 'detection_channel' in z.files else None
+
+    Ntr, P, K = M.shape
+    C, T = X.shape[1], X.shape[2]
+    det = chans.index(det_name) if (det_name in chans) else \
+        int(np.argmax(np.abs(proto_raw).sum(axis=(0, 2))))
+    det_name = chans[det] if det < len(chans) else f'ch{det}'
+    time_ms = np.arange(T) / sfreq * 1000
+    proto_det = proto_raw[:, det, :]
+    contrib = A * M
+    names = _component_names(proto_det, windows, sfreq)
+
+    sel = _select_routing(labels, probs, mode)
+    if sel is None:
+        print(f"  {subject} [{mode}]: no TP/TN pair, skipping")
+        return
+    (tp, tp_lab), (tn, tn_lab) = sel
+
+    fig = plt.figure(figsize=(14, 13.5))
+    gs = gridspec.GridSpec(4, 2, figure=fig, height_ratios=[0.65, 1.0, 0.9, 0.9],
+                           hspace=0.42, wspace=0.22)
+
+    axp = fig.add_subplot(gs[0, :])
+    for k in range(K):
+        s_ms, e_ms = windows[k]
+        col = PROTO_COLORS[k % len(PROTO_COLORS)]
+        axp.axvspan(s_ms, e_ms, color=col, alpha=0.16, zorder=1)
+        s, e = int(s_ms / 1000 * sfreq), int(e_ms / 1000 * sfreq)
+        axp.plot(time_ms[s:e], proto_det[k, s:e], color=col, lw=2.6,
+                 label=f'{names[k]} ({s_ms:.0f}–{e_ms:.0f} ms)')
+    axp.axhline(0, color='gray', lw=0.5, ls='--')
+    axp.set_xlim(0, time_ms[-1]); axp.set_ylabel(f'Prototype {det_name} (z)', fontsize=13)
+    axp.set_title('Difference-Wave Prototypes (grounded templates)',
+                  fontsize=14, fontweight='bold')
+    axp.legend(fontsize=11, loc='upper right', ncol=K)
+
+    def _vmax(arr):
+        vals = [np.abs(arr[t][mask[t]]).max() for t in (tp, tn) if mask[t].any()]
+        return (max(vals) if vals else 1.0) * 1.15
+    ymax = max(np.abs(X[tp, det]).max(), np.abs(X[tn, det]).max()) * 1.15
+    mmax, amax = _vmax(M), _vmax(A)
+
+    for col_i, (tr, lab) in enumerate([(tp, tp_lab), (tn, tn_lab)]):
+        sig = X[tr, det]
+        vj = np.where(mask[tr])[0]
+        cen_ms = center[tr][vj] / sfreq * 1000
+        cc, mm = contrib[tr], M[tr]
+
+        ax1 = fig.add_subplot(gs[1, col_i])
+        for j in vj:
+            lo, hi = int(bounds[tr, j, 0]), int(bounds[tr, j, 1])
+            kbest = int(np.argmax(np.abs(cc[j])))
+            strong = np.abs(cc[j, kbest]) > 1e-3
+            resembles = mm[j, kbest] >= 0
+            colr = PROTO_COLORS[kbest % len(PROTO_COLORS)] if strong else '#9e9e9e'
+            ax1.axvspan(time_ms[max(0, lo)], time_ms[min(hi, T - 1)], color=colr,
+                        alpha=0.20 if strong else 0.06, lw=0, zorder=1)
+            pc = int(min(center[tr, j], T - 1))
+            ax1.plot(time_ms[pc], sig[pc], 'v', ms=11, zorder=6,
+                     markerfacecolor=(colr if resembles else 'white'),
+                     markeredgecolor=colr, markeredgewidth=1.6)
+            if strong:
+                txt = names[kbest] if resembles else '≠' + names[kbest]
+                ax1.annotate(txt, (time_ms[pc], sig[pc]), textcoords='offset points',
+                             xytext=(0, 12), ha='center', fontsize=10,
+                             fontweight='bold', color=colr, zorder=7)
+        ax1.plot(time_ms, sig, color='#333', lw=2.0, zorder=3, solid_capstyle='round')
+        ax1.axhline(0, color='gray', lw=0.5, ls='--')
+        ax1.set_title(f'{lab}   ({len(vj)} peaks)', fontsize=12, fontweight='bold')
+        ax1.set_ylabel(f'{det_name} (normalized)', fontsize=13)
+        ax1.set_xlim(0, time_ms[-1]); ax1.set_ylim(-ymax, ymax * 1.25)
+
+        ax2 = fig.add_subplot(gs[2, col_i])
+        for k in range(K):
+            colk = PROTO_COLORS[k % len(PROTO_COLORS)]
+            ax2.vlines(cen_ms, 0, M[tr, vj, k], color=colk, lw=1.2, alpha=0.5)
+            ax2.plot(cen_ms, M[tr, vj, k], 'o', color=colk, ms=6,
+                     label=names[k] if col_i == 0 else None)
+        ax2.axhline(0, color='gray', lw=0.5, ls='--')
+        ax2.set_ylabel('Similarity  m  (per peak)', fontsize=12)
+        ax2.set_xlim(0, time_ms[-1]); ax2.set_ylim(-mmax, mmax)
+        if col_i == 0:
+            ax2.legend(fontsize=10, loc='upper right', ncol=K)
+
+        ax3 = fig.add_subplot(gs[3, col_i])
+        for k in range(K):
+            colk = PROTO_COLORS[k % len(PROTO_COLORS)]
+            ax3.vlines(cen_ms, 0, A[tr, vj, k], color=colk, lw=1.2, alpha=0.5)
+            ax3.plot(cen_ms, A[tr, vj, k], 'o', color=colk, ms=6)
+        ax3.set_xlabel('Time (ms)', fontsize=13)
+        ax3.set_ylabel('Attention  a  (per peak)', fontsize=12)
+        ax3.set_xlim(0, time_ms[-1]); ax3.set_ylim(0, amax)
+
+    _mtitle = {'confident': 'confident cases', 'high': 'HIGH confidence',
+               'median': 'MEDIAN confidence', 'low': 'LOW confidence',
+               'wrong': 'MISCLASSIFIED cases'}.get(mode, mode)
+    fig.suptitle(f'Peak-Unit Routing ({_mtitle}) — {dataset_label} ({subject})',
+                 fontsize=16, fontweight='bold', y=1.005)
+    fig.text(0.5, 0.982, 'each variable-width peak gets one m & a per prototype.  '
+             'filled ▼ = RESEMBLES proto (m>0);  hollow ▽ = ANTI-matches (m<0)',
+             ha='center', fontsize=10.5, color='#555', style='italic')
+    fig.savefig(out_png, dpi=130, bbox_inches='tight')
+    plt.close(fig)
+
+
 def generate_tp_tn_figures(results_dir, cfg, channel_config,
                            subject, dataset_label):
-    """Generate high-confidence and median-confidence TP vs TN figures.
+    """High- and median-confidence TP-vs-TN peak-routing figures.
 
-    Args:
-        results_dir: path to model results directory
-        cfg: dataset config dict (loaded from dataset_config.json)
-        channel_config: channel preset name
-        subject: subject ID (e.g. "sub-01")
-        dataset_label: display label for figure title
+    Reads the self-contained routing_<subject>.npz (a, m, mask, center, bounds,
+    X, labels, probs, prototype template + windows) and renders the per-peak
+    routing layout. Skips gracefully if the routing dump is absent.
     """
     results_dir = Path(results_dir)
-
-    preds = np.load(results_dir / f'predictions_{subject}.npz')
-    attn_data = np.load(results_dir / f'attention_{subject}.npz')
-    proto_data = np.load(results_dir / f'prototypes_{subject}.npz')
-
-    probs = preds['probs']
-    labels = preds['labels']
-    auroc = float(preds['auroc'])
-    attn = attn_data['attention_weights']
-    proto_raw = proto_data['proto_raw']
-    proto_windows = [tuple(w) for w in proto_data['proto_windows_ms']]
-    sfreq = float(proto_data['sfreq'])
-
-    X_raw, ch_names = load_subject_epochs(cfg, channel_config, subject)
-    detect_ch_name = cfg.get('detection_channel', 'Cz')
-    cz_idx = ch_names.index(detect_ch_name) if detect_ch_name in ch_names else 1
-
-    # Class labels for figure titles
-    pos_label = cfg.get('label_map', {}).get('pos_key', 'error').replace('_', ' ').title()
-    neg_label = cfg.get('label_map', {}).get('neg_key', 'correct').replace('_', ' ').title()
-
-    tp_mask = (labels == 1) & (probs >= 0.5)
-    tn_mask = (labels == 0) & (probs < 0.5)
-
-    if tp_mask.sum() == 0 or tn_mask.sum() == 0:
-        print(f"  WARNING: {subject} has no TP or TN trials, skipping")
+    routing_path = results_dir / f'routing_{subject}.npz'
+    if not routing_path.exists():
+        print(f"  {subject}: no routing_{subject}.npz, skipping TP/TN routing figure")
         return
-
-    tp_indices = np.where(tp_mask)[0]
-    tn_indices = np.where(tn_mask)[0]
-
-    # High confidence: furthest from decision boundary
-    tp_high = tp_indices[np.argmax(probs[tp_indices])]
-    tn_high = tn_indices[np.argmin(probs[tn_indices])]
-    print(f"  {subject} (AUROC={auroc:.4f})")
-    print(f"    High-conf TP: idx={tp_high}, prob={probs[tp_high]:.4f}")
-    print(f"    High-conf TN: idx={tn_high}, prob={probs[tn_high]:.4f}")
-    _plot_tp_tn(results_dir, cfg, channel_config, subject,
-                dataset_label, tp_high, tn_high, probs, labels, attn,
-                proto_raw, proto_windows, sfreq, X_raw, cz_idx,
-                '', '_highconf', detect_ch_name=detect_ch_name,
-                pos_label=pos_label, neg_label=neg_label)
-
-    # Median confidence
-    tp_sorted = tp_indices[np.argsort(probs[tp_indices])]
-    tn_sorted = tn_indices[np.argsort(probs[tn_indices])]
-    tp_med = tp_sorted[len(tp_sorted) // 2]
-    tn_med = tn_sorted[len(tn_sorted) // 2]
-    print(f"    Median TP: idx={tp_med}, prob={probs[tp_med]:.4f}")
-    print(f"    Median TN: idx={tn_med}, prob={probs[tn_med]:.4f}")
-    _plot_tp_tn(results_dir, cfg, channel_config, subject,
-                dataset_label, tp_med, tn_med, probs, labels, attn,
-                proto_raw, proto_windows, sfreq, X_raw, cz_idx,
-                ' (median conf.)', '_median', detect_ch_name=detect_ch_name,
-                pos_label=pos_label, neg_label=neg_label)
+    for mode, suffix in [('high', '_highconf'), ('median', '_median')]:
+        out = results_dir / f'fig_tp_tn_routing_{subject}{suffix}.png'
+        try:
+            plot_peak_routing(str(routing_path), str(out),
+                              dataset_label=dataset_label, subject=subject, mode=mode)
+            print(f"  {subject} [{mode}]: {out.name}")
+        except Exception as e:
+            print(f"  {subject} [{mode}]: routing figure failed: {e}")
 
 
 # =====================================================================
@@ -951,8 +1075,8 @@ def main():
     parser.add_argument("--dataset", required=True,
                         choices=_discover_datasets())
     parser.add_argument("--channels", required=True)
-    parser.add_argument("--model", default="erpxttn_auto",
-                        help="Model results directory name (default: erpxttn_auto)")
+    parser.add_argument("--model", default="erpxttn_peak",
+                        help="Model results directory name (default: erpxttn_peak)")
     parser.add_argument("--partial", action="store_true",
                         help="Generate figures from partial results (no results.json needed)")
     parser.add_argument("--morphology-only", action="store_true",
@@ -1003,32 +1127,23 @@ def main():
             results = json.load(f)
         subjects = [r['test_subject'] for r in results['folds']]
 
-    has_attention = any(
-        (results_dir / f'attention_{s}.npz').exists() for s in subjects
+    has_routing = any(
+        (results_dir / f'routing_{s}.npz').exists() for s in subjects
     )
 
     if args.morphology_only:
-        print(f'=== --morphology-only: skipping attention and TP/TN routing ===')
+        print(f'=== --morphology-only: skipping TP/TN routing ===')
+    elif has_routing:
+        print(f'\n=== TP/TN peak-routing figures ===')
+        for subj in subjects:
+            if not (results_dir / f'routing_{subj}.npz').exists():
+                print(f'  {subj}: no routing dump, skipping')
+                continue
+            generate_tp_tn_figures(results_dir, cfg, args.channels,
+                                   subj, dataset_label)
     else:
-        if has_attention and not args.partial:
-            print(f'=== Attention analysis figures ===')
-            generate_attention_figures(results_dir, dataset_label, channel_names, 256)
-        elif not has_attention:
-            print(f'=== Skipping attention analysis figures '
-                  f'(no attention files — expected for baselines) ===')
-
-        if has_attention:
-            print(f'\n=== TP/TN routing figures ===')
-            for subj in subjects:
-                attn_path = results_dir / f'attention_{subj}.npz'
-                if not attn_path.exists():
-                    print(f'  {subj}: attention file not found, skipping')
-                    continue
-                generate_tp_tn_figures(results_dir, cfg, args.channels,
-                                       subj, dataset_label)
-        else:
-            print(f'\n=== Skipping TP/TN routing figures '
-                  f'(no attention files) ===')
+        print(f'\n=== Skipping TP/TN routing figures '
+              f'(no routing files — expected for baselines) ===')
 
     print(f'\n=== Morphology figures (TP vs FN / TN vs FP) ===')
     generate_morphology_figures(results_dir, cfg, args.channels,

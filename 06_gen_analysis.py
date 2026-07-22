@@ -40,7 +40,7 @@ OUTPUT_PATH = REPO_ROOT / "analysis_summary.json"
 STATS_CSV_PATH = REPO_ROOT / "stats_summary.csv"
 
 # Only process the paper model.
-MODEL = "erpxttn_auto"
+MODEL = "erpxttn_peak"
 BASELINES = ["eegnet", "xdawn_rg", "eeg_deformer", "epmn"]
 
 # Results are stored per seed under <model>/seed-<N>/. Performance and
@@ -159,13 +159,23 @@ def load_results_json(dataset_dir, variant_dir, model):
 
 
 def per_subject_auroc_by_seed(dataset_dir, variant_dir, model):
-    """{seed: {subject: test_auroc}} across all available seeds."""
+    """{seed: {subject: auroc}} across all available seeds.
+
+    For the two-factor peak model this returns the TWO-FACTOR
+    (routing+amplitude) per-subject AUROC — the headline — when the run
+    recorded it (`two_factor_auroc_per_subject`); otherwise (baselines,
+    routing-only runs) the per-fold routing `test_auroc`.
+    """
     out = {}
     for sd in list_seed_dirs(dataset_dir, variant_dir, model):
         r = json.load(open(sd / "results.json"))
         seed = int(sd.name.split("-")[1])
-        out[seed] = {f["test_subject"]: float(f["test_auroc"])
-                     for f in r.get("folds", [])}
+        tf = r.get("two_factor_auroc_per_subject")
+        if tf:
+            out[seed] = {s: float(a) for s, a in tf.items()}
+        else:
+            out[seed] = {f["test_subject"]: float(f["test_auroc"])
+                         for f in r.get("folds", [])}
     return out
 
 
@@ -290,7 +300,7 @@ def metric_k_stats(ds_dir, var_dir):
     results_dir = model_results_dir(ds_dir, var_dir, MODEL)
     Ks = []
     for p in sorted(results_dir.glob("prototypes_*.npz")):
-        Ks.append(int(np.load(p)["proto_raw"].shape[0]))
+        Ks.append(int(np.load(p)["proto_windows_ms"].shape[0]))
     if not Ks:
         return None
     counts = {k: Ks.count(k) for k in set(Ks)}
@@ -330,7 +340,7 @@ def metric_proto_stability(ds_dir, var_dir, cfg):
     fold_windows = []
     for p in proto_files:
         d = np.load(p)
-        proto = d["proto_raw"]  # (K, C, T)
+        proto = d["mf_template"]  # (K, C, T), zero outside each window
         windows = d["proto_windows_ms"]  # (K, 2)
         fold_data.append(proto[:, det_idx, :])
         fold_windows.append(windows)
@@ -455,22 +465,29 @@ def metric_snr_and_ga_diff(ds_dir, var_key, cfg, loaded_epochs_cache):
 
 
 def metric_attention_entropy(ds_dir, var_dir):
-    """Mean normalized attention entropy across subjects.
-    Follows the entropy definition used in 05_gen_figures for
-    fig_entropy_vs_auroc: per-trial normalized over the flattened
-    (N_patches × K) attention vector, then mean across trials and
-    subjects.
+    """Mean normalized routing-attention entropy across subjects.
+
+    Per trial, the entropy of the per-(valid-peak × prototype) attention `a`,
+    normalized to [0,1] by log(#valid peaks × K), then mean across trials and
+    subjects. Peak units replace the old grid patches; padded peaks are masked
+    out via the valid-peak mask.
     """
     results_dir = model_results_dir(ds_dir, var_dir, MODEL)
     per_subj = []
-    for p in sorted(results_dir.glob("attention_*.npz")):
-        attn = np.load(p)["attention_weights"]  # (B, H, N, K)
-        attn_mean = attn.mean(axis=1)  # (B, N, K)
-        flat = attn_mean.reshape(attn_mean.shape[0], -1)
-        norm = flat / (flat.sum(1, keepdims=True) + 1e-10)
-        ent = -np.sum(norm * np.log(norm + 1e-10), axis=1)
-        norm_ent = ent / np.log(norm.shape[1])
-        per_subj.append(float(norm_ent.mean()))
+    for p in sorted(results_dir.glob("routing_*.npz")):
+        d = np.load(p)
+        a, mask = d["a"], d["mask"]                 # (B, P, K), (B, P)
+        vals = []
+        for b in range(a.shape[0]):
+            av = a[b][mask[b]]                       # (validP, K)
+            if av.size == 0:
+                continue
+            flat = av.reshape(-1)
+            norm = flat / (flat.sum() + 1e-10)
+            ent = -np.sum(norm * np.log(norm + 1e-10))
+            vals.append(ent / np.log(max(2, norm.size)))
+        if vals:
+            per_subj.append(float(np.mean(vals)))
     if not per_subj:
         return None
     return {
@@ -481,23 +498,27 @@ def metric_attention_entropy(ds_dir, var_dir):
 
 
 def metric_routing_discriminability(ds_dir, var_dir):
-    """Cosine distance between class-averaged attention vectors
-    (flatten over N_patches × K). Computed per subject, then averaged.
+    """Cosine distance between class-averaged per-prototype routed-attention mass.
+
+    Peaks are not aligned across trials, so the old per-token vector does not
+    translate; instead each trial is summarized by its total routed attention
+    onto each of the K prototypes (sum of `a` over valid peaks → a K-vector,
+    aligned by prototype). Cosine distance between the error- and correct-class
+    means, per subject, then averaged.
     """
     results_dir = model_results_dir(ds_dir, var_dir, MODEL)
     per_subj = []
-    for p in sorted(results_dir.glob("attention_*.npz")):
-        subj = p.stem.replace("attention_", "")
-        attn = np.load(p)["attention_weights"].mean(axis=1)  # (B, N, K)
-        labs = np.load(p)["labels"]
+    for p in sorted(results_dir.glob("routing_*.npz")):
+        d = np.load(p)
+        a, mask, labs = d["a"], d["mask"], d["labels"]     # (B,P,K),(B,P),(B,)
         if (labs == 1).sum() == 0 or (labs == 0).sum() == 0:
             continue
-        err_vec = attn[labs == 1].mean(axis=0).flatten()
-        cor_vec = attn[labs == 0].mean(axis=0).flatten()
-        # Cosine distance = 1 - cos_similarity
-        num = float(np.dot(err_vec, cor_vec))
+        # Per-trial prototype mass: sum of attention over valid peaks.
+        mass = (a * mask[..., None]).sum(axis=1)           # (B, K)
+        err_vec = mass[labs == 1].mean(axis=0)
+        cor_vec = mass[labs == 0].mean(axis=0)
         den = float(np.linalg.norm(err_vec) * np.linalg.norm(cor_vec))
-        cos_sim = num / den if den > 0 else 0.0
+        cos_sim = float(np.dot(err_vec, cor_vec)) / den if den > 0 else 0.0
         per_subj.append(1.0 - cos_sim)
     if not per_subj:
         return None
@@ -826,7 +847,7 @@ def main():
             "snr_proxy": "Grand-average difference-wave SNR at each prototype's peak latency, per fold: peak |amplitude| ÷ trial-to-trial SD across all training-pool trials at that same sample. Averaged across prototypes within a fold and across folds. Higher = stereotyped component against noisier trial-level signal.",
             "attention_entropy": "Mean normalized attention entropy across subjects. Computed per trial over the flattened (N_patches × K) attention vector and normalized by log(N_patches × K). 0 = peaked routing (one patch×prototype dominates), 1 = diffuse.",
             "routing_discriminability": "Mean cosine distance between class-averaged attention vectors (error vs correct) across subjects. Higher = more class-discriminative routing.",
-            "auroc": "Seed-averaged LOSO test AUROC for erpxttn_auto. `mean` and `sd` are the mean and cross-subject SD of per-subject (seed-averaged) AUROC; `seed_mean`/`seed_sd` summarize the per-seed dataset-mean AUROC (n_seeds) as a seed-stability check.",
+            "auroc": "Seed-averaged LOSO test AUROC for erpxttn_peak. `mean` and `sd` are the mean and cross-subject SD of per-subject (seed-averaged) AUROC; `seed_mean`/`seed_sd` summarize the per-seed dataset-mean AUROC (n_seeds) as a seed-stability check.",
             "latency_variability": "Cross-subject SD (ms) of the peak latency of the dominant difference-wave component at the detection channel (per-subject diff wave, smoothed, argmax of |amplitude| after 50 ms). Large SD = the component moves around across subjects.",
             "tp_fp_tn_corr": "Pearson r between a subject's TP grand-mean waveform and their FP grand-mean waveform at the detection channel (and TP↔TN as contrast). Aggregated across subjects as mean ± 95% bootstrap CI. TP↔FP ≫ TP↔TN ⇒ the model's false alarms morphologically resemble its hits, which is a signature of waveform-based classification.",
         },

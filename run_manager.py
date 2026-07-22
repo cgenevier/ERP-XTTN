@@ -99,7 +99,6 @@ ABLATION_DATASETS = [
 # (tag, extra CLI args). The base (qk, self-attn on, auto K=4, prom from config,
 # 4 heads) is the main erpxttn_auto 3ch run already in QUEUE_3CH.
 ABLATION_CONFIGS = [
-    ("qkv",       ["--xattn-mode", "qkv"]),          # + value projection
     ("nosa",      ["--no-self-attn"]),               # no self-attention layer
     ("k2",        ["--max-k", "2"]),                 # fewer prototypes
     ("k6",        ["--max-k", "6"]),                 # more prototypes
@@ -148,7 +147,7 @@ def log(msg):
 
 def get_model_dir_name(model, tag=None):
     """Results directory name for a model (mirrors 04_train.py)."""
-    name = "erpxttn_auto" if model == "erpxttn" else model
+    name = "erpxttn_peak" if model == "erpxttn" else model
     if tag:
         name = f"{name}_{tag}"
     return name
@@ -266,8 +265,6 @@ def launch_run(run):
            "--model", run.model,
            "--seed", str(run.seed),
            "--resume"]
-    if run.model == "erpxttn":
-        cmd += ["--peak-mode", "auto"]
     if run.tag:
         cmd += ["--ablation-tag", run.tag]
     cmd += run.extra

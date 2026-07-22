@@ -1,18 +1,41 @@
-"""ERP-XTTN — cross-attention ERP classifier with automatic prototype
-detection, self-attention, and prototype positional encoding.
+"""ERP-XTTN — two-factor grounded cross-attention ERP classifier.
 
-Classifies EEG epochs by cross-attending input patches against ERP prototype
-templates derived from the grand-average difference wave. Prototype temporal
-windows are detected per fold via alternating-polarity peak finding. A
-self-attention layer refines patch embeddings before cross-attention, and
-prototypes receive shared positional encoding for temporal alignment.
+Peak-unit / grounded-readout architecture.
 
-Architecture:
-    1. Patch embed + positional encoding  ->  z  (B, N, d)
-    2. Self-attention: LN -> MHSA -> residual  ->  z'  (B, N, d)
-    3. Prototype embed + positional encoding (shared PE)  ->  p  (K, d)
-    4. Cross-attention (QK-only) with prototypes  ->  attention weights
-    5. Classification from attention routing
+Two grounded decision pathways:
+
+  (1) routing / morphology — learned QK cross-attention over the trial's
+      detected *peak units* to K difference-wave *prototype* templates, read out
+      by a FIXED grounded bilinear
+
+          logit = match_scale * Σ_{p,k} a[p,k] · m[p,k] / (#valid peaks)
+
+      where a[p,k] is the learned attention of peak p to prototype k and m[p,k]
+      is the cosine similarity of the whitened peak segment to the whitened
+      prototype window. The match m is a fixed function of the physiology (no
+      learned parameters); only the routing a and the scalar match_scale learn.
+      That is what makes the prototypes load-bearing by construction.
+
+  (2) amplitude / matched-filter — a per-component *raw* projection of the trial
+      onto each template (a K-vector per trial), exposed by compute_mf(). It is
+      fused with the routing logit OUTSIDE the model, via leave-one-subject-out
+      logistic regression over [routing_logit, MF_1..K] (two-stage late fusion).
+
+Two widths are in play and MUST NOT be conflated:
+  * patch_width (=8) — the width every unit is resampled to for the *embedding*
+    that feeds the learned routing attention a.
+  * the prototype's native window width (e−s) — the width the *match* m and its
+    whitening run at (joint spatiotemporal Σ^(−1/2) over C·(e−s)). A ~130 ms
+    component at 256 Hz is matched at ~33 samples, not 8.
+
+Terminology:
+  * units / tokens  = the trial's detected peaks (variable count, ≤ max_peaks).
+  * prototypes (K)  = component templates from the training-fold grand-average
+    difference wave. "K" always refers to the prototypes.
+
+Public interface: input (B, C, T); forward() returns (logit (B, 1), aux) where
+aux holds the grounded intermediates {a, m, mask, center, bounds} for dumps and
+interpretability figures.
 """
 
 import logging
@@ -22,13 +45,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from numpy.linalg import eigh
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 
-# Canonical detection channel for ERP components
+# Canonical detection channel fallback (configs set this per dataset).
 DETECT_CHANNEL = "Cz"
 
-# Minimum latency (ms) for P1 anchor — prevents locking onto early
+# Minimum latency (ms) for the first peak — avoids locking onto early
 # noise/artifact before the physiological ERP response.
 MIN_P1_LATENCY_MS = 50.0
 
@@ -39,7 +63,7 @@ def ms_to_sample(ms: float, sfreq: float = 256.0, tmin: float = 0.0) -> int:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Automatic peak detection
+# Signal helpers (shared by prototype detection and per-trial tokenization)
 # ──────────────────────────────────────────────────────────────────────
 
 def _smooth_signal(diff_signal: np.ndarray, sigma: float = 2.0) -> np.ndarray:
@@ -48,16 +72,25 @@ def _smooth_signal(diff_signal: np.ndarray, sigma: float = 2.0) -> np.ndarray:
 
 
 def _find_zero_crossings(signal: np.ndarray) -> np.ndarray:
-    """Find sample indices where the signal crosses zero.
-
-    Returns indices of the last sample before each sign change.
-    """
+    """Sample indices (last sample before each sign change)."""
     signs = np.sign(signal)
     for i in range(len(signs)):
         if signs[i] == 0:
             signs[i] = signs[i - 1] if i > 0 else 1
-    changes = np.where(np.diff(signs) != 0)[0]
-    return changes
+    return np.where(np.diff(signs) != 0)[0]
+
+
+def _resample_to_width(seg: np.ndarray, width: int) -> np.ndarray:
+    """Linearly resample a (C, w) segment to (C, width) along time."""
+    C, w = seg.shape
+    if w == width:
+        return seg.astype(np.float32, copy=False)
+    x_old = np.linspace(0.0, 1.0, num=w)
+    x_new = np.linspace(0.0, 1.0, num=width)
+    out = np.empty((C, width), dtype=np.float32)
+    for c in range(C):
+        out[c] = np.interp(x_new, x_old, seg[c])
+    return out
 
 
 def detect_alternating_peaks(
@@ -68,25 +101,11 @@ def detect_alternating_peaks(
     smooth_sigma: float = 2.0,
     min_latency_ms: float = 50.0,
 ) -> list[tuple[int, str]]:
-    """Detect ERP component peaks enforcing alternating P-N-P-N polarity.
+    """Detect the prototype peak chain enforcing an alternating polarity pattern.
 
-    The ErrP difference wave has a characteristic positive-negative-positive-
-    negative pattern (P1 -> Ne -> Pe -> LateN). This function finds the
-    temporally-ordered chain of peaks with that polarity sequence that
-    maximizes total prominence.
-
-    Args:
-        diff_signal: (T,) difference wave on the detection channel (z-scored)
-        sfreq: sampling frequency in Hz
-        polarity_pattern: expected polarity sequence, e.g. ['pos','neg','pos','neg']
-        prominence: minimum peak prominence (in z-score units)
-        min_distance_ms: minimum inter-peak distance in ms
-        smooth_sigma: Gaussian smoothing sigma in samples
-        min_latency_ms: minimum latency for P1 anchor (ms post-stimulus)
-
-    Returns:
-        List of (sample_index, polarity) tuples sorted by time,
-        where polarity is 'pos' or 'neg'.
+    Places the K prototype windows on the grand-average difference wave: the
+    temporally-ordered chain matching `polarity_pattern` that maximizes total
+    prominence. Returns a list of (sample_index, polarity) sorted by time.
     """
     if polarity_pattern is None:
         polarity_pattern = ['pos', 'neg', 'pos', 'neg']
@@ -95,48 +114,34 @@ def detect_alternating_peaks(
     min_latency_sample = int(round(min_latency_ms / 1000.0 * sfreq))
     smoothed = _smooth_signal(diff_signal, sigma=smooth_sigma)
 
-    # Find all positive peaks
     pos_peaks, pos_props = find_peaks(
         smoothed, prominence=prominence, distance=min_distance)
-    pos_list = sorted([(int(idx), float(prom)) for idx, prom in
+    pos_list = sorted([(int(i), float(p)) for i, p in
                        zip(pos_peaks, pos_props['prominences'])])
-
-    # Find all negative peaks (peaks of inverted signal)
     neg_peaks, neg_props = find_peaks(
         -smoothed, prominence=prominence, distance=min_distance)
-    neg_list = sorted([(int(idx), float(prom)) for idx, prom in
+    neg_list = sorted([(int(i), float(p)) for i, p in
                        zip(neg_peaks, neg_props['prominences'])])
 
-    # Build candidate lists per slot in the pattern
-    slot_candidates = []
-    for polarity in polarity_pattern:
-        slot_candidates.append(pos_list if polarity == 'pos' else neg_list)
+    slot_candidates = [pos_list if pol == 'pos' else neg_list
+                       for pol in polarity_pattern]
 
-    # Anchor on the earliest peak (of the first slot's polarity) at or
-    # after min_latency_ms, then find the best chain via recursive search.
-    first_candidates = [
-        (idx, prom) for idx, prom in slot_candidates[0]
-        if idx >= min_latency_sample
-    ]
+    first_candidates = [(i, p) for i, p in slot_candidates[0]
+                        if i >= min_latency_sample]
     if not first_candidates:
         return []
-
-    # Pick the earliest peak for the first slot
     p1_idx, p1_prom = first_candidates[0]
 
-    # Find best chain for remaining slots after P1
     best_chain: list[tuple[int, float]] = []
     best_score = -1.0
 
     def search(slot: int, min_sample: int, chain: list, score: float):
         nonlocal best_chain, best_score
-
         if slot == len(polarity_pattern):
             if score > best_score:
                 best_score = score
                 best_chain = list(chain)
             return
-
         for idx, prom in slot_candidates[slot]:
             if idx < min_sample:
                 continue
@@ -145,11 +150,82 @@ def detect_alternating_peaks(
             chain.pop()
 
     search(1, p1_idx + min_distance, [(p1_idx, p1_prom)], p1_prom)
-
     if not best_chain:
         return []
-
     return [(idx, polarity_pattern[i]) for i, (idx, _) in enumerate(best_chain)]
+
+
+def detect_trial_peaks(
+    signal: np.ndarray, sfreq: float,
+    prominence: float,
+    max_peaks: int,
+    min_distance_ms: float = 31.0,
+    smooth_sigma: float = 2.0,
+) -> list[tuple[int, str]]:
+    """Detect a trial's peak *units* on its detection channel.
+
+    The tokens the router attends *from*: the top-`max_peaks` most prominent
+    deflections — positive and negative pooled, **mixed polarity, ranked by
+    prominence, with NO alternating-polarity constraint** (that constraint is for
+    the prototype chain, not trial units) and **no latency floor** (which would
+    drop legitimate early units). Kept peaks are restored to temporal order.
+    Returns (sample_index, polarity) by time.
+    """
+    min_distance = max(1, int(round(min_distance_ms / 1000.0 * sfreq)))
+    smoothed = _smooth_signal(signal, sigma=smooth_sigma)
+
+    pos_peaks, pos_props = find_peaks(
+        smoothed, prominence=prominence, distance=min_distance)
+    neg_peaks, neg_props = find_peaks(
+        -smoothed, prominence=prominence, distance=min_distance)
+
+    cand = [(int(i), 'pos', float(p))
+            for i, p in zip(pos_peaks, pos_props['prominences'])]
+    cand += [(int(i), 'neg', float(p))
+             for i, p in zip(neg_peaks, neg_props['prominences'])]
+    if not cand:
+        return []
+
+    # Top-max_peaks by prominence (mixed polarity), then restore temporal order.
+    cand.sort(key=lambda t: t[2], reverse=True)
+    keep = sorted(cand[:max_peaks], key=lambda t: t[0])
+    return [(idx, pol) for idx, pol, _ in keep]
+
+
+def _find_inflections(smoothed_signal: np.ndarray) -> np.ndarray:
+    """Inflection sample indices (second-derivative sign changes).
+
+    The right boundary for *single-trial* peaks: unlike a difference wave, a
+    single-trial signal does not ride around zero, so its deflections are bounded
+    by their flanking inflections (the shoulders of the bump), not zero-crossings.
+    """
+    return np.where(np.diff(np.sign(np.diff(smoothed_signal, n=2))) != 0)[0] + 1
+
+
+def _windows_from_boundaries(peak_indices, boundaries, T, min_w, max_w):
+    """Expand each peak to its flanking boundary indices, clamp width, no overlap."""
+    windows = []
+    for i, peak in enumerate(peak_indices):
+        before = boundaries[boundaries < peak]
+        left = int(before[-1]) + 1 if len(before) > 0 else 0
+        after = boundaries[boundaries >= peak]
+        right = int(after[0]) + 1 if len(after) > 0 else T
+
+        if i > 0:
+            left = max(left, windows[-1][1])
+
+        if right - left < min_w:
+            deficit = min_w - (right - left)
+            el = deficit // 2
+            left = max(left - el, 0 if i == 0 else windows[-1][1])
+            right = min(right + (deficit - el), T)
+        if right - left > max_w:
+            excess = (right - left - max_w) // 2
+            left += excess
+            right = left + max_w
+
+        windows.append((max(left, 0), min(right, T)))
+    return windows
 
 
 def build_windows_from_zero_crossings(
@@ -158,63 +234,62 @@ def build_windows_from_zero_crossings(
     max_window_ms: float = 200.0,
     sfreq: float = 256.0,
 ) -> list[tuple[int, int]]:
-    """Build windows by expanding from peaks to neighboring zero-crossings.
-
-    Each window spans from the zero-crossing before the peak to the zero-
-    crossing after it, giving the natural width of each ERP deflection.
-
-    Args:
-        peak_indices: sorted list of peak sample indices
-        smoothed_signal: (T,) smoothed difference wave used for zero-crossing
-        min_window_ms: minimum window width in ms
-        max_window_ms: maximum window width in ms
-        sfreq: sampling frequency
-
-    Returns:
-        List of (start_sample, end_sample) tuples.
-    """
+    """Windows bounded by flanking zero-crossings — correct for the difference
+    wave (which crosses zero between components). Used for the PROTOTYPES."""
     T = len(smoothed_signal)
     min_w = int(round(min_window_ms / 1000.0 * sfreq))
     max_w = int(round(max_window_ms / 1000.0 * sfreq))
+    return _windows_from_boundaries(
+        peak_indices, _find_zero_crossings(smoothed_signal), T, min_w, max_w)
 
-    crossings = _find_zero_crossings(smoothed_signal)
 
+def build_windows_from_inflections(
+    peak_indices: list[int], smoothed_signal: np.ndarray,
+    sfreq: float = 256.0,
+) -> list[tuple[int, int]]:
+    """Windows bounded by the BARE flanking inflection points — for single-TRIAL
+    peaks. Each window is just the inflection before and the inflection at/after
+    the peak (a ≥2-sample floor guards degenerate cases). Unlike the prototype
+    builder there is NO min/max width clamp and NO no-overlap constraint: a
+    single trial does not ride around zero, so a unit's natural extent is exactly
+    its flanking second-derivative shoulders.
+    """
+    T = len(smoothed_signal)
+    infl = _find_inflections(smoothed_signal)
     windows = []
-    for i, peak in enumerate(peak_indices):
-        # Find the zero-crossing just before the peak
-        before = crossings[crossings < peak]
-        left = int(before[-1]) + 1 if len(before) > 0 else 0
-
-        # Find the zero-crossing just after the peak
-        after = crossings[crossings >= peak]
-        right = int(after[0]) + 1 if len(after) > 0 else T
-
-        # Clamp to not overlap with previous window
-        if i > 0:
-            prev_right = windows[-1][1]
-            left = max(left, prev_right)
-
-        # Enforce minimum width (expand symmetrically if needed)
-        if right - left < min_w:
-            deficit = min_w - (right - left)
-            expand_left = deficit // 2
-            expand_right = deficit - expand_left
-            left = max(left - expand_left, 0 if i == 0 else windows[-1][1])
-            right = min(right + expand_right, T)
-
-        # Enforce maximum width (shrink symmetrically)
-        if right - left > max_w:
-            excess = (right - left - max_w) // 2
-            left += excess
-            right = left + max_w
-
-        # Final boundary clamp
-        left = max(left, 0)
-        right = min(right, T)
-
-        windows.append((left, right))
-
+    for peak in peak_indices:
+        i = int(np.searchsorted(infl, peak))
+        lo = int(infl[i - 1]) if i > 0 else 0
+        hi = int(infl[i]) if i < len(infl) else T
+        hi = max(lo + 2, hi)
+        windows.append((max(lo, 0), min(hi, T)))
     return windows
+
+
+def _compute_whitener(win_flat: np.ndarray, y: np.ndarray,
+                      shrink: float = 0.9, eig_floor: float = 1e-8) -> np.ndarray:
+    """Joint spatiotemporal Σ^(−1/2) from pooled within-class residual covariance.
+
+    Args:
+        win_flat: (N_epochs, D) window data flattened to D = C · (e−s).
+        y:        (N_epochs,) class labels.
+        shrink:   Σ = shrink·cov + (1−shrink)·(tr(cov)/D)·I  (fixed, not LW).
+
+    Returns:
+        (D, D) symmetric Σ^(−1/2).
+    """
+    N, D = win_flat.shape
+    classes = np.unique(y)
+    resid = win_flat.copy()
+    for c in classes:
+        m = y == c
+        resid[m] -= win_flat[m].mean(axis=0, keepdims=True)
+    dof = max(1, N - len(classes))
+    cov = resid.T @ resid / dof
+    cov = shrink * cov + (1.0 - shrink) * (np.trace(cov) / D) * np.eye(D)
+    w, V = eigh(cov)
+    w = np.clip(w, eig_floor, None)
+    return (V * (w ** -0.5)) @ V.T
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -222,26 +297,21 @@ def build_windows_from_zero_crossings(
 # ──────────────────────────────────────────────────────────────────────
 
 class PatchEmbedding(nn.Module):
-    """Split (B, C, T) into non-overlapping patches and project."""
+    """Project a (·, C, patch_width) peak/prototype segment to d_model."""
 
     def __init__(self, n_channels: int, patch_width: int, d_model: int):
         super().__init__()
-        self.patch_width = patch_width
         self.proj = nn.Linear(n_channels * patch_width, d_model)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        B, C, T = x.shape
-        w = self.patch_width
-        N = T // w
-        x = x[:, :, :N * w].reshape(B, C, N, w).permute(0, 2, 1, 3).reshape(B, N, C * w)
-        return self.proj(x)
+        return self.proj(x.flatten(-2))
 
 
 class ERPXTTN(nn.Module):
-    """ERP-XTTN: cross-attention ERP classifier.
+    """Two-factor grounded ERP-XTTN (peak units + native-width matched readout).
 
     Input:  (B, C, T)
-    Output: (B, 1) logit
+    Output: (logit (B, 1), aux dict)
 
     Call set_prototypes() before the first forward pass in each fold.
     """
@@ -257,33 +327,39 @@ class ERPXTTN(nn.Module):
                  min_window_ms: float = 40.0,
                  max_window_ms: float = 200.0,
                  detection_channel: str = None,
-                 peak_mode: str = 'auto',
                  max_k: int = 4,
-                 xattn_mode: str = 'qk',
-                 use_self_attn: bool = True):
+                 max_peaks: int = 14,
+                 use_self_attn: bool = True,
+                 whiten_shrink: float = 0.9):
         super().__init__()
         if d_model % num_heads != 0:
-            raise ValueError(f"d_model ({d_model}) must be divisible by num_heads ({num_heads})")
-        if xattn_mode not in ('qk', 'qkv'):
-            raise ValueError(f"xattn_mode must be 'qk' or 'qkv', got {xattn_mode}")
+            raise ValueError(
+                f"d_model ({d_model}) must be divisible by num_heads ({num_heads})")
+
         self.n_channels = n_channels
         self.n_times = n_times
         self.d_model = d_model
         self.num_heads = num_heads
         self.d_head = d_model // num_heads
         self.patch_width = patch_width
-        self.xattn_mode = xattn_mode
         self.use_self_attn = use_self_attn
         self.K = n_proto
         self.polarity_pattern = polarity_pattern or ['pos', 'neg', 'pos', 'neg']
         self.peak_prominence = peak_prominence
-        self.peak_mode = peak_mode
         self.max_k = max_k
-        self.N = n_times // patch_width
+        self.max_peaks = max_peaks
         self.sfreq = sfreq
         self.tmin = tmin
-        # Resolve detection channel by name
+        self.min_window_ms = min_window_ms
+        self.max_window_ms = max_window_ms
+        self.whiten_shrink = whiten_shrink
+        # Upper bound on a prototype window width (samples) → whitener size.
+        self.w_max = max(1, int(round(max_window_ms / 1000.0 * sfreq)))
+        self.n_grid = max(1, n_times // patch_width)
+
+        # Resolve detection channel by name.
         detect_name = detection_channel or DETECT_CHANNEL
+        self.detect_name = detect_name
         if channel_names is not None and detect_name in channel_names:
             self.detect_ch = channel_names.index(detect_name)
         else:
@@ -293,45 +369,27 @@ class ERPXTTN(nn.Module):
                     f"Detection channel '{detect_name}' not found in "
                     f"{channel_names}; falling back to index {self.detect_ch}")
 
-        # Automatic window parameters
-        self.min_window_ms = min_window_ms
-        self.max_window_ms = max_window_ms
-
-        # Detected windows (set by set_prototypes, used for saving metadata)
         self.detected_windows_ms: list[tuple[float, float]] = []
 
-        # Patch embedding (shared for input and prototypes)
+        # Shared patch embedding for peak units and prototype key segments.
         self.patch_embed = PatchEmbedding(n_channels, patch_width, d_model)
 
-        # Learned positional embeddings for input patches
-        self.pos_embed = nn.Parameter(torch.randn(1, self.N, d_model) * 0.02)
+        # Frozen random positional grid, interpolated at fractional unit centres
+        # (parameter-free: registered as a buffer, never trained).
+        self.register_buffer("pos_embed", torch.randn(self.n_grid, d_model) * 0.02)
 
-        # Cross-attention: separate layer norms for Q and K
+        # Cross-attention (QK only — peaks query, prototypes key).
         self.ln_q = nn.LayerNorm(d_model)
         self.ln_kv = nn.LayerNorm(d_model)
-
-        # Q and K projections only (no V)
         self.W_q = nn.Linear(d_model, d_model)
         self.W_k = nn.Linear(d_model, d_model)
 
-        # Classification from attention weights (QK-only, the paper model)
-        self.head = nn.Linear(self.N * self.K, 1)
-
-        # Ablation: standard cross-attention WITH value projection. Classifies
-        # from the attended value output (mean-pooled over patches) instead of
-        # from the attention-weight distribution. Only instantiated in 'qkv'
-        # mode so 'qk' mode is bit-for-bit identical to the published model.
-        if self.xattn_mode == 'qkv':
-            self.W_v = nn.Linear(d_model, d_model)
-            self.head_qkv = nn.Linear(d_model, 1)
-
+        # Learned scalar calibrating the grounded logit's range (cannot change
+        # WHICH prototype a peak matches — only the overall scale).
+        self.match_scale = nn.Parameter(torch.tensor(1.0))
         self.dropout_layer = nn.Dropout(dropout)
 
-        # Prototype buffer — set per fold via set_prototypes()
-        self.register_buffer("proto_raw",
-                             torch.zeros(self.K, n_channels, n_times))
-
-        # Self-attention components
+        # Self-attention over peak tokens (ablatable via use_self_attn).
         self.sa_ln = nn.LayerNorm(d_model)
         self.sa_W_q = nn.Linear(d_model, d_model)
         self.sa_W_k = nn.Linear(d_model, d_model)
@@ -339,242 +397,272 @@ class ERPXTTN(nn.Module):
         self.sa_out_proj = nn.Linear(d_model, d_model)
         self.sa_dropout = nn.Dropout(dropout)
 
-        # Prototype center patch indices for PE lookup (set per fold)
-        self.register_buffer("proto_center_patch_idx",
-                             torch.zeros(self.K, dtype=torch.long))
+        self._register_proto_buffers(self.K)
 
-    def _auto_detect_peaks(self, diff_signal, sfreq):
-        """Auto-detect prominent peaks without a polarity pattern.
+    def _register_proto_buffers(self, k: int):
+        """(Re)register the per-fold grounded buffers for K prototypes."""
+        C, pw, Dm = self.n_channels, self.patch_width, self.n_channels * self.w_max
+        # Key-embedding segment (width patch_width) for the routing pathway.
+        self.register_buffer("proto_seg", torch.zeros(k, C, pw))
+        self.register_buffer("proto_center", torch.zeros(k))
+        # Native-width match buffers (padded to w_max; proto_w gives the true
+        # width). whitener/proto_white use the leading C·(e−s) block.
+        self.register_buffer("proto_w", torch.zeros(k, dtype=torch.long))
+        self.register_buffer("whitener", torch.zeros(k, Dm, Dm))
+        self.register_buffer("proto_white", torch.zeros(k, Dm))
+        self.register_buffer("proto_white_norm", torch.ones(k))
+        # Raw full-length template + window + norm for the amplitude MF factor.
+        self.register_buffer("mf_template", torch.zeros(k, C, self.n_times))
+        self.register_buffer("mf_window", torch.zeros(k, 2, dtype=torch.long))
+        self.register_buffer("mf_template_norm", torch.ones(k))
 
-        Finds all positive and negative peaks above the prominence threshold,
-        enforces sign constraint (pos peaks > 0, neg peaks < 0), ranks by
-        prominence, and takes top max_k. Returns list of (sample_idx, polarity).
-        """
-        from scipy.signal import find_peaks as _find_peaks
+    def _resize_K(self, k: int):
+        self.K = k
+        self._register_proto_buffers(k)
+        self.to(self.match_scale.device)
 
-        min_distance = max(1, int(round(80.0 / 1000.0 * sfreq)))
-        min_latency_sample = int(round(MIN_P1_LATENCY_MS / 1000.0 * sfreq))
-        smoothed = _smooth_signal(diff_signal, sigma=2.0)
-
-        pos_peaks, pos_props = _find_peaks(smoothed, prominence=self.peak_prominence,
-                                            distance=min_distance)
-        neg_peaks, neg_props = _find_peaks(-smoothed, prominence=self.peak_prominence,
-                                            distance=min_distance)
-
-        all_peaks = []
-        for idx, prom in zip(pos_peaks, pos_props['prominences']):
-            if idx >= min_latency_sample and smoothed[idx] > 0:
-                all_peaks.append((int(idx), 'pos', float(prom)))
-        for idx, prom in zip(neg_peaks, neg_props['prominences']):
-            if idx >= min_latency_sample and smoothed[idx] < 0:
-                all_peaks.append((int(idx), 'neg', float(prom)))
-
-        all_peaks.sort(key=lambda x: x[2], reverse=True)
-        selected = all_peaks[:self.max_k]
-        selected.sort(key=lambda x: x[0])
-
-        return [(idx, pol) for idx, pol, _ in selected]
-
+    # ── prototype construction ─────────────────────────────────────────
     def set_prototypes(self, X_train: torch.Tensor, y_train: torch.Tensor):
-        """Detect ERP peaks and compute diff-wave prototypes.
+        """Detect prototype windows and build grounded templates + whiteners.
 
-        Supports two modes:
-        - 'constrained': enforces polarity pattern chain (original method)
-        - 'auto': data-driven, finds top-K peaks by prominence
-
-        Args:
-            X_train: (N_train, C, T) normalized training epochs
-            y_train: (N_train,) labels (0=correct, 1=error)
+        Per prototype k: the width-patch_width shape segment for the routing key
+        embedding (proto_seg); the joint spatiotemporal whitener Σ_k^(−1/2) at
+        the window's NATIVE width from the training fold; the whitened native
+        template (for the cosine match m); and the raw full-window template with
+        its norm (for the amplitude matched filter MF).
         """
-        error_avg = X_train[y_train == 1].mean(dim=0)    # (C, T)
-        correct_avg = X_train[y_train == 0].mean(dim=0)  # (C, T)
-        diff_wave = error_avg - correct_avg               # (C, T)
+        Xtr = X_train.detach().cpu().numpy()
+        ytr = y_train.detach().cpu().numpy()
 
-        # Extract detection channel signal (ensure CPU for scipy)
-        diff_signal = diff_wave[self.detect_ch].cpu().numpy()
-        smoothed = _smooth_signal(diff_signal, sigma=2.0)
+        err = Xtr[ytr == 1].mean(axis=0)
+        cor = Xtr[ytr == 0].mean(axis=0)
+        diff = err - cor
+        sig = diff[self.detect_ch]
+        smoothed = _smooth_signal(sig, sigma=2.0)
 
-        if self.peak_mode == 'auto':
-            peaks = self._auto_detect_peaks(diff_signal, self.sfreq)
-            if len(peaks) == 0:
-                raise RuntimeError(
-                    f"Auto peak detection found no peaks above prominence "
-                    f"{self.peak_prominence}. Check preprocessing and data quality.")
-            # Update K to match actual number of peaks found
-            actual_k = len(peaks)
-            if actual_k != self.K:
-                logging.info(f"  Auto-detect: adjusting K from {self.K} to {actual_k}")
-                self.K = actual_k
-                # Resize buffers
-                self.proto_raw = nn.Parameter(
-                    torch.zeros(self.K, self.n_channels, self.n_times),
-                    requires_grad=False)
-                self.proto_center_patch_idx = nn.Parameter(
-                    torch.zeros(self.K, dtype=torch.long),
-                    requires_grad=False)
-                # Resize head: input is N_patches * K (QK-only head only;
-                # the QKV head is K-independent so needs no resize)
-                if self.xattn_mode == 'qk':
-                    self.head = nn.Linear(self.N * self.K, 1)
-                self.to(next(self.parameters()).device)
-        else:
-            peaks = detect_alternating_peaks(
-                diff_signal, self.sfreq,
-                polarity_pattern=self.polarity_pattern,
-                prominence=self.peak_prominence,
-                min_latency_ms=MIN_P1_LATENCY_MS,
-            )
-            if len(peaks) < self.K:
-                raise RuntimeError(
-                    f"Constrained peak detection found only {len(peaks)}/{self.K} "
-                    f"peaks on the grand-average difference wave. Expected "
-                    f"polarity pattern {self.polarity_pattern}. Check "
-                    f"preprocessing and data quality. Detected peaks: {peaks}")
+        peaks = detect_alternating_peaks(
+            sig, self.sfreq, polarity_pattern=self.polarity_pattern,
+            prominence=self.peak_prominence, min_latency_ms=MIN_P1_LATENCY_MS)
+        if len(peaks) < 2:
+            raise RuntimeError(
+                f"Prototype detection found only {len(peaks)} peak(s) on the "
+                f"grand-average difference wave (prominence={self.peak_prominence}, "
+                f"pattern={self.polarity_pattern}). Check preprocessing/detection "
+                f"channel.")
+        if len(peaks) > self.max_k:
+            peaks = peaks[:self.max_k]
 
-        peak_indices = [p[0] for p in peaks]
+        peak_idx = [p[0] for p in peaks]
+        windows = build_windows_from_zero_crossings(
+            peak_idx, smoothed, self.min_window_ms, self.max_window_ms, self.sfreq)
 
-        # Build windows from zero-crossings
-        raw_windows = build_windows_from_zero_crossings(
-            peak_indices, smoothed,
-            min_window_ms=self.min_window_ms,
-            max_window_ms=self.max_window_ms,
-            sfreq=self.sfreq,
-        )
+        if len(windows) != self.K:
+            self._resize_K(len(windows))
 
-        # In auto mode, drop peaks whose windows don't contain them
-        if self.peak_mode == 'auto':
-            valid = [(p, w) for p, w in zip(peaks, raw_windows)
-                     if w[0] <= p[0] <= w[1]]
-            if len(valid) < len(peaks):
-                dropped = len(peaks) - len(valid)
-                logging.info(f"  Auto-detect: dropped {dropped} peak(s) with invalid windows")
-                peaks = [v[0] for v in valid]
-                raw_windows = [v[1] for v in valid]
-                actual_k = len(peaks)
-                if actual_k != self.K:
-                    self.K = actual_k
-                    self.proto_raw = nn.Parameter(
-                        torch.zeros(self.K, self.n_channels, self.n_times),
-                        requires_grad=False)
-                    self.proto_center_patch_idx = nn.Parameter(
-                        torch.zeros(self.K, dtype=torch.long),
-                        requires_grad=False)
-                    if self.xattn_mode == 'qk':
-                        self.head = nn.Linear(self.N * self.K, 1)
-                    self.to(next(self.parameters()).device)
-
-        windows_samples = raw_windows
         self.detected_windows_ms = [
             (round(s / self.sfreq * 1000 + self.tmin * 1000, 1),
              round(e / self.sfreq * 1000 + self.tmin * 1000, 1))
-            for s, e in windows_samples
-        ]
+            for s, e in windows]
 
-        # Extract diff-wave within detected windows
-        proto = torch.zeros(self.K, self.n_channels, self.n_times)
-        for k, (s, e) in enumerate(windows_samples):
-            proto[k, :, s:e] = diff_wave[:, s:e].cpu()
+        C, pw, Dm = self.n_channels, self.patch_width, self.n_channels * self.w_max
+        proto_seg = np.zeros((self.K, C, pw), dtype=np.float32)
+        proto_w = np.zeros(self.K, dtype=np.int64)
+        whitener = np.zeros((self.K, Dm, Dm), dtype=np.float32)
+        proto_white = np.zeros((self.K, Dm), dtype=np.float32)
+        proto_white_norm = np.ones(self.K, dtype=np.float32)
+        mf_template = np.zeros((self.K, C, self.n_times), dtype=np.float32)
+        mf_win = np.zeros((self.K, 2), dtype=np.int64)
+        mf_norm = np.ones(self.K, dtype=np.float32)
+        centers = np.zeros(self.K, dtype=np.float32)
 
-        self.proto_raw.copy_(proto)
+        for k, (s, e) in enumerate(windows):
+            w = min(e - s, self.w_max)
+            e = s + w
+            d = C * w
 
-        # Compute center patch index for each prototype for PE lookup
-        indices = []
-        for start_ms, end_ms in self.detected_windows_ms:
-            center_ms = (start_ms + end_ms) / 2.0
-            center_sample = ms_to_sample(center_ms, self.sfreq, self.tmin)
-            center_patch_idx = center_sample // self.patch_width
-            center_patch_idx = max(0, min(center_patch_idx, self.N - 1))
-            indices.append(center_patch_idx)
+            # (a) key-embedding segment, resampled to patch_width.
+            proto_seg[k] = _resample_to_width(diff[:, s:e], pw)
 
-        self.proto_center_patch_idx.copy_(
-            torch.tensor(indices, dtype=torch.long))
+            # (b) native-width joint whitener from the training epochs' window.
+            win_epochs = np.stack(
+                [Xtr[n, :, s:e].reshape(-1) for n in range(Xtr.shape[0])], axis=0)
+            W = _compute_whitener(win_epochs, ytr, shrink=self.whiten_shrink)
+            whitener[k, :d, :d] = W
+            proto_w[k] = w
+            pw_vec = W @ diff[:, s:e].reshape(-1)          # whitened native template
+            proto_white[k, :d] = pw_vec
+            proto_white_norm[k] = float(np.linalg.norm(pw_vec) + 1e-8)
 
-    def _embed_prototypes(self) -> torch.Tensor:
-        """Embed raw prototypes through patch embedding and mean-pool.
+            # (c) raw full-window template + norm for the amplitude MF factor.
+            mf_template[k, :, s:e] = diff[:, s:e]
+            mf_win[k] = (s, e)
+            mf_norm[k] = float(np.linalg.norm(diff[:, s:e]) + 1e-8)
+            centers[k] = 0.5 * (s + e)
 
-        Returns: (K, d_model)
+        dev = self.match_scale.device
+        self.proto_seg = torch.from_numpy(proto_seg).to(dev)
+        self.proto_center = torch.from_numpy(centers).to(dev)
+        self.proto_w = torch.from_numpy(proto_w).to(dev)
+        self.whitener = torch.from_numpy(whitener).to(dev)
+        self.proto_white = torch.from_numpy(proto_white).to(dev)
+        self.proto_white_norm = torch.from_numpy(proto_white_norm).to(dev)
+        self.mf_template = torch.from_numpy(mf_template).to(dev)
+        self.mf_window = torch.from_numpy(mf_win).to(dev)
+        self.mf_template_norm = torch.from_numpy(mf_norm).to(dev)
+
+    # ── positional encoding ─────────────────────────────────────────────
+    def _interp_pos(self, centers: torch.Tensor) -> torch.Tensor:
+        """Linear interpolation of the frozen positional grid at unit centres.
+
+        centers: (...,) sample indices (float). Returns (..., d_model).
         """
-        z = self.patch_embed(self.proto_raw)   # (K, N, d_model)
-        return z.mean(dim=1)                   # (K, d_model)
+        g = (centers.float() / self.patch_width).clamp(0, self.n_grid - 1)
+        lo = g.floor().long()
+        hi = torch.clamp(lo + 1, max=self.n_grid - 1)
+        frac = (g - lo.float()).unsqueeze(-1)
+        return self.pos_embed[lo] * (1 - frac) + self.pos_embed[hi] * frac
 
-    def _self_attention(self, z: torch.Tensor) -> torch.Tensor:
-        """Apply one layer of multi-head self-attention with residual.
+    # ── tokenization + grounded match ───────────────────────────────────
+    def _tokenize_and_match(self, x: torch.Tensor):
+        """Per-trial peak units + the fixed grounded match m.
 
-        Args:
-            z: (B, N, d) patch embeddings
+        Runs on the (possibly augmented) x. For each detected peak: the width-8
+        embedding segment (routing pathway) and the native-width whitened-cosine
+        match m[p,k] to every prototype (match pathway). m carries no gradient.
 
         Returns:
-            z': (B, N, d) refined patch embeddings
+            emb  : (B, P, C, patch_width) embedding segments
+            m    : (B, P, K) whitened-cosine match
+            mask : (B, P) bool valid-peak mask
+            cen  : (B, P) peak-centre sample indices (float)
+            bnd  : (B, P, 2) peak window [lo, hi] (int)
         """
+        Xnp = x.detach().cpu().numpy()
+        B, C, T = Xnp.shape
+        P, pw, K = self.max_peaks, self.patch_width, self.K
+
+        emb = np.zeros((B, P, C, pw), dtype=np.float32)
+        mask = np.zeros((B, P), dtype=bool)
+        cen = np.zeros((B, P), dtype=np.float32)
+        bnd = np.zeros((B, P, 2), dtype=np.int64)
+
+        proto_w = self.proto_w.cpu().numpy()
+        whit = self.whitener.cpu().numpy()
+        pwhite = self.proto_white.cpu().numpy()
+        pwnorm = self.proto_white_norm.cpu().numpy()
+
+        # Per-prototype peak-segment buffers (native width w_k); the whitened
+        # match is then computed batched over (B, P) per prototype below.
+        seg_k = [np.zeros((B, P, C * int(proto_w[k])), dtype=np.float32)
+                 for k in range(K)]
+
+        # find_peaks is per-trial (unavoidable); the resample stays per unit.
+        for b in range(B):
+            sig = Xnp[b, self.detect_ch]
+            smoothed = _smooth_signal(sig, sigma=2.0)
+            peaks = detect_trial_peaks(
+                sig, self.sfreq, prominence=self.peak_prominence, max_peaks=P)
+            if not peaks:
+                continue
+            idx = [p[0] for p in peaks]
+            # Trial peaks are inflection-bounded (single trials don't cross zero),
+            # using bare flanking inflections (no width clamp / no-overlap).
+            wins = build_windows_from_inflections(idx, smoothed, self.sfreq)
+            for j, (lo, hi) in enumerate(wins):
+                if hi <= lo:
+                    continue
+                raw = Xnp[b, :, lo:hi]                       # (C, w_peak) native
+                emb[b, j] = _resample_to_width(raw, pw)
+                mask[b, j] = True
+                cen[b, j] = 0.5 * (lo + hi)
+                bnd[b, j] = (lo, hi)
+                for k in range(K):
+                    wk = int(proto_w[k])
+                    if wk > 0:
+                        seg_k[k][b, j] = _resample_to_width(raw, wk).reshape(-1)
+
+        # Batched native-width whitened-cosine match, one matmul per prototype.
+        m = np.zeros((B, P, K), dtype=np.float32)
+        for k in range(K):
+            wk = int(proto_w[k])
+            if wk <= 0:
+                continue
+            dk = C * wk
+            S = seg_k[k].reshape(B * P, dk)             # (B·P, dk)
+            V = S @ whit[k, :dk, :dk].T                 # (B·P, dk)
+            vn = np.linalg.norm(V, axis=1) + 1e-8
+            m[:, :, k] = ((V @ pwhite[k, :dk]) / (vn * pwnorm[k])).reshape(B, P)
+        m *= mask[:, :, None]
+
+        dev = x.device
+        return (torch.from_numpy(emb).to(dev), torch.from_numpy(m).to(dev),
+                torch.from_numpy(mask).to(dev), torch.from_numpy(cen).to(dev),
+                torch.from_numpy(bnd).to(dev))
+
+    def _self_attention(self, z: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        """Masked multi-head self-attention over peak tokens, with residual."""
         B, N, d = z.shape
         H, d_h = self.num_heads, self.d_head
-
         z_ln = self.sa_ln(z)
-
         q = self.sa_W_q(z_ln).view(B, N, H, d_h).permute(0, 2, 1, 3)
         k = self.sa_W_k(z_ln).view(B, N, H, d_h).permute(0, 2, 1, 3)
         v = self.sa_W_v(z_ln).view(B, N, H, d_h).permute(0, 2, 1, 3)
-
         scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(d_h)
-        attn = F.softmax(scores, dim=-1)
+        scores = scores.masked_fill((~mask).view(B, 1, 1, N), float('-inf'))
+        attn = torch.nan_to_num(F.softmax(scores, dim=-1))
         attn = self.sa_dropout(attn)
-
-        out = torch.matmul(attn, v)
-        out = out.permute(0, 2, 1, 3).reshape(B, N, d)
-        out = self.sa_out_proj(out)
-
-        return z + out
+        out = torch.matmul(attn, v).permute(0, 2, 1, 3).reshape(B, N, d)
+        return z + self.sa_out_proj(out)
 
     def forward(self, x: torch.Tensor):
-        """Forward pass.
-
-        Returns:
-            (logit (B, 1), attn_weights (B, H, N, K))
-        """
+        """Forward pass → (logit (B,1), aux)."""
         B = x.shape[0]
         H, d_h = self.num_heads, self.d_head
 
-        # --- Patch embedding + positional ---
-        z = self.patch_embed(x)        # (B, N, d)
-        z = z + self.pos_embed         # (B, N, d)
+        emb, m, mask, center, bounds = self._tokenize_and_match(x)
+        P = emb.shape[1]
+
+        # Learned peak-token embeddings + interpolated positional encoding.
+        z = self.patch_embed(emb) + self._interp_pos(center)
+        z = z * mask.unsqueeze(-1)
         z = self.dropout_layer(z)
-
-        # --- Self-attention (pre-cross-attention) ---
         if self.use_self_attn:
-            z = self._self_attention(z)    # (B, N, d)
+            z = self._self_attention(z, mask)
 
-        # --- Prototype embedding + positional encoding ---
-        p = self._embed_prototypes()   # (K, d)
-        proto_pe = self.pos_embed[0, self.proto_center_patch_idx, :]  # (K, d)
-        p = p + proto_pe
-        p_exp = p.unsqueeze(0).expand(B, -1, -1)                      # (B, K, d)
+        # Prototype key embeddings + PE at prototype centre.
+        p = self.patch_embed(self.proto_seg) + self._interp_pos(self.proto_center)
+        p_exp = p.unsqueeze(0).expand(B, -1, -1)
 
-        # --- Cross-attention (QK) ---
-        q = self.W_q(self.ln_q(z))                                    # (B, N, d)
-        k = self.W_k(self.ln_kv(p_exp))                              # (B, K, d)
+        # QK cross-attention: peaks query, prototypes key → a[b,p,k].
+        q = self.W_q(self.ln_q(z)).view(B, P, H, d_h).permute(0, 2, 1, 3)
+        k = self.W_k(self.ln_kv(p_exp)).view(B, self.K, H, d_h).permute(0, 2, 1, 3)
+        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(d_h)
+        scores = scores.clamp(-10, 10)
+        a = F.softmax(scores, dim=-1).mean(dim=1)          # (B, P, K)
 
-        # Reshape to multi-head
-        q = q.view(B, self.N, H, d_h).permute(0, 2, 1, 3)     # (B, H, N, d_h)
-        k = k.view(B, self.K, H, d_h).permute(0, 2, 1, 3)     # (B, H, K, d_h)
+        # Fixed grounded bilinear readout: s · Σ_{p,k} a·m / (#valid peaks).
+        contrib = (a * m) * mask.unsqueeze(-1)
+        n_valid = mask.sum(dim=1).clamp_min(1).float()
+        logit = self.match_scale * contrib.sum(dim=(1, 2)) / n_valid
 
-        # Scaled dot-product
-        logits = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(d_h)
-        logits = logits.clamp(-10, 10)
-        attn_weights = F.softmax(logits, dim=-1)    # (B, H, N, K)
+        aux = {"a": a, "m": m, "mask": mask, "center": center, "bounds": bounds}
+        return logit.unsqueeze(-1), aux
 
-        # --- Classification ---
-        if self.xattn_mode == 'qkv':
-            # Ablation: standard value-projection cross-attention. Classify
-            # from the attended value output rather than the attention weights.
-            v = self.W_v(self.ln_kv(p_exp))                       # (B, K, d)
-            v = v.view(B, self.K, H, d_h).permute(0, 2, 1, 3)     # (B, H, K, d_h)
-            ctx = torch.matmul(attn_weights, v)                   # (B, H, N, d_h)
-            ctx = ctx.permute(0, 2, 1, 3).reshape(B, self.N, self.d_model)
-            out = self.head_qkv(ctx.mean(dim=1))                  # (B, 1)
-        else:
-            # QK-only (paper model): classify from the attention distribution.
-            attn_avg = attn_weights.mean(dim=1)         # (B, N, K)
-            attn_flat = attn_avg.reshape(B, -1)         # (B, N*K)
-            out = self.head(attn_flat)                   # (B, 1)
+    @torch.no_grad()
+    def compute_mf(self, x: torch.Tensor) -> torch.Tensor:
+        """Amplitude matched-filter factor MF[b,k] = ⟨trial, template_k⟩/‖t_k‖.
 
-        return out, attn_weights
+        Raw projection of the trial onto each template over its window — the
+        template norm is the only normalization (no test-subject/trial stats).
+        Returns (B, K).
+        """
+        B = x.shape[0]
+        mf = torch.zeros(B, self.K, device=x.device)
+        for k in range(self.K):
+            s, e = int(self.mf_window[k, 0]), int(self.mf_window[k, 1])
+            if e <= s:
+                continue
+            tmpl = self.mf_template[k, :, s:e]
+            proj = (x[:, :, s:e] * tmpl.unsqueeze(0)).sum(dim=(1, 2))
+            mf[:, k] = proj / self.mf_template_norm[k]
+        return mf

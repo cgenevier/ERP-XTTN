@@ -24,6 +24,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import balanced_accuracy_score, roc_auc_score
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -243,12 +244,10 @@ def make_model(model_name: str, n_channels: int, n_times: int,
                polarity_pattern: list[str] = None,
                peak_prominence: float = 0.02,
                detection_channel: str = None,
-               peak_mode: str = 'auto',
                max_k: int = 4,
                num_heads: int = 4,
                patch_width: int = 8,
                d_model: int = 64,
-               xattn_mode: str = 'qk',
                use_self_attn: bool = True):
     if model_name == "eegnet":
         return EEGNet(n_channels, n_times, srate=srate).to(device)
@@ -257,10 +256,10 @@ def make_model(model_name: str, n_channels: int, n_times: int,
     elif model_name == "epmn":
         return EPMN(n_channels, n_times).to(device)
     elif model_name == "erpxttn":
-        if peak_mode == 'auto':
-            n_proto = max_k  # will be adjusted in set_prototypes
-        else:
-            n_proto = len(polarity_pattern) if polarity_pattern else 4
+        # Prototypes are placed via the alternating-polarity detector using the
+        # dataset's polarity_pattern; K is capped at max_k and re-derived in
+        # set_prototypes() from the actual detected windows.
+        n_proto = len(polarity_pattern) if polarity_pattern else max_k
         return ERPXTTN(
             n_channels, n_times, channel_names=channel_names,
             sfreq=float(srate), n_proto=n_proto,
@@ -268,9 +267,7 @@ def make_model(model_name: str, n_channels: int, n_times: int,
             polarity_pattern=polarity_pattern,
             peak_prominence=peak_prominence,
             detection_channel=detection_channel,
-            peak_mode=peak_mode,
             max_k=max_k,
-            xattn_mode=xattn_mode,
             use_self_attn=use_self_attn,
         ).to(device)
     elif model_name == "xdawn_rg":
@@ -309,19 +306,27 @@ def train_one_epoch(model, loader, optimizer, criterion, device, model_name):
 
 @torch.no_grad()
 def evaluate(model, loader, device, model_name):
-    """Evaluate model and return metrics + raw outputs for visualization.
+    """Evaluate model and return metrics + grounded intermediates.
 
     Returns:
-        auroc, bal_acc, probs (N,), labels (N,), attn (N, H, N_patches, K) or None
+        auroc, bal_acc, probs (N,), labels (N,), aux
+    where `aux` is None for non-XTTN models, else a dict with the routing
+    intermediates {a, m, mask, center} (each (N, P[, K])) plus the per-trial
+    routing logit and amplitude matched-filter vector {routing_logits (N,),
+    mf (N, K)} used by the leave-one-subject-out two-factor combiner.
     """
     model.eval()
     all_logits, all_labels = [], []
-    all_attn = []
+    grounded = {"a": [], "m": [], "mask": [], "center": [], "bounds": []}
+    all_mf = []
+    is_xttn = model_name in XTTN_MODELS
     for X_batch, y_batch in loader:
         X_batch = X_batch.to(device)
-        if model_name in XTTN_MODELS:
-            logits, attn = model(X_batch)
-            all_attn.append(attn.cpu())
+        if is_xttn:
+            logits, aux = model(X_batch)
+            for key in grounded:
+                grounded[key].append(aux[key].cpu())
+            all_mf.append(model.compute_mf(X_batch).cpu())
         else:
             logits = model(X_batch)
         all_logits.append(logits.squeeze(-1).cpu())
@@ -335,8 +340,12 @@ def evaluate(model, loader, device, model_name):
     auroc = roc_auc_score(labels, probs)
     bal_acc = balanced_accuracy_score(labels, preds)
 
-    attn_out = torch.cat(all_attn).numpy() if all_attn else None
-    return auroc, bal_acc, probs, labels, attn_out
+    aux_out = None
+    if is_xttn:
+        aux_out = {k: torch.cat(v).numpy() for k, v in grounded.items()}
+        aux_out["routing_logits"] = logits
+        aux_out["mf"] = torch.cat(all_mf).numpy()
+    return auroc, bal_acc, probs, labels, aux_out
 
 
 def _augment_batch(X: torch.Tensor) -> torch.Tensor:
@@ -722,12 +731,10 @@ def run_fold(fold_idx: int, test_subj: str,
              peak_prominence: float = 0.02,
              pos_key: str = "error", neg_key: str = "correct",
              detection_channel: str = None,
-             peak_mode: str = 'auto',
              max_k: int = 4,
              num_heads: int = 4,
              patch_width: int = 8,
              d_model: int = 64,
-             xattn_mode: str = 'qk',
              use_self_attn: bool = True,
              epmn_recipe: str = 'shared') -> dict:
     """Run one LOSO fold: Phase 1 (find best epoch) + Phase 2 (retrain)."""
@@ -743,8 +750,7 @@ def run_fold(fold_idx: int, test_subj: str,
                        results_dir, pos_key=pos_key, neg_key=neg_key)
 
     _xttn_kwargs = dict(num_heads=num_heads, patch_width=patch_width,
-                        d_model=d_model, xattn_mode=xattn_mode,
-                        use_self_attn=use_self_attn)
+                        d_model=d_model, use_self_attn=use_self_attn)
 
     # --- Collect train/test data ---
     train_subjects = [s for s in all_data if s != test_subj]
@@ -832,7 +838,7 @@ def run_fold(fold_idx: int, test_subj: str,
                        polarity_pattern=polarity_pattern,
                        peak_prominence=peak_prominence,
                        detection_channel=detection_channel,
-                       peak_mode=peak_mode, max_k=max_k, **_xttn_kwargs)
+                       max_k=max_k, **_xttn_kwargs)
 
     if model_name in XTTN_MODELS:
         model.set_prototypes(torch.from_numpy(X_train_n), torch.from_numpy(y_train))
@@ -902,7 +908,7 @@ def run_fold(fold_idx: int, test_subj: str,
                         polarity_pattern=polarity_pattern,
                         peak_prominence=peak_prominence,
                         detection_channel=detection_channel,
-                        peak_mode=peak_mode, max_k=max_k, **_xttn_kwargs)
+                        max_k=max_k, **_xttn_kwargs)
 
     if model_name in XTTN_MODELS:
         model2.set_prototypes(torch.from_numpy(X_pool_n),
@@ -922,9 +928,9 @@ def run_fold(fold_idx: int, test_subj: str,
         if epoch % 10 == 0 or epoch == retrain_epochs - 1:
             logging.info(f"    Epoch {epoch:3d}  loss={loss:.4f}")
 
-    # ── Evaluate on test subject ──
-    auroc, bal_acc, probs, labels, attn = evaluate(model2, test_loader, device, model_name)
-    logging.info(f"  Test: AUROC={auroc:.4f}  BalAcc={bal_acc:.4f}")
+    # ── Evaluate on test subject (routing pathway) ──
+    auroc, bal_acc, probs, labels, aux = evaluate(model2, test_loader, device, model_name)
+    logging.info(f"  Test (routing-only): AUROC={auroc:.4f}  BalAcc={bal_acc:.4f}")
 
     # Save fold results
     fold_result = {
@@ -939,11 +945,13 @@ def run_fold(fold_idx: int, test_subj: str,
         fold_result["detected_windows_ms"] = model2.detected_windows_ms
 
     preds_path = results_dir / f"predictions_{test_subj}.npz"
-    np.savez_compressed(str(preds_path),
-                        probs=probs,
-                        labels=labels,
-                        auroc=auroc,
-                        bal_acc=bal_acc)
+    pred_kwargs = dict(probs=probs, labels=labels, auroc=auroc, bal_acc=bal_acc)
+    if aux is not None:
+        # Per-test-trial routing logit + amplitude MF vector, consumed by the
+        # leave-one-subject-out two-factor combiner in main().
+        pred_kwargs["routing_logits"] = aux["routing_logits"]
+        pred_kwargs["mf"] = aux["mf"]
+    np.savez_compressed(str(preds_path), **pred_kwargs)
     logging.info(f"  Saved predictions to {preds_path}")
 
     curves_path = results_dir / f"curves_{test_subj}.npz"
@@ -955,22 +963,106 @@ def run_fold(fold_idx: int, test_subj: str,
                         best_epoch=best_epoch)
     logging.info(f"  Saved training curves to {curves_path}")
 
-    if attn is not None:
-        attn_path = results_dir / f"attention_{test_subj}.npz"
-        np.savez_compressed(str(attn_path),
-                            attention_weights=attn,
-                            labels=labels,
-                            auroc=auroc)
-        logging.info(f"  Saved attention weights to {attn_path}")
+    if aux is not None:
+        # Grounded routing intermediates: attention a[p,k] and match m[p,k] per
+        # detected peak, the valid-peak mask, peak centres and window bounds —
+        # the substrate for the faithfulness certificate and the per-trial
+        # routing figures. Self-contained (bundles the test signals, prototype
+        # templates and windows) so the figure code needs only this one file.
+        routing_path = results_dir / f"routing_{test_subj}.npz"
+        np.savez_compressed(str(routing_path),
+                            a=aux["a"], m=aux["m"], mask=aux["mask"],
+                            center=aux["center"], bounds=aux["bounds"],
+                            X=X_test_n, labels=labels, probs=probs,
+                            proto_raw=model2.mf_template.cpu().numpy(),
+                            proto_windows_ms=np.array(model2.detected_windows_ms),
+                            channel_names=np.array(channel_names if channel_names
+                                                   else [], dtype=object),
+                            detection_channel=str(model2.detect_name),
+                            sfreq=srate, auroc=auroc)
+        logging.info(f"  Saved routing intermediates to {routing_path}")
 
         proto_path = results_dir / f"prototypes_{test_subj}.npz"
         np.savez_compressed(str(proto_path),
-                            proto_raw=model2.proto_raw.cpu().numpy(),
+                            proto_seg=model2.proto_seg.cpu().numpy(),
+                            mf_template=model2.mf_template.cpu().numpy(),
+                            mf_window=model2.mf_window.cpu().numpy(),
                             proto_windows_ms=np.array(model2.detected_windows_ms),
                             sfreq=srate)
         logging.info(f"  Saved prototypes to {proto_path}")
 
+        # Frozen routing checkpoint: full model weights + grounded buffers +
+        # this fold's normalization, so Stage-2 experiments (new grounded
+        # factors, alternative combiners) can reload the frozen routing model
+        # and build on top of it without retraining Stage 1.
+        ckpt_path = results_dir / f"checkpoint_{test_subj}.pt"
+        torch.save({
+            "state_dict": model2.state_dict(),
+            "model_config": {
+                "n_channels": n_channels, "n_times": n_times,
+                "d_model": d_model, "num_heads": num_heads,
+                "patch_width": patch_width, "n_proto": model2.K,
+                "max_k": max_k, "max_peaks": model2.max_peaks,
+                "use_self_attn": use_self_attn,
+                "polarity_pattern": polarity_pattern,
+                "peak_prominence": peak_prominence,
+                "detection_channel": detection_channel,
+                "channel_names": channel_names,
+                "sfreq": float(srate),
+            },
+            "norm_mean": mean2, "norm_std": std2,
+            "detected_windows_ms": model2.detected_windows_ms,
+            "test_subject": test_subj,
+        }, str(ckpt_path))
+        logging.info(f"  Saved frozen routing checkpoint to {ckpt_path}")
+
     return fold_result
+
+
+def combine_two_factor(results_dir: Path, subjects: list[str]) -> dict | None:
+    """Leave-one-subject-out logistic-regression fusion of the two grounded
+    factors — the routing logit and the amplitude matched-filter (MF) vector —
+    into the headline two-factor decision.
+
+    Stage 2 of the two-stage late fusion: reads the frozen routing model's
+    per-trial [routing_logit, MF_1..K] from each subject's predictions dump,
+    then for each held-out subject fits logistic regression on all *other*
+    subjects and scores the held-out one. Nothing from the test subject enters
+    its own combiner fit, so the LOSO / zero-calibration guarantee is preserved.
+
+    Returns {subject: two_factor_auroc} or None if the dumps are missing/ragged.
+    """
+    data = {}
+    for s in subjects:
+        p = results_dir / f"predictions_{s}.npz"
+        if not p.exists():
+            return None
+        d = np.load(p)
+        if "mf" not in d.files or "routing_logits" not in d.files:
+            return None
+        feats = np.column_stack([d["routing_logits"], d["mf"]])
+        data[s] = (feats, d["labels"])
+
+    dims = {v[0].shape[1] for v in data.values()}
+    if len(dims) != 1:
+        logging.warning(f"Two-factor combiner: inconsistent feature dims across "
+                        f"subjects {dims} (K varied per fold); skipping.")
+        return None
+
+    per_subject = {}
+    for s in subjects:
+        others = [o for o in subjects if o != s]
+        X_tr = np.concatenate([data[o][0] for o in others])
+        y_tr = np.concatenate([data[o][1] for o in others])
+        clf = LogisticRegression(max_iter=1000, class_weight="balanced")
+        clf.fit(X_tr, y_tr)
+        prob = clf.predict_proba(data[s][0])[:, 1]
+        auc = float(roc_auc_score(data[s][1], prob))
+        per_subject[s] = auc
+        np.savez_compressed(str(results_dir / f"two_factor_{s}.npz"),
+                            probs=prob, labels=data[s][1], auroc=auc,
+                            coef=clf.coef_[0], intercept=clf.intercept_)
+    return per_subject
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -988,15 +1080,9 @@ def main():
                         help="Random seed. Results are written under seed-<N>/ (default: 42)")
     parser.add_argument("--resume", action="store_true",
                         help="Skip folds that already have predictions (for resuming interrupted runs)")
-    parser.add_argument("--peak-mode", choices=["constrained", "auto"], default="auto",
-                        help="Peak detection mode: 'auto' (data-driven; default, the v2.0.0 / paper model) "
-                             "or 'constrained' (dataset-configured polarity pattern; the v1.0.0 model)")
     parser.add_argument("--max-k", type=int, default=4,
-                        help="Max number of prototypes in auto mode (default: 4)")
+                        help="Max number of difference-wave prototypes (K, default: 4)")
     # ── Ablation knobs (ERP-XTTN only) ──────────────────────────────────
-    parser.add_argument("--xattn-mode", choices=["qk", "qkv"], default="qk",
-                        help="Cross-attention mode: 'qk' (QK-only, paper model) or "
-                             "'qkv' (add value projection). Ablation.")
     parser.add_argument("--no-self-attn", action="store_true",
                         help="Disable the self-attention layer. Ablation.")
     parser.add_argument("--num-heads", type=int, default=4,
@@ -1019,19 +1105,10 @@ def main():
     global SEED
     SEED = args.seed
 
-    # Constrained ERPXTTN results live in erpxttn_constrained/ to distinguish
-    # them from auto mode runs in erpxttn_auto/.
+    # The two-factor peak model writes to erpxttn_peak/.
     model_dir_name = args.model
     if args.model == "erpxttn":
-        if args.peak_mode == "auto":
-            model_dir_name = "erpxttn_auto"
-            # Legacy max-k suffix (e.g. erpxttn_auto2) only when NOT an ablation
-            # run; ablations use the explicit --ablation-tag as the sole
-            # disambiguator so the dir name is predictable (erpxttn_auto_k2).
-            if args.max_k != 4 and not args.ablation_tag:
-                model_dir_name = f"erpxttn_auto{args.max_k}"
-        else:
-            model_dir_name = "erpxttn_constrained"
+        model_dir_name = "erpxttn_peak"
     # Native-recipe EPMN robustness runs write to their own directory.
     if args.model == "epmn" and args.epmn_recipe == "native":
         model_dir_name = "epmn_native"
@@ -1121,15 +1198,24 @@ def main():
                                peak_prominence=peak_prominence,
                                pos_key=pos_key, neg_key=neg_key,
                                detection_channel=cfg.get("detection_channel"),
-                               peak_mode=args.peak_mode,
                                max_k=args.max_k,
                                num_heads=args.num_heads,
                                patch_width=args.patch_width,
                                d_model=args.d_model,
-                               xattn_mode=args.xattn_mode,
                                use_self_attn=not args.no_self_attn,
                                epmn_recipe=args.epmn_recipe)
         results.append(fold_result)
+
+    # ── Stage 2: two-factor late fusion (routing logit + amplitude MF) ──
+    two_factor = None
+    if args.model in XTTN_MODELS:
+        two_factor = combine_two_factor(results_dir, subjects)
+        if two_factor is not None:
+            tf = [two_factor[s] for s in subjects]
+            logging.info(f"  Two-factor (routing+amplitude) mean AUROC: "
+                         f"{np.mean(tf):.4f} ± {np.std(tf):.4f}")
+        else:
+            logging.info("  Two-factor combiner skipped (missing/ragged dumps).")
 
     elapsed = time.time() - t0
 
@@ -1162,6 +1248,16 @@ def main():
         "mean_bal_acc": round(float(np.mean(bal_accs)), 4),
         "std_bal_acc": round(float(np.std(bal_accs)), 4),
     }
+    if two_factor is not None:
+        # mean_auroc above is the routing-only pathway; the two-factor logit is
+        # the headline. Report both so the amplitude factor's contribution is
+        # explicit.
+        tf_vals = [two_factor[s] for s in subjects]
+        summary["mean_routing_auroc"] = summary["mean_auroc"]
+        summary["mean_two_factor_auroc"] = round(float(np.mean(tf_vals)), 4)
+        summary["std_two_factor_auroc"] = round(float(np.std(tf_vals)), 4)
+        summary["two_factor_auroc_per_subject"] = {
+            s: round(two_factor[s], 4) for s in subjects}
     for d in [results_dir, log_dir]:
         with open(d / "results.json", "w") as f:
             json.dump(summary, f, indent=2)

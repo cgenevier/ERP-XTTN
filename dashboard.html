@@ -451,7 +451,7 @@ function authUrl(path) {
   return _jupyterToken ? path + sep + 'token=' + _jupyterToken : path;
 }
 
-const KNOWN_MODELS = ['erpxttn_auto', 'eegnet', 'eeg_deformer', 'epmn', 'epmn_native', 'xdawn_rg', 'erpxttn_constrained'];
+const KNOWN_MODELS = ['erpxttn_peak', 'eegnet', 'eeg_deformer', 'epmn', 'epmn_native', 'xdawn_rg'];
 // Seeds probed per model. Neural models sweep 1..5; xDAWN+RG is deterministic
 // (seed-1 only). Missing seed dirs are simply skipped.
 const SEED_CANDIDATES = [1, 2, 3, 4, 5];
@@ -461,21 +461,8 @@ function modelDisplay(m) {
   if (m === 'eeg_deformer') return 'EEG-Deformer';
   if (m === 'epmn') return 'EPMN';
   if (m === 'epmn_native') return 'EPMN (native)';
-  if (m === 'erpxttn_auto') return 'ERP-XTTN Auto';
-  const xttnAutoKMatch = m.match(/^erpxttn_auto(\d+)$/);
-  if (xttnAutoKMatch) {
-    return 'ERP-XTTN Auto K=' + xttnAutoKMatch[1];
-  }
-  if (m === 'erpxttn' || m === 'erpxttn_constrained') return 'ERP-XTTN Constrained';
+  if (m === 'erpxttn_peak') return 'ERP-XTTN';
   if (m === 'xdawn_rg') return 'xDAWN+RG';
-  const autoKMatch = m.match(/^(.+)_auto(\d+)$/);
-  if (autoKMatch) {
-    return modelDisplay(autoKMatch[1]) + ' Auto K=' + autoKMatch[2];
-  }
-  if (m.endsWith('_auto')) {
-    const base = m.replace('_auto', '');
-    return modelDisplay(base) + ' Auto';
-  }
   return m;
 }
 const MODEL_DISPLAY = Object.fromEntries(KNOWN_MODELS.map(m => [m, modelDisplay(m)]));
@@ -873,11 +860,11 @@ async function renderAblations() {
     const cfg = await fetchJson('datasets/' + ds.dir + '/dataset_config.json');
     if (!cfg || !cfg.variants || !cfg.variants[ds.preset]) continue;
     const variantDir = cfg.variants[ds.preset];
-    const baseAuroc = await ablAuroc(ds.dir, variantDir, 'erpxttn_auto');
+    const baseAuroc = await ablAuroc(ds.dir, variantDir, 'erpxttn_peak');
 
     // All configs for this dataset fetched concurrently.
     const rows = await Promise.all(ABL_CONFIGS.map(async c => {
-      const modelDir = c.tag ? 'erpxttn_auto_' + c.tag : 'erpxttn_auto';
+      const modelDir = c.tag ? 'erpxttn_peak_' + c.tag : 'erpxttn_peak';
       const r = await ablAuroc(ds.dir, variantDir, modelDir);
       const delta = (r.mean != null && baseAuroc.mean != null) ? r.mean - baseAuroc.mean : null;
       return {...c, ...r, delta, isBase: !c.tag};
@@ -1854,7 +1841,7 @@ function renderAnalysisScatters(combos) {
     {taxKey: 'tax_epmn', label: 'vs EPMN'},
     {taxKey: 'tax_xdawn_rg', label: 'vs xDAWN+RG'},
   ];
-  const taxLabel = 'Interpretability tax (baseline − ERPXTTN Auto AUROC)';
+  const taxLabel = 'Interpretability tax (baseline − ERP-XTTN AUROC)';
 
   let html = '<h3 style="margin:20px 0 8px;color:var(--accent);">Tax vs interpretability metrics</h3>';
   html += '<div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:12px;">Plots are grouped by metric, with one panel per baseline (EEGNet, EEG-Deformer, EPMN, xDAWN+RG). Each point is a (dataset, variant) — <span style="color:#4fc3f7;">● 3-channel preset</span>, <span style="color:#ffb74d;">● full montage</span>. Spearman ρ is reported per-variant (n=9 each) to avoid the same x value contributing twice for montage-invariant metrics. n is low; treat ρ as a trend indicator, not a significance test. Hover a point for details.</div>';

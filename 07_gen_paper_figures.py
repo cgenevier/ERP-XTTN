@@ -43,7 +43,7 @@ ANALYSIS = REPO / 'analysis_summary.json'
 REF_SEED = 1
 
 
-def _seed_dir(ds_dir, var_dir, model='erpxttn_auto'):
+def _seed_dir(ds_dir, var_dir, model='erpxttn_peak'):
     """Reference-seed results dir (seed-REF_SEED, else lowest seed present)."""
     base = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / model
     ref = base / f'seed-{REF_SEED}'
@@ -54,7 +54,11 @@ def _seed_dir(ds_dir, var_dir, model='erpxttn_auto'):
 
 
 def _persubj_auroc(ds_dir, var_dir, model):
-    """{subject: seed-averaged LOSO AUROC} across all seed dirs for a model."""
+    """{subject: seed-averaged LOSO AUROC} across all seed dirs for a model.
+
+    For the two-factor peak model this is the TWO-FACTOR (routing+amplitude)
+    per-subject AUROC — the headline — when recorded; baselines use test_auroc.
+    """
     from collections import defaultdict
     base = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / model
     acc = defaultdict(list)
@@ -62,8 +66,14 @@ def _persubj_auroc(ds_dir, var_dir, model):
         rj = sd / 'results.json'
         if not rj.exists():
             continue
-        for f in json.load(open(rj)).get('folds', []):
-            acc[f['test_subject']].append(float(f['test_auroc']))
+        r = json.load(open(rj))
+        tf = r.get('two_factor_auroc_per_subject')
+        if tf:
+            for s, a in tf.items():
+                acc[s].append(float(a))
+        else:
+            for f in r.get('folds', []):
+                acc[f['test_subject']].append(float(f['test_auroc']))
     return {s: float(np.mean(v)) for s, v in acc.items()}
 
 # --------------------------------------------------------------
@@ -447,147 +457,103 @@ def _format_class_label(key):
     return s[:1].upper() + s[1:]
 
 
-def fig_routing_combined(ds_label, ds_dir, var_dir, out_path):
-    """Two-panel routing figure: per-prototype class-averaged timecourses
-    on top, per-subject Δ-attention heatmaps on bottom.
+# Peak-unit routing palette (matches 05_gen_figures / the reference figure).
+PEAK_PROTO_COLORS = ['#d1710a', '#2e7d32', '#1565c0', '#8e24aa', '#c62828', '#00838f']
 
-    Prototype names come from dataset_config.proto_names (padded with
-    Proto-N where K exceeds the named slots). Per-prototype windows in
-    panel A are shaded with PROTO_COLOR_PALETTE to match
-    fig_prototypes_all_datasets.png. Panel A shares a y-axis across all
-    prototype subplots so attention magnitudes are directly comparable.
-    Heatmap colorbar label and class legend use paradigm-specific names.
-    """
-    R = _load_routing_data(ds_dir, var_dir)
-    subjects = R['subjects']
-    K = R['K']
-    N = R['N_patches']
-    sfreq = R['sfreq']
-    patch_ms = _patch_centers_ms(N, sfreq)
 
+def _peak_comp_names(proto_det, windows, sfreq):
+    names, npos, nneg = [], 0, 0
+    for k, (s_ms, e_ms) in enumerate(windows):
+        s, e = int(s_ms / 1000 * sfreq), int(e_ms / 1000 * sfreq)
+        seg = proto_det[k, s:e]
+        v = seg[int(np.argmax(np.abs(seg)))] if len(seg) else 0.0
+        if v >= 0:
+            npos += 1; names.append(f'P{npos}')
+        else:
+            nneg += 1; names.append(f'N{nneg}')
+    return names
+
+
+def _class_labels(ds_dir):
     cfg = json.load(open(DATASETS_DIR / ds_dir / 'dataset_config.json'))
-    pos_label = _format_class_label(cfg['label_map']['pos_key'])
-    neg_label = _format_class_label(cfg['label_map']['neg_key'])
+    lm = cfg.get('label_map', {})
+    return (_format_class_label(lm.get('pos_key', 'error')),
+            _format_class_label(lm.get('neg_key', 'correct')))
 
-    # Prototype names from dataset config (pad with Proto-N if K exceeds)
-    cfg_proto = list(cfg.get('proto_names', []))
-    while len(cfg_proto) < K:
-        cfg_proto.append(f'Proto-{len(cfg_proto) + 1}')
-    proto_names = cfg_proto[:K]
 
-    # Per-subject mean attention per class per prototype: (subj, N, K)
-    em_arr = np.full((len(subjects), N, K), np.nan)
-    cm_arr = np.full((len(subjects), N, K), np.nan)
-    for i, s in enumerate(subjects):
-        a = R['attn'][s].mean(axis=1)
-        Ks = R['fold_K'][s]
-        lab = R['labels'][s]
-        if (lab == 1).sum():
-            em_arr[i, :, :Ks] = a[lab == 1].mean(axis=0)
-        if (lab == 0).sum():
-            cm_arr[i, :, :Ks] = a[lab == 0].mean(axis=0)
-    diff_arr = em_arr - cm_arr
+def fig_routing_combined(ds_label, ds_dir, var_dir, out_path, n_bins=40):
+    """Peak-unit aggregate routing figure (peak-unit redesign; reads the
+    self-contained routing_<subj>.npz dumps).
 
-    # Sort subjects by AUROC descending for heatmap rows
-    auroc_vals = np.array([R['aurocs'][s] for s in subjects])
-    order = np.argsort(-auroc_vals)
-    diff_sorted = diff_arr[order]
-    subj_sorted = [subjects[i] for i in order]
+    Panel A: per-prototype routed-attention timecourse — mean attention a[.,k]
+    over detected peaks binned by peak-centre latency, error vs correct; each
+    prototype's curve should rise inside its shaded component window.
+    Panel B: per-subject heatmap of the class-difference grounded contribution
+    (sum_k a.m) by latency.
+    """
+    import matplotlib.gridspec as gridspec
+    rdir = _seed_dir(ds_dir, var_dir)
+    paths = sorted(rdir.glob('routing_*.npz'))
+    if not paths:
+        print(f'  [skip] fig_routing_combined ({ds_label}): no routing dumps')
+        return
+    pos_label, neg_label = _class_labels(ds_dir)
+    subj_ids = [p.stem.replace('routing_', '') for p in paths]
+    z0 = np.load(paths[0], allow_pickle=True)
+    windows = z0['proto_windows_ms']; sfreq = float(z0['sfreq'])
+    chans = [str(c) for c in z0['channel_names']]
+    det_name = str(z0['detection_channel']) if 'detection_channel' in z0.files else 'Cz'
+    proto_raw = z0['proto_raw']; det = chans.index(det_name) if det_name in chans else 1
+    K = z0['a'].shape[2]; T = proto_raw.shape[2]
+    names = _peak_comp_names(proto_raw[:, det, :], windows, sfreq)
+    edges = np.linspace(0, T, n_bins + 1)
+    centers_ms = (0.5 * (edges[:-1] + edges[1:])) / sfreq * 1000
 
-    # Symmetric color limit clipped to 95th percentile of |Δ|
-    abs_diff = np.abs(diff_arr[~np.isnan(diff_arr)])
-    vlim = float(np.percentile(abs_diff, 95)) if abs_diff.size else 1e-3
-    if vlim < 1e-6:
-        vlim = 1e-3
+    a_sum = np.zeros((2, K, n_bins)); a_cnt = np.zeros((2, K, n_bins))
+    heat = np.full((len(paths), n_bins), np.nan)
+    for si, p in enumerate(paths):
+        z = np.load(p, allow_pickle=True)
+        a, m, mask, center, y = z['a'], z['m'], z['mask'], z['center'], z['labels']
+        contrib = a * m
+        bidx = np.clip(np.digitize(center, edges) - 1, 0, n_bins - 1)
+        dc = np.zeros((2, n_bins)); dcnt = np.zeros((2, n_bins))
+        for n in range(a.shape[0]):
+            cls = int(y[n])
+            for j in np.where(mask[n])[0]:
+                b = bidx[n, j]
+                a_sum[cls, :, b] += a[n, j]; a_cnt[cls, :, b] += 1
+                dc[cls, b] += contrib[n, j].sum(); dcnt[cls, b] += 1
+        with np.errstate(invalid='ignore'):
+            heat[si] = (dc[1] / np.where(dcnt[1] > 0, dcnt[1], np.nan)
+                        - dc[0] / np.where(dcnt[0] > 0, dcnt[0], np.nan))
+    with np.errstate(invalid='ignore'):
+        a_mean = a_sum / np.where(a_cnt > 0, a_cnt, np.nan)
 
-    # Layout: top row K timecourses (shared y), bottom row K heatmaps + colorbar
-    n_subj = len(subjects)
-    heat_h = max(0.10 * n_subj, 1.5)
-    fig = plt.figure(figsize=(2.6 * K + 1.5, 3.4 + heat_h + 1.2))
-    gs = GridSpec(
-        nrows=2, ncols=K + 1,
-        height_ratios=[3.0, heat_h],
-        width_ratios=[1.0] * K + [0.05],
-        hspace=0.18, wspace=0.20,
-        top=0.91, bottom=0.06,
-    )
-
-    # --- Panel A: per-prototype class-averaged timecourses ---
-    axes_A = []
+    fig = plt.figure(figsize=(12, 8.5))
+    gs = gridspec.GridSpec(2, 1, height_ratios=[1.0, 0.9], hspace=0.32)
+    axA = fig.add_subplot(gs[0])
     for k in range(K):
-        sharey = axes_A[0] if axes_A else None
-        ax = fig.add_subplot(gs[0, k], sharey=sharey)
-        axes_A.append(ax)
-        proto_color = PROTO_COLOR_PALETTE[k % len(PROTO_COLOR_PALETTE)]
-        s_ms, e_ms = R['windows'][k]
-        ax.axvspan(s_ms, e_ms, color=proto_color, alpha=0.18, zorder=1)
-
-        em_k = em_arr[:, :, k]
-        cm_k = cm_arr[:, :, k]
-        n_k = int(np.sum(~np.isnan(em_k[:, 0])))
-        if n_k < 1:
-            ax.text(0.5, 0.5, 'n/a', transform=ax.transAxes,
-                    ha='center', va='center')
-        else:
-            em_m = np.nanmean(em_k, axis=0)
-            em_s = np.nanstd(em_k, axis=0, ddof=1) / np.sqrt(n_k)
-            cm_m = np.nanmean(cm_k, axis=0)
-            cm_s = np.nanstd(cm_k, axis=0, ddof=1) / np.sqrt(n_k)
-            ax.plot(patch_ms, em_m, color='black', lw=1.6, ls='-',
-                    label=pos_label, zorder=4)
-            ax.fill_between(patch_ms, em_m - em_s, em_m + em_s,
-                            color='black', alpha=0.18, lw=0, zorder=2)
-            ax.plot(patch_ms, cm_m, color='#888888', lw=1.6, ls='--',
-                    label=neg_label, zorder=3)
-            ax.fill_between(patch_ms, cm_m - cm_s, cm_m + cm_s,
-                            color='#888888', alpha=0.18, lw=0, zorder=2)
-        ax.set_title(f'{proto_names[k]}  ({s_ms:.0f}–{e_ms:.0f} ms)',
-                     fontsize=9.5, color=proto_color, fontweight='bold')
-        ax.set_xlim(patch_ms[0] - 5, patch_ms[-1] + 5)
-        if k == 0:
-            ax.set_ylabel('Attention weight', fontsize=9)
-            ax.legend(fontsize=8, loc='best', framealpha=0.85)
-        else:
-            plt.setp(ax.get_yticklabels(), visible=False)
-        ax.tick_params(axis='both', labelsize=8)
-
-    # --- Panel B: per-subject heatmap (K side-by-side) ---
-    cbar_im = None
+        c = PEAK_PROTO_COLORS[k % len(PEAK_PROTO_COLORS)]
+        axA.axvspan(windows[k][0], windows[k][1], color=c, alpha=0.12)
+        axA.plot(centers_ms, a_mean[1, k], color=c, lw=2.3, label=f'{names[k]} ({pos_label})')
+        axA.plot(centers_ms, a_mean[0, k], color=c, lw=1.6, ls='--', alpha=0.8)
+    axA.set_xlim(0, T / sfreq * 1000); axA.set_ylabel('Mean routed attention  a', fontsize=12)
+    axA.set_title(f'Routing by peak latency - {ds_label}  (solid={pos_label}, dashed={neg_label})',
+                  fontsize=13, fontweight='bold')
+    axA.legend(fontsize=9, ncol=K, loc='upper right')
+    axB = fig.add_subplot(gs[1])
+    vmax = np.nanmax(np.abs(heat)) or 1.0
+    im = axB.imshow(heat, aspect='auto', cmap='RdBu_r', vmin=-vmax, vmax=vmax,
+                    extent=[0, T / sfreq * 1000, len(subj_ids) - 0.5, -0.5], interpolation='nearest')
+    axB.set_yticks(range(len(subj_ids))); axB.set_yticklabels(subj_ids, fontsize=6)
+    axB.set_xlabel('Peak-centre latency (ms)', fontsize=12); axB.set_ylabel('Subject', fontsize=12)
+    axB.set_title(f'Delta grounded contribution ({pos_label}-{neg_label}) by latency', fontsize=12, fontweight='bold')
     for k in range(K):
-        ax = fig.add_subplot(gs[1, k])
-        data = diff_sorted[:, :, k]
-        im = ax.imshow(data, aspect='auto', cmap='RdBu_r',
-                       vmin=-vlim, vmax=vlim,
-                       extent=[patch_ms[0], patch_ms[-1],
-                               len(subjects) - 0.5, -0.5],
-                       interpolation='nearest')
-        cbar_im = im
-        ax.set_xlabel('Time (ms)', fontsize=9)
-        if k == 0:
-            n = len(subj_sorted)
-            ax.set_yticks(np.arange(n))
-            # Shrink font for large n so all 40 fit; size scales linearly.
-            label_fs = 7 if n <= 12 else (5.5 if n <= 25 else 4.5)
-            ax.set_yticklabels(subj_sorted, fontsize=label_fs)
-            ax.set_ylabel('Subject (sorted by AUROC ↓)', fontsize=9)
-        else:
-            ax.set_yticks([])
-        ax.tick_params(axis='x', labelsize=8)
+        axB.axvline(windows[k][0], color=PEAK_PROTO_COLORS[k % len(PEAK_PROTO_COLORS)], lw=0.8, alpha=0.5)
+    fig.colorbar(im, ax=axB, fraction=0.03, pad=0.01, label='Delta a.m')
+    fig.savefig(out_path, dpi=150, bbox_inches='tight'); plt.close(fig)
+    print(f'  saved {Path(out_path).name}')
 
-    cax = fig.add_subplot(gs[1, K])
-    cb = fig.colorbar(cbar_im, cax=cax)
-    cb.set_label(f'Attention contrast ({pos_label} − {neg_label})', fontsize=9)
-    cb.ax.tick_params(labelsize=7.5)
-
-    fig.suptitle(ds_label, fontsize=12, fontweight='bold', y=0.96)
-    fig.savefig(out_path, bbox_inches='tight')
-    plt.close(fig)
-    print(f'  wrote {out_path}')
-
-
-# ====================================================================
-# D. Cz-only morphology (with caching)
-# ====================================================================
 
 def _build_morphology_cache(ds_label, ds_dir, var_dir, det_idx, cache_path):
     """Compute per-subject TP/FN/TN/FP grand-mean waveforms at the
@@ -1097,189 +1063,83 @@ def _load_subject_epochs_simple(cfg, var_dir, subject, ds_dir):
 PROTO_COLORS_TPTN = ['#e67e22', '#c0392b', '#2980b9', '#27ae60', '#8e44ad', '#1abc9c']
 
 
-def fig_tp_tn_two_subjects(ds_label, ds_dir, var_dir, det_idx,
-                           subjects, out_path, conf='highconf'):
-    """Combined TP/TN routing figure for two subjects with a shared
-    prototype reference at the top. Mirrors the per-subject layout in
-    05_gen_figures.py but stacks two subjects vertically.
+def _sel_conf(labels, probs, mode):
+    err, cor = np.where(labels == 1)[0], np.where(labels == 0)[0]
+    def cap(i):
+        truth = 'Error' if labels[i] == 1 else 'Correct'
+        ok = (labels[i] == 1) == (probs[i] >= 0.5)
+        return f"{truth} p(err)={probs[i]:.2f} {'OK' if ok else 'MISS'}"
+    if not len(err) or not len(cor):
+        return None
+    if mode == 'median':
+        tp = err[np.argsort(probs[err])]; tn = cor[np.argsort(probs[cor])]
+        L, R = tp[len(tp) // 2], tn[len(tn) // 2]
+    else:
+        L, R = err[np.argmax(probs[err])], cor[np.argmin(probs[cor])]
+    return (int(L), cap(L)), (int(R), cap(R))
 
-    subjects: list of two subject IDs, e.g. ['sub-03','sub-10'].
-    conf: 'highconf' (max-confidence) or 'median'.
-    """
-    import matplotlib.gridspec as gridspec
-    cfg = json.load(open(DATASETS_DIR / ds_dir / 'dataset_config.json'))
-    pos_label = cfg['label_map']['pos_key'].replace('_', ' ').title()
-    neg_label = cfg['label_map']['neg_key'].replace('_', ' ').title()
-    det_name = cfg.get('detection_channel', 'Cz')
 
-    rdir = _seed_dir(ds_dir, var_dir)
-
-    # Load shared prototypes from the first subject (windows + waveforms
-    # are per-fold, but the *reference* panel uses one subject's prototypes
-    # — same convention as the per-subject figures).
-    ref_subject = subjects[0]
-    p_ref = np.load(rdir / f'prototypes_{ref_subject}.npz')
-    proto_raw_ref = p_ref['proto_raw']
-    proto_windows_ref = [tuple(w) for w in p_ref['proto_windows_ms']]
-    sfreq = float(p_ref['sfreq'])
-    K_ref = proto_raw_ref.shape[0]
-    T = proto_raw_ref.shape[2]
+def _sig_panel(ax, z, det, tr, lab, T, sfreq, ymax):
+    a, m, mask, center, bounds, X = z['a'], z['m'], z['mask'], z['center'], z['bounds'], z['X']
     time_ms = np.arange(T) / sfreq * 1000
-    fold_names_ref = _proto_fold_names(proto_raw_ref, proto_windows_ref,
-                                       det_idx, sfreq, ds_dir=ds_dir)
+    sig = X[tr, det]; cc = a[tr] * m[tr]; mm = m[tr]
+    for j in np.where(mask[tr])[0]:
+        lo, hi = int(bounds[tr, j, 0]), int(bounds[tr, j, 1])
+        kbest = int(np.argmax(np.abs(cc[j]))); strong = np.abs(cc[j, kbest]) > 1e-3
+        col = PEAK_PROTO_COLORS[kbest % len(PEAK_PROTO_COLORS)] if strong else '#9e9e9e'
+        ax.axvspan(time_ms[max(0, lo)], time_ms[min(hi, T - 1)], color=col,
+                   alpha=0.20 if strong else 0.06, lw=0, zorder=1)
+        pc = int(min(center[tr, j], T - 1))
+        ax.plot(time_ms[pc], sig[pc], 'v', ms=9, zorder=6,
+                markerfacecolor=(col if mm[j, kbest] >= 0 else 'white'),
+                markeredgecolor=col, markeredgewidth=1.4)
+    ax.plot(time_ms, sig, color='#333', lw=1.8, zorder=3); ax.axhline(0, color='gray', lw=0.5, ls='--')
+    ax.set_title(lab, fontsize=10, fontweight='bold'); ax.set_xlim(0, time_ms[-1]); ax.set_ylim(-ymax, ymax * 1.2)
 
-    # Load per-subject data
-    per_sub = {}
-    for s in subjects:
-        preds = np.load(rdir / f'predictions_{s}.npz')
-        attn = np.load(rdir / f'attention_{s}.npz')['attention_weights']
-        proto = np.load(rdir / f'prototypes_{s}.npz')
-        proto_windows = [tuple(w) for w in proto['proto_windows_ms']]
-        proto_raw = proto['proto_raw']
-        X_raw, y_raw, ch_names = _load_subject_epochs_simple(
-            cfg, var_dir, s, ds_dir)
-        if not np.array_equal(y_raw, preds['labels']):
-            print(f'  WARN: {s} label order mismatch; epoch labels may be misaligned')
-        probs = preds['probs']
-        labels = preds['labels']
-        tp_mask = (labels == 1) & (probs >= 0.5)
-        tn_mask = (labels == 0) & (probs < 0.5)
-        tp_idx = np.where(tp_mask)[0]
-        tn_idx = np.where(tn_mask)[0]
-        if conf == 'highconf':
-            tp_pick = tp_idx[np.argmax(probs[tp_idx])]
-            tn_pick = tn_idx[np.argmin(probs[tn_idx])]
-        else:
-            tp_sorted = tp_idx[np.argsort(probs[tp_idx])]
-            tn_sorted = tn_idx[np.argsort(probs[tn_idx])]
-            tp_pick = tp_sorted[len(tp_sorted) // 2]
-            tn_pick = tn_sorted[len(tn_sorted) // 2]
-        per_sub[s] = {
-            'attn': attn,  # (N_trials, H, N_patches, K)
-            'proto_raw': proto_raw,
-            'proto_windows': proto_windows,
-            'X_raw': X_raw,
-            'tp': tp_pick, 'tn': tn_pick,
-            'p_tp': float(probs[tp_pick]),
-            'p_tn': float(probs[tn_pick]),
-            'auroc': float(preds['auroc']),
-            'fold_names': _proto_fold_names(proto_raw, proto_windows,
-                                            det_idx, sfreq, ds_dir=ds_dir),
-        }
 
-    n_subj = len(subjects)
-    # Layout: 1 (proto ref) + n_subj × 2 (cz, attn) rows
-    fig = plt.figure(figsize=(15, 5.5 + 5.5 * n_subj))
-    height_ratios = [0.85] + [1.4, 1.05] * n_subj
-    gs = gridspec.GridSpec(
-        1 + 2 * n_subj, 2,
-        height_ratios=height_ratios,
-        hspace=0.65, wspace=0.18,
-        figure=fig,
-    )
-
-    # ----- Row 0: Prototype reference (spans both columns) -----
-    ax_proto = fig.add_subplot(gs[0, :])
-    proto_cz = proto_raw_ref[:, det_idx, :]
-    for k in range(K_ref):
-        s_ms, e_ms = proto_windows_ref[k]
-        ax_proto.axvspan(s_ms, e_ms, color=PROTO_COLORS_TPTN[k],
-                         alpha=0.20, zorder=1)
-    for k in range(K_ref):
-        s_ms, e_ms = proto_windows_ref[k]
-        s_samp = int(round(s_ms / 1000 * sfreq))
-        e_samp = int(round(e_ms / 1000 * sfreq))
-        ax_proto.plot(time_ms, proto_cz[k], color=PROTO_COLORS_TPTN[k],
-                      lw=0.6, alpha=0.3, zorder=2)
-        ax_proto.plot(time_ms[s_samp:e_samp], proto_cz[k, s_samp:e_samp],
-                      color=PROTO_COLORS_TPTN[k], lw=2.5, zorder=3,
-                      label=f'{fold_names_ref[k]} ({s_ms:.0f}–{e_ms:.0f} ms)')
-    ax_proto.axhline(0, color='gray', lw=0.5, ls='--')
-    ax_proto.set_xlim(0, time_ms[-1])
-    ax_proto.set_ylabel(f'Prototype {det_name}\n(z-score)', fontsize=12)
-    ax_proto.set_title(f'Diff-Wave Prototypes ({det_name} channel) — {ds_label}',
-                       fontsize=14, fontweight='bold')
-    ax_proto.legend(fontsize=11, loc='upper right', ncol=K_ref)
-    ax_proto.tick_params(axis='both', labelsize=10)
-
-    # ----- Subject blocks -----
-    for si, s in enumerate(subjects):
-        d = per_sub[s]
-        K = d['proto_raw'].shape[0]
-        N_patches = d['attn'].shape[2]
-        patch_width = T // N_patches
-        patch_centers_ms = (np.arange(N_patches) * patch_width
-                            + patch_width / 2) / sfreq * 1000
-
-        # Mean over heads → (N_trials, N_patches, K)
-        attn_h = d['attn'].mean(axis=1)
-        tp_attn = attn_h[d['tp']]
-        tn_attn = attn_h[d['tn']]
-        tp_cz = d['X_raw'][d['tp'], det_idx, :] * 1e6
-        tn_cz = d['X_raw'][d['tn'], det_idx, :] * 1e6
-
-        ymax_cz = max(np.abs(tp_cz).max(), np.abs(tn_cz).max()) * 1.15
-        ymax_attn = max(tp_attn.max(), tn_attn.max()) * 1.1
-
-        # Subject header text above the row of axes
-        # Use a "phantom" axis for the title bar
-        # Actually, place suptitle using fig.text at y based on row position
-        # Compute approximate y of this subject's first row top
-        # Easier: just use ax title prefixed with subject
-
-        trials = [
-            (tp_cz, tp_attn, d['p_tp'], f'{pos_label} trial (TP)', 0),
-            (tn_cz, tn_attn, d['p_tn'], f'{neg_label} trial (TN)', 1),
-        ]
-        cz_row = 1 + 2 * si
-        attn_row = 2 + 2 * si
-
-        for cz, trial_attn, prob, title, col in trials:
-            ax1 = fig.add_subplot(gs[cz_row, col])
-            for p in range(N_patches):
-                s_samp = p * patch_width
-                e_samp = (p + 1) * patch_width
-                s_t = time_ms[s_samp]
-                e_t = time_ms[min(e_samp, T - 1)]
-                for k in range(K):
-                    w = trial_attn[p, k]
-                    if w > 0.02:
-                        ax1.axvspan(s_t, e_t, color=PROTO_COLORS_TPTN[k],
-                                    alpha=float(w) * 0.35, zorder=1, lw=0)
-            for p in range(N_patches):
-                s_samp = p * patch_width
-                e_samp = min((p + 1) * patch_width + 1, T)
-                dominant_k = int(np.argmax(trial_attn[p, :]))
-                ax1.plot(time_ms[s_samp:e_samp], cz[s_samp:e_samp],
-                         color=PROTO_COLORS_TPTN[dominant_k], lw=2.2,
-                         zorder=3, solid_capstyle='round')
-            ax1.axhline(0, color='gray', lw=0.5, ls='--', zorder=2)
-            ttl = f'{title}\np({pos_label.lower()}) = {prob:.3f}'
-            if col == 0:
-                ttl = f'{s}  (AUROC = {d["auroc"]:.3f})\n' + ttl
-            ax1.set_title(ttl, fontsize=13, fontweight='bold')
-            ax1.set_ylabel(f'{det_name} amplitude (µV)', fontsize=12)
-            ax1.set_xlim(0, time_ms[-1])
-            ax1.set_ylim(-ymax_cz, ymax_cz)
-            ax1.tick_params(axis='both', labelsize=10)
-
-            ax2 = fig.add_subplot(gs[attn_row, col])
-            for k in range(K):
-                ax2.plot(patch_centers_ms, trial_attn[:, k],
-                         color=PROTO_COLORS_TPTN[k], lw=1.8,
-                         label=d['fold_names'][k] if col == 0 else None,
-                         zorder=3)
-            ax2.set_xlabel('Time (ms)', fontsize=12)
-            ax2.set_ylabel('Attention weight', fontsize=12)
-            ax2.set_ylim(0, ymax_attn)
-            ax2.set_xlim(0, time_ms[-1])
-            ax2.tick_params(axis='both', labelsize=10)
-            if col == 0:
-                ax2.legend(fontsize=11, loc='upper right')
-
-    fig.savefig(out_path, bbox_inches='tight')
-    plt.close(fig)
-    print(f'  wrote {out_path}')
+def fig_tp_tn_two_subjects(ds_label, ds_dir, var_dir, det_idx, subjects, out_path, conf='highconf'):
+    """Shared prototype strip + two subjects x (TP, TN) peak-routing signal rows
+    (peak-unit redesign; reads routing_<subj>.npz)."""
+    import matplotlib.gridspec as gridspec
+    rdir = _seed_dir(ds_dir, var_dir)
+    paths = [rdir / f'routing_{s}.npz' for s in subjects[:2]]
+    if not all(p.exists() for p in paths):
+        print(f'  [skip] fig_tp_tn_two_subjects ({ds_label}): missing routing dumps')
+        return
+    zs = [np.load(p, allow_pickle=True) for p in paths]
+    z0 = zs[0]; windows = z0['proto_windows_ms']; sfreq = float(z0['sfreq'])
+    chans = [str(c) for c in z0['channel_names']]
+    det_name = str(z0['detection_channel']) if 'detection_channel' in z0.files else 'Cz'
+    det = chans.index(det_name) if det_name in chans else 1
+    proto_det = z0['proto_raw'][:, det, :]; T = z0['proto_raw'].shape[2]
+    names = _peak_comp_names(proto_det, windows, sfreq); time_ms = np.arange(T) / sfreq * 1000
+    mode = 'median' if conf == 'median' else 'highconf'
+    fig = plt.figure(figsize=(13, 10))
+    gs = gridspec.GridSpec(3, 2, height_ratios=[0.7, 1.0, 1.0], hspace=0.4, wspace=0.18)
+    axp = fig.add_subplot(gs[0, :])
+    for k in range(len(names)):
+        c = PEAK_PROTO_COLORS[k % len(PEAK_PROTO_COLORS)]
+        axp.axvspan(windows[k][0], windows[k][1], color=c, alpha=0.16)
+        s, e = int(windows[k][0] / 1000 * sfreq), int(windows[k][1] / 1000 * sfreq)
+        axp.plot(time_ms[s:e], proto_det[k, s:e], color=c, lw=2.5,
+                 label=f'{names[k]} ({windows[k][0]:.0f}-{windows[k][1]:.0f} ms)')
+    axp.axhline(0, color='gray', lw=0.5, ls='--'); axp.set_xlim(0, time_ms[-1])
+    axp.set_title('Difference-Wave Prototypes', fontsize=13, fontweight='bold')
+    axp.legend(fontsize=9, ncol=len(names), loc='upper right'); axp.set_ylabel(f'{det_name} (z)', fontsize=11)
+    for row, (z, sid) in enumerate(zip(zs, subjects[:2])):
+        sel = _sel_conf(z['labels'], z['probs'], mode)
+        if sel is None:
+            continue
+        ymax = np.abs(z['X'][:, det]).max() * 1.1
+        for col, (tr, lab) in enumerate(sel):
+            ax = fig.add_subplot(gs[row + 1, col])
+            _sig_panel(ax, z, det, tr, f'{sid} - {lab}', T, sfreq, ymax)
+            if row == 1:
+                ax.set_xlabel('Time (ms)', fontsize=11)
+    fig.suptitle(f'Peak-Unit Routing - {ds_label} ({subjects[0]} vs {subjects[1]})',
+                 fontsize=15, fontweight='bold', y=0.995)
+    fig.savefig(out_path, dpi=150, bbox_inches='tight'); plt.close(fig)
+    print(f'  saved {Path(out_path).name}')
 
 
 def fig_prototypes_single_dataset(ds_label, ds_dir, var_dir, det_idx,
@@ -1297,7 +1157,7 @@ def fig_prototypes_single_dataset(ds_label, ds_dir, var_dir, det_idx,
     for f in proto_files:
         subj = f.stem.replace('prototypes_', '')
         d = np.load(f)
-        all_protos[subj] = d['proto_raw'][:, det_idx, :]
+        all_protos[subj] = d['mf_template'][:, det_idx, :]
         per_fold_windows[subj] = [tuple(w) for w in d['proto_windows_ms']]
         if sfreq is None:
             sfreq = float(d['sfreq'])
@@ -1388,7 +1248,7 @@ def fig_prototypes_all_datasets():
         for f in proto_files:
             subj = f.stem.replace('prototypes_', '')
             d = np.load(f)
-            proto = d['proto_raw']  # (K_subj, C, T)
+            proto = d['mf_template']  # (K_subj, C, T)
             all_protos[subj] = proto[:, det_idx, :]
             per_fold_windows[subj] = [tuple(w) for w in d['proto_windows_ms']]
             if sfreq is None:
@@ -1491,7 +1351,7 @@ def fig_prototypes_all_datasets():
 # ====================================================================
 
 MODELS_FOR_AUROC = [
-    ('ERP-XTTN',     'erpxttn_auto',  '#c0392b'),
+    ('ERP-XTTN',     'erpxttn_peak',  '#c0392b'),
     ('EEGNet',       'eegnet',        '#2980b9'),
     ('xDAWN+RG',     'xdawn_rg',      '#7f8c8d'),
     ('EEG-Deformer', 'eeg_deformer',  '#27ae60'),
@@ -1535,7 +1395,7 @@ def fig_persubject_auroc(montage, out_name):
             any_data = True
             vals = np.array(list(pa.values()))
             n_subj = max(n_subj, len(vals))
-            emph = (model == 'erpxttn_auto')
+            emph = (model == 'erpxttn_peak')
 
             # Box: median + IQR + whiskers (robust for n as small as 6).
             bp = ax.boxplot(
