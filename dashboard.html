@@ -1136,6 +1136,14 @@ function getSubjectBalAcc(modelData, subj) {
   return fold ? fold.test_bal_acc : null;
 }
 
+// Per-subject fusion (two-factor) AUROC — the headline number for ERP-XTTN;
+// null for models without a fusion (baselines).
+function getSubjectFusion(modelData, subj) {
+  if (!modelData || !modelData.results || !modelData.results.folds) return null;
+  const fold = modelData.results.folds.find(f => f.test_subject === subj);
+  return fold ? fold.two_factor_auroc : null;
+}
+
 /* ── Rendering ── */
 function renderAll() {
   renderOverview();
@@ -1266,18 +1274,26 @@ function renderOverviewTable(filterCategory) {
     const subjects = ds.subjects || [];
     for (const sub of subjects) {
       html += '<tr><td>' + escapeHtml(sub) + '</td>';
-      // Find best for this subject
+      // Headline per subject = fusion (two-factor) when present, else routing —
+      // best cell chosen on that headline number, like the main rows.
       let bestSubVal = -1;
       let bestSubModel = null;
       for (const m of KNOWN_MODELS) {
-        const val = getSubjectAuroc(modelMap[m], sub);
-        if (val != null && val > bestSubVal) { bestSubVal = val; bestSubModel = m; }
+        const fusion = getSubjectFusion(modelMap[m], sub);
+        const head = fusion != null ? fusion : getSubjectAuroc(modelMap[m], sub);
+        if (head != null && head > bestSubVal) { bestSubVal = head; bestSubModel = m; }
       }
       for (const m of KNOWN_MODELS) {
-        const val = getSubjectAuroc(modelMap[m], sub);
-        if (val != null) {
+        const routing = getSubjectAuroc(modelMap[m], sub);
+        const fusion = getSubjectFusion(modelMap[m], sub);
+        const head = fusion != null ? fusion : routing;
+        if (head != null) {
           const isBest = m === bestSubModel;
-          html += '<td><span class="auroc-cell' + (isBest ? ' cell-best' : '') + '" style="background:' + aurocColor(val) + '">' + fmt(val) + '</span></td>';
+          // Fusion headline with routing beneath (mirrors the overview rows).
+          const routingSub = (fusion != null && routing != null)
+            ? '<div style="font-size:0.68rem;color:var(--text-secondary);margin-top:2px;">routing ' + fmt(routing) + '</div>'
+            : '';
+          html += '<td><span class="auroc-cell' + (isBest ? ' cell-best' : '') + '" style="background:' + aurocColor(head) + '">' + fmt(head) + '</span>' + routingSub + '</td>';
         } else {
           html += '<td><span class="cell-missing">&mdash;</span></td>';
         }
