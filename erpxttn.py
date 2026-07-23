@@ -16,10 +16,11 @@ Two grounded decision pathways:
       learned parameters); only the routing a and the scalar match_scale learn.
       That is what makes the prototypes load-bearing by construction.
 
-  (2) amplitude / matched-filter — a per-component *raw* projection of the trial
-      onto each template (a K-vector per trial), exposed by compute_mf(). It is
-      fused with the routing logit OUTSIDE the model, via leave-one-subject-out
-      logistic regression over [routing_logit, MF_1..K] (two-stage late fusion).
+  (2) amplitude / matched-filter — per-component *raw* projections of the trial
+      onto each template, exposed by compute_mf() plus channel-resolved and
+      bipolar contrast decompositions from compute_mf_channel(). These grounded
+      amplitude factors are fused with the routing logit OUTSIDE the model, via
+      leave-one-subject-out logistic regression (two-stage late fusion).
 
 Two widths are in play and MUST NOT be conflated:
   * patch_width (=8) — the width every unit is resampled to for the *embedding*
@@ -38,6 +39,7 @@ aux holds the grounded intermediates {a, m, mask, center, bounds} for dumps and
 interpretability figures.
 """
 
+import json
 import logging
 import math
 
@@ -65,6 +67,11 @@ TRIAL_SMOOTH_SIGMA = 3.0
 def ms_to_sample(ms: float, sfreq: float = 256.0, tmin: float = 0.0) -> int:
     """Convert milliseconds to sample index."""
     return int(round((ms / 1000.0 - tmin) * sfreq))
+
+
+def channel_pairs(n_channels: int) -> list[tuple[int, int]]:
+    """Stable all-pairs channel contrasts (i, j) with i < j."""
+    return [(i, j) for i in range(n_channels) for j in range(i + 1, n_channels)]
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -441,6 +448,8 @@ class ERPXTTN(nn.Module):
 
         self.n_channels = n_channels
         self.n_times = n_times
+        self.channel_names = (list(channel_names) if channel_names is not None
+                              else [f"ch{i}" for i in range(n_channels)])
         self.d_model = d_model
         self.num_heads = num_heads
         self.d_head = d_model // num_heads
@@ -849,7 +858,7 @@ class ERPXTTN(nn.Module):
         Returns (MF_kc (B, K, C), contrast (B, K, C·(C−1)/2)).
         """
         B, C = x.shape[0], self.n_channels
-        pairs = [(i, j) for i in range(C) for j in range(i + 1, C)]
+        pairs = channel_pairs(C)
         mfc = torch.zeros(B, self.K, C, device=x.device)
         ctr = torch.zeros(B, self.K, len(pairs), device=x.device)
         for k in range(self.K):
@@ -866,17 +875,63 @@ class ERPXTTN(nn.Module):
         return mfc, ctr
 
 
+def fusion_feature_metadata(model: "ERPXTTN") -> dict:
+    """Human/audit metadata for the Stage-2 fusion feature vector."""
+    channels = [str(c) for c in getattr(
+        model, "channel_names", [f"ch{i}" for i in range(model.n_channels)])]
+    pairs = channel_pairs(model.n_channels)
+
+    names = ["routing_logit"]
+    slices = {"routing_logit": [0, 1]}
+    start = 1
+
+    names.extend([f"MF_proto{k}" for k in range(model.K)])
+    slices["mf"] = [start, start + model.K]
+    start += model.K
+
+    names.extend([
+        f"MF_proto{k}_channel_{channels[c]}"
+        for k in range(model.K) for c in range(model.n_channels)
+    ])
+    slices["mf_channel"] = [start, start + model.K * model.n_channels]
+    start += model.K * model.n_channels
+
+    names.extend([
+        f"MF_proto{k}_contrast_{channels[i]}-{channels[j]}"
+        for k in range(model.K) for i, j in pairs
+    ])
+    slices["mf_contrast"] = [start, start + model.K * len(pairs)]
+
+    return {
+        "feature_names": names,
+        "feature_slices": slices,
+        "n_features": len(names),
+        "n_prototypes": int(model.K),
+        "n_channels": int(model.n_channels),
+        "channel_names": channels,
+        "contrast_pairs": [
+            {"i": int(i), "j": int(j), "name": f"{channels[i]}-{channels[j]}"}
+            for i, j in pairs
+        ],
+        "feature_order": ["routing_logit", "mf", "mf_channel", "mf_contrast"],
+        "normalization": {
+            "mf": "global_template_norm",
+            "mf_channel": "global_template_norm; sums over channels to MF",
+            "mf_contrast": "global_template_norm",
+        },
+    }
+
+
 # ──────────────────────────────────────────────────────────────────────
 # Two-factor fusion (Stage 2) — the ERP-XTTN headline decision.
 #
-# The model above emits both grounded factors per trial: forward() -> the
-# routing logit, compute_mf() -> the amplitude matched-filter vector. Stage 2
-# fuses them across subjects with a per-fold, zero-calibration LOSO logistic:
-# for each held-out subject s, the frozen fold model f_s (trained without s)
-# computes [routing_logit, MF] for the TRAINING subjects, a logistic is fit on
-# those, and s is scored with f_s's own features. No other fold's model and no
-# test-subject data enter s's fusion, so the per-fold feature dimension is
-# consistent even when detection finds a different K per fold.
+# The model above emits grounded factors per trial: forward() -> the routing
+# logit, compute_mf() -> scalar matched filters, compute_mf_channel() ->
+# channel-resolved and bipolar contrast matched filters. Stage 2 fuses them
+# across subjects with a per-fold, zero-calibration LOSO logistic: for held-out
+# subject s, the frozen fold model f_s (trained without s) computes features for
+# the TRAINING subjects, a logistic is fit on those, and s is scored with f_s's
+# own features. No other fold's model and no test-subject data enter s's fusion.
 # ──────────────────────────────────────────────────────────────────────
 
 def load_frozen_model(ckpt: dict, device) -> "ERPXTTN":
@@ -887,7 +942,8 @@ def load_frozen_model(ckpt: dict, device) -> "ERPXTTN":
     model = ERPXTTN(
         c["n_channels"], c["n_times"], channel_names=c.get("channel_names"),
         detection_channel=c.get("detection_channel"),
-        max_k=K, max_peaks=c["max_peaks"],
+        d_model=c.get("d_model", 64), num_heads=c.get("num_heads", 4),
+        patch_width=c.get("patch_width", 8), max_k=K, max_peaks=c["max_peaks"],
         use_self_attn=c["use_self_attn"], sfreq=c.get("sfreq", 256.0),
         peak_prominence=c.get("peak_prominence", 0.02))
     model.load_state_dict(sd)
@@ -933,6 +989,7 @@ def two_factor_fusion(results_dir, all_data: dict, device):
             return None
         ckpt = torch.load(str(ckpt_path), map_location=device, weights_only=False)
         f_s = load_frozen_model(ckpt, device)
+        meta = fusion_feature_metadata(f_s)
         nm, ns = ckpt["norm_mean"], ckpt["norm_std"]
 
         # Combiner training set = the OTHER subjects through f_s (consistent K_s).
@@ -954,5 +1011,11 @@ def two_factor_fusion(results_dir, all_data: dict, device):
         per_subject[s] = auc
         np.savez_compressed(str(results_dir / f"two_factor_{s}.npz"),
                             probs=prob, labels=ys, auroc=auc,
-                            coef=clf.coef_[0], intercept=clf.intercept_)
+                            coef=clf.coef_[0], intercept=clf.intercept_,
+                            feature_names=np.asarray(meta["feature_names"], dtype=str),
+                            feature_metadata_json=json.dumps(meta),
+                            feature_slices_json=json.dumps(meta["feature_slices"]),
+                            combiner_features="routing_mf_channel_contrast_v1",
+                            lr_class_weight="balanced",
+                            lr_penalty="l2")
     return per_subject

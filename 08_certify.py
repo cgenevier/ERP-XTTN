@@ -22,7 +22,8 @@ Battery (checklist §1):
     - carrier scrambles: break peak↔proto and trial↔trial correspondence → chance.
     - proto-drop: per-component ΔAUROC (expect redundancy).
   amplitude (§1b): window-localization (on / off / early-baseline) and
-    permute-trial on the matched-filter factor.
+    permute-trial on the scalar matched-filter, channel-resolved matched-filter,
+    and bipolar contrast matched-filter factors.
   combined (§1c): routing-only vs two-factor AUROC, and top-M grounded
     sufficiency (R²) on the routing logit.
 
@@ -303,9 +304,8 @@ def check_swap_ladder(model, X, y, device, rng):
 # §1b amplitude (matched-filter) + §1c combined
 # ──────────────────────────────────────────────────────────────────────
 
-@torch.no_grad()
-def _mf_at(model, X, device, shift=0):
-    """compute_mf with every prototype window shifted by `shift` samples."""
+def _shifted_mf_model(model, shift=0):
+    """Copy model with every prototype MF window shifted by `shift` samples."""
     m2 = copy.deepcopy(model)
     T = model.n_times
     for k in range(model.K):
@@ -317,27 +317,66 @@ def _mf_at(model, X, device, shift=0):
         tmpl[:, s2:e2] = model.mf_template[k, :, s:e]
         m2.mf_template[k] = tmpl
         m2.mf_template_norm[k] = float(model.mf_template[k, :, s:e].norm() + 1e-8)
-    return m2.compute_mf(torch.from_numpy(X).float().to(device)).cpu().numpy()
+    return m2
+
+
+@torch.no_grad()
+def _mf_all_at(model, X, device, shift=0):
+    """Scalar MF, channel MF, and contrast MF at shifted prototype windows."""
+    m2 = _shifted_mf_model(model, shift)
+    xb = torch.from_numpy(X).float().to(device)
+    mf = m2.compute_mf(xb).cpu().numpy()
+    mfc, ctr = m2.compute_mf_channel(xb)
+    return mf, mfc.cpu().numpy(), ctr.cpu().numpy()
+
+
+@torch.no_grad()
+def _mf_at(model, X, device, shift=0):
+    """compute_mf with every prototype window shifted by `shift` samples."""
+    return _mf_all_at(model, X, device, shift)[0]
+
+
+def _feature_auroc(feat, y):
+    """Best-single-feature AUROC of a feature tensor (orientation-free)."""
+    feat = np.asarray(feat)
+    if feat.ndim == 1:
+        flat = feat[:, None]
+    else:
+        flat = feat.reshape(feat.shape[0], -1)
+    best = 0.5
+    for k in range(flat.shape[1]):
+        best = max(best, max(_auroc(y, flat[:, k]), _auroc(y, -flat[:, k])))
+    return best
 
 
 def _mf_auroc(mf, y):
     """Best-single-component AUROC of a matched-filter vector (orientation-free)."""
-    best = 0.5
-    for k in range(mf.shape[1]):
-        best = max(best, max(_auroc(y, mf[:, k]), _auroc(y, -mf[:, k])))
-    return best
+    return _feature_auroc(mf, y)
 
 
 def check_amplitude(model, X, y, device, rng):
-    """Window-localization (on / off / early-baseline) + permute-trial on MF."""
-    on = _mf_at(model, X, device, shift=0)
-    off = _mf_at(model, X, device, shift=int(round(0.15 * model.sfreq)))  # +150 ms
-    base = _mf_at(model, X, device, shift=-int(round(0.30 * model.sfreq)))  # early
-    perm = on[rng.permutation(on.shape[0])]
+    """Window-localization + permute-trial on scalar, channel, and contrast MF."""
+    on, ch_on, ct_on = _mf_all_at(model, X, device, shift=0)
+    off, ch_off, ct_off = _mf_all_at(
+        model, X, device, shift=int(round(0.15 * model.sfreq)))  # +150 ms
+    base, ch_base, ct_base = _mf_all_at(
+        model, X, device, shift=-int(round(0.30 * model.sfreq)))  # early
+    perm_idx = rng.permutation(on.shape[0])
+    perm = on[perm_idx]
+    ch_perm = ch_on[perm_idx]
+    ct_perm = ct_on[perm_idx]
     return {"on_component_auroc": _mf_auroc(on, y),
             "off_component_auroc": _mf_auroc(off, y),
             "early_baseline_auroc": _mf_auroc(base, y),
-            "permute_trial_auroc": _mf_auroc(perm, y)}
+            "permute_trial_auroc": _mf_auroc(perm, y),
+            "channel_on_component_auroc": _feature_auroc(ch_on, y),
+            "channel_off_component_auroc": _feature_auroc(ch_off, y),
+            "channel_early_baseline_auroc": _feature_auroc(ch_base, y),
+            "channel_permute_trial_auroc": _feature_auroc(ch_perm, y),
+            "contrast_on_component_auroc": _feature_auroc(ct_on, y),
+            "contrast_off_component_auroc": _feature_auroc(ct_off, y),
+            "contrast_early_baseline_auroc": _feature_auroc(ct_base, y),
+            "contrast_permute_trial_auroc": _feature_auroc(ct_perm, y)}
 
 
 def check_combined_sufficiency(scale, a, m, mask, mf, y, combiner=None,
@@ -373,7 +412,20 @@ def check_combined_sufficiency(scale, a, m, mask, mf, y, combiner=None,
         # Use the SAME grounded feature vector the combiner was fit on
         # ([routing_logit, MF, MF_kc, contrasts]); fall back to [routing_logit, MF].
         feats = combiner_feats if combiner_feats is not None else np.column_stack([routing_logit, mf])
-        combined = feats @ np.asarray(coef) + float(intercept)
+        coef = np.asarray(coef).reshape(-1)
+        if feats.shape[1] != coef.shape[0]:
+            legacy = np.column_stack([routing_logit, mf])
+            if legacy.shape[1] == coef.shape[0]:
+                feats = legacy
+                out["two_factor_feature_vector"] = "legacy_routing_mf"
+            else:
+                out["two_factor_error"] = (
+                    f"combiner coef length {coef.shape[0]} does not match "
+                    f"full features {feats.shape[1]} or legacy features {legacy.shape[1]}")
+                return out
+        else:
+            out["two_factor_feature_vector"] = "routing_mf_channel_contrast"
+        combined = feats @ coef + float(intercept)
         out["two_factor_auroc"] = _auroc(y, combined)
     return out
 
@@ -429,6 +481,14 @@ def aggregate(fold_results):
         "amp_off": _agg(g("amplitude.off_component_auroc")),
         "amp_baseline": _agg(g("amplitude.early_baseline_auroc")),
         "amp_permute": _agg(g("amplitude.permute_trial_auroc")),
+        "amp_channel_on": _agg(g("amplitude.channel_on_component_auroc")),
+        "amp_channel_off": _agg(g("amplitude.channel_off_component_auroc")),
+        "amp_channel_baseline": _agg(g("amplitude.channel_early_baseline_auroc")),
+        "amp_channel_permute": _agg(g("amplitude.channel_permute_trial_auroc")),
+        "amp_contrast_on": _agg(g("amplitude.contrast_on_component_auroc")),
+        "amp_contrast_off": _agg(g("amplitude.contrast_off_component_auroc")),
+        "amp_contrast_baseline": _agg(g("amplitude.contrast_early_baseline_auroc")),
+        "amp_contrast_permute": _agg(g("amplitude.contrast_permute_trial_auroc")),
         "two_factor_proxy": _agg(g("combined.two_factor_proxy_auroc")),
         "two_factor": _agg(g("combined.two_factor_auroc")),
     }
@@ -537,7 +597,10 @@ def main():
     for key in ("routing_auroc", "G_c", "G_c_null_mean", "G_m", "ladder_intact",
                 "ladder_polarity", "ladder_cross", "carrier_peak_proto",
                 "carrier_trial", "amp_on", "amp_off", "amp_baseline",
-                "amp_permute", "two_factor_proxy", "two_factor"):
+                "amp_permute", "amp_channel_on", "amp_channel_off",
+                "amp_channel_baseline", "amp_channel_permute",
+                "amp_contrast_on", "amp_contrast_off", "amp_contrast_baseline",
+                "amp_contrast_permute", "two_factor_proxy", "two_factor"):
         v = agg.get(key)
         if v:
             print(f"  {key:22s} {v['mean']:.3f} ± {v['sd']:.3f}")

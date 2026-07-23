@@ -1149,7 +1149,7 @@ def main():
                                epmn_recipe=args.epmn_recipe)
         results.append(fold_result)
 
-    # ── Stage 2: two-factor late fusion (routing logit + amplitude MF) ──
+    # ── Stage 2: two-factor late fusion (routing + spatial amplitude MF) ──
     # Per-fold zero-calibration combiner: for held-out s, features for the
     # training subjects are computed with s's OWN frozen model f_s (never saw s),
     # so K is consistent per fold and no test-subject data touches s's fusion.
@@ -1204,7 +1204,7 @@ def main():
         summary["std_two_factor_auroc"] = round(float(np.std(tf_vals)), 4)
         summary["two_factor_auroc_per_subject"] = {
             s: round(two_factor[s], 4) for s in subjects}
-        summary["two_factor_combiner"] = "perfold_zerocal_v2"
+        summary["two_factor_combiner"] = "perfold_zerocal_spatial_amp_v1"
     for d in [results_dir, log_dir]:
         with open(d / "results.json", "w") as f:
             json.dump(summary, f, indent=2)

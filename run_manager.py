@@ -233,7 +233,7 @@ def get_run_status(run):
     if results_json.exists():
         data = json.loads(results_json.read_text())
         n = len(data.get("folds", []))
-        return ("done", n, n, data.get("mean_auroc"))
+        return ("done", n, n, data.get("mean_two_factor_auroc", data.get("mean_auroc")))
 
     n = len(list(rdir.glob("predictions_sub-*.npz")))
     cfg = json.loads(cfg_path.read_text())
