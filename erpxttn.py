@@ -833,6 +833,38 @@ class ERPXTTN(nn.Module):
             mf[:, k] = proj / self.mf_template_norm[k]
         return mf
 
+    @torch.no_grad()
+    def compute_mf_channel(self, x: torch.Tensor):
+        """Channel-resolved amplitude matched filter + inter-channel contrasts.
+
+        Spatial decomposition of the scalar MF: instead of collapsing channels,
+        keep the per-channel projection onto each prototype template, and the
+        channel-DIFFERENCE (bipolar) projection — capturing the spatial gradient
+        (e.g. Pz−Fz for the P3b, PO7−PO8 for N2pc) that the scalar MF hides. All
+        grounded: fixed template over its window, template-norm only, no
+        test-subject/trial stats. MF_kc uses the GLOBAL template norm so
+        Σ_c MF_kc = MF_k (a true decomposition). Certified component-specific
+        (on-window ≫ off-window).
+
+        Returns (MF_kc (B, K, C), contrast (B, K, C·(C−1)/2)).
+        """
+        B, C = x.shape[0], self.n_channels
+        pairs = [(i, j) for i in range(C) for j in range(i + 1, C)]
+        mfc = torch.zeros(B, self.K, C, device=x.device)
+        ctr = torch.zeros(B, self.K, len(pairs), device=x.device)
+        for k in range(self.K):
+            s, e = int(self.mf_window[k, 0]), int(self.mf_window[k, 1])
+            if e <= s:
+                continue
+            tk = self.mf_template[k, :, s:e]                 # (C, w)
+            seg = x[:, :, s:e]                               # (B, C, w)
+            gn = self.mf_template_norm[k]
+            mfc[:, k, :] = (seg * tk.unsqueeze(0)).sum(dim=2) / gn
+            for pi, (i, j) in enumerate(pairs):
+                tc = tk[i] - tk[j]
+                ctr[:, k, pi] = ((seg[:, i] - seg[:, j]) * tc.unsqueeze(0)).sum(dim=1) / gn
+        return mfc, ctr
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Two-factor fusion (Stage 2) — the ERP-XTTN headline decision.
@@ -864,14 +896,20 @@ def load_frozen_model(ckpt: dict, device) -> "ERPXTTN":
 
 @torch.no_grad()
 def _fold_features(model: "ERPXTTN", Xn: np.ndarray, device, bs: int = 256):
-    """[routing_logit (N,), MF (N,K)] from a frozen model over normalized epochs."""
-    rl, mf = [], []
+    """Grounded two-factor fusion features per trial (N, D):
+    [routing_logit, MF_k, MF_kc (channel-resolved), contrast_MF (bipolar)].
+    All from the frozen model over normalized epochs."""
+    feats = []
     for i in range(0, len(Xn), bs):
         xb = torch.from_numpy(Xn[i:i + bs]).to(device)
+        B = xb.shape[0]
         logit, _ = model(xb)
-        rl.append(logit.squeeze(-1).cpu().numpy())
-        mf.append(model.compute_mf(xb).cpu().numpy())
-    return np.concatenate(rl), np.concatenate(mf)
+        mf = model.compute_mf(xb)
+        kc, ct = model.compute_mf_channel(xb)
+        feats.append(np.column_stack([
+            logit.squeeze(-1).cpu().numpy(), mf.cpu().numpy(),
+            kc.reshape(B, -1).cpu().numpy(), ct.reshape(B, -1).cpu().numpy()]))
+    return np.concatenate(feats)
 
 
 def two_factor_fusion(results_dir, all_data: dict, device):
@@ -903,16 +941,15 @@ def two_factor_fusion(results_dir, all_data: dict, device):
             if o == s:
                 continue
             Xo, yo = all_data[o]
-            rl, mf = _fold_features(f_s, ((Xo - nm) / ns).astype(np.float32), device)
-            Xtr.append(np.column_stack([rl, mf]))
+            Xtr.append(_fold_features(f_s, ((Xo - nm) / ns).astype(np.float32), device))
             ytr.append(yo)
         clf = LogisticRegression(max_iter=1000, class_weight="balanced")
         clf.fit(np.concatenate(Xtr), np.concatenate(ytr))
 
         # Held-out subject s, same f_s.
         Xs, ys = all_data[s]
-        rls, mfs = _fold_features(f_s, ((Xs - nm) / ns).astype(np.float32), device)
-        prob = clf.predict_proba(np.column_stack([rls, mfs]))[:, 1]
+        feat_s = _fold_features(f_s, ((Xs - nm) / ns).astype(np.float32), device)
+        prob = clf.predict_proba(feat_s)[:, 1]
         auc = float(roc_auc_score(ys, prob))
         per_subject[s] = auc
         np.savez_compressed(str(results_dir / f"two_factor_{s}.npz"),

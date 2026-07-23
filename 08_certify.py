@@ -44,7 +44,7 @@ import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score
 
-from erpxttn import ERPXTTN, load_frozen_model, _t_resample
+from erpxttn import ERPXTTN, load_frozen_model, _t_resample, _fold_features
 
 REPO = Path(__file__).resolve().parent
 RNG_SEED = 20260722
@@ -340,7 +340,8 @@ def check_amplitude(model, X, y, device, rng):
             "permute_trial_auroc": _mf_auroc(perm, y)}
 
 
-def check_combined_sufficiency(scale, a, m, mask, mf, y, combiner=None, Ms=(1, 2, 3, 5)):
+def check_combined_sufficiency(scale, a, m, mask, mf, y, combiner=None,
+                               combiner_feats=None, Ms=(1, 2, 3, 5)):
     """Routing-pathway sufficiency + fusion.
 
     `topM_routing_R2` is ERASER-style sufficiency on the ROUTING logit (top-M
@@ -369,7 +370,10 @@ def check_combined_sufficiency(scale, a, m, mask, mf, y, combiner=None, Ms=(1, 2
            "topM_routing_R2": r2}
     if combiner is not None:
         coef, intercept = combiner
-        combined = np.column_stack([routing_logit, mf]) @ np.asarray(coef) + float(intercept)
+        # Use the SAME grounded feature vector the combiner was fit on
+        # ([routing_logit, MF, MF_kc, contrasts]); fall back to [routing_logit, MF].
+        feats = combiner_feats if combiner_feats is not None else np.column_stack([routing_logit, mf])
+        combined = feats @ np.asarray(coef) + float(intercept)
         out["two_factor_auroc"] = _auroc(y, combined)
     return out
 
@@ -383,6 +387,9 @@ def certify_fold(model, X, y, device, rng, combiner=None):
     logits, a, m, mask = grounded_forward(model, X, device)
     scale = float(model.match_scale.item())
     mf = model.compute_mf(torch.from_numpy(X).float().to(device)).cpu().numpy()
+    # Full grounded fusion feature vector (matches the combiner: routing_logit,
+    # MF, channel-resolved MF_kc, and bipolar contrasts).
+    feats = _fold_features(model, X.astype(np.float32), device) if combiner is not None else None
     return {
         "routing_auroc": _auroc(y, logits),
         "grounding": check_grounding(a, m, mask, rng),
@@ -391,7 +398,7 @@ def certify_fold(model, X, y, device, rng, combiner=None):
         "carrier": check_carrier(scale, a, m, mask, y, rng),
         "swap_ladder": check_swap_ladder(model, X, y, device, rng),
         "amplitude": check_amplitude(model, X, y, device, rng),
-        "combined": check_combined_sufficiency(scale, a, m, mask, mf, y, combiner),
+        "combined": check_combined_sufficiency(scale, a, m, mask, mf, y, combiner, feats),
     }
 
 
