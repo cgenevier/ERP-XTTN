@@ -32,7 +32,7 @@ from eegnet import EEGNet
 from eeg_deformer import EEGDeformer
 from epmn import (EPMN, build_prototypes, class_template, epmn_class_logits,
                   epmn_metric_loss, squared_distances)
-from erpxttn import ERPXTTN
+from erpxttn import ERPXTTN, two_factor_fusion
 from xdawn_rg import XDawnRG
 
 # ──────────────────────────────────────────────────────────────────────
@@ -1011,52 +1011,6 @@ def run_fold(fold_idx: int, test_subj: str,
     return fold_result
 
 
-def combine_two_factor(results_dir: Path, subjects: list[str]) -> dict | None:
-    """Leave-one-subject-out logistic-regression fusion of the two grounded
-    factors — the routing logit and the amplitude matched-filter (MF) vector —
-    into the headline two-factor decision.
-
-    Stage 2 of the two-stage late fusion: reads the frozen routing model's
-    per-trial [routing_logit, MF_1..K] from each subject's predictions dump,
-    then for each held-out subject fits logistic regression on all *other*
-    subjects and scores the held-out one. Nothing from the test subject enters
-    its own combiner fit, so the LOSO / zero-calibration guarantee is preserved.
-
-    Returns {subject: two_factor_auroc} or None if the dumps are missing/ragged.
-    """
-    data = {}
-    for s in subjects:
-        p = results_dir / f"predictions_{s}.npz"
-        if not p.exists():
-            return None
-        d = np.load(p)
-        if "mf" not in d.files or "routing_logits" not in d.files:
-            return None
-        feats = np.column_stack([d["routing_logits"], d["mf"]])
-        data[s] = (feats, d["labels"])
-
-    dims = {v[0].shape[1] for v in data.values()}
-    if len(dims) != 1:
-        logging.warning(f"Two-factor combiner: inconsistent feature dims across "
-                        f"subjects {dims} (K varied per fold); skipping.")
-        return None
-
-    per_subject = {}
-    for s in subjects:
-        others = [o for o in subjects if o != s]
-        X_tr = np.concatenate([data[o][0] for o in others])
-        y_tr = np.concatenate([data[o][1] for o in others])
-        clf = LogisticRegression(max_iter=1000, class_weight="balanced")
-        clf.fit(X_tr, y_tr)
-        prob = clf.predict_proba(data[s][0])[:, 1]
-        auc = float(roc_auc_score(data[s][1], prob))
-        per_subject[s] = auc
-        np.savez_compressed(str(results_dir / f"two_factor_{s}.npz"),
-                            probs=prob, labels=data[s][1], auroc=auc,
-                            coef=clf.coef_[0], intercept=clf.intercept_)
-    return per_subject
-
-
 # ──────────────────────────────────────────────────────────────────────
 # Main
 # ──────────────────────────────────────────────────────────────────────
@@ -1197,9 +1151,12 @@ def main():
         results.append(fold_result)
 
     # ── Stage 2: two-factor late fusion (routing logit + amplitude MF) ──
+    # Per-fold zero-calibration combiner: for held-out s, features for the
+    # training subjects are computed with s's OWN frozen model f_s (never saw s),
+    # so K is consistent per fold and no test-subject data touches s's fusion.
     two_factor = None
     if args.model in XTTN_MODELS:
-        two_factor = combine_two_factor(results_dir, subjects)
+        two_factor = two_factor_fusion(results_dir, all_data, device)
         if two_factor is not None:
             tf = [two_factor[s] for s in subjects]
             logging.info(f"  Two-factor (routing+amplitude) mean AUROC: "
@@ -1248,6 +1205,7 @@ def main():
         summary["std_two_factor_auroc"] = round(float(np.std(tf_vals)), 4)
         summary["two_factor_auroc_per_subject"] = {
             s: round(two_factor[s], 4) for s in subjects}
+        summary["two_factor_combiner"] = "perfold_zerocal_v2"
     for d in [results_dir, log_dir]:
         with open(d / "results.json", "w") as f:
             json.dump(summary, f, indent=2)

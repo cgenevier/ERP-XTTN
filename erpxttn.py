@@ -832,3 +832,90 @@ class ERPXTTN(nn.Module):
             proj = (x[:, :, s:e] * tmpl.unsqueeze(0)).sum(dim=(1, 2))
             mf[:, k] = proj / self.mf_template_norm[k]
         return mf
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Two-factor fusion (Stage 2) — the ERP-XTTN headline decision.
+#
+# The model above emits both grounded factors per trial: forward() -> the
+# routing logit, compute_mf() -> the amplitude matched-filter vector. Stage 2
+# fuses them across subjects with a per-fold, zero-calibration LOSO logistic:
+# for each held-out subject s, the frozen fold model f_s (trained without s)
+# computes [routing_logit, MF] for the TRAINING subjects, a logistic is fit on
+# those, and s is scored with f_s's own features. No other fold's model and no
+# test-subject data enter s's fusion, so the per-fold feature dimension is
+# consistent even when detection finds a different K per fold.
+# ──────────────────────────────────────────────────────────────────────
+
+def load_frozen_model(ckpt: dict, device) -> "ERPXTTN":
+    """Rebuild a frozen ERPXTTN from a checkpoint dict (K read off state_dict)."""
+    c = ckpt["model_config"]
+    sd = ckpt["state_dict"]
+    K = int(sd["proto_seg"].shape[0])
+    model = ERPXTTN(
+        c["n_channels"], c["n_times"], channel_names=c.get("channel_names"),
+        detection_channel=c.get("detection_channel"),
+        max_k=K, max_peaks=c["max_peaks"],
+        use_self_attn=c["use_self_attn"], sfreq=c.get("sfreq", 256.0),
+        peak_prominence=c.get("peak_prominence", 0.02))
+    model.load_state_dict(sd)
+    return model.eval().to(device)
+
+
+@torch.no_grad()
+def _fold_features(model: "ERPXTTN", Xn: np.ndarray, device, bs: int = 256):
+    """[routing_logit (N,), MF (N,K)] from a frozen model over normalized epochs."""
+    rl, mf = [], []
+    for i in range(0, len(Xn), bs):
+        xb = torch.from_numpy(Xn[i:i + bs]).to(device)
+        logit, _ = model(xb)
+        rl.append(logit.squeeze(-1).cpu().numpy())
+        mf.append(model.compute_mf(xb).cpu().numpy())
+    return np.concatenate(rl), np.concatenate(mf)
+
+
+def two_factor_fusion(results_dir, all_data: dict, device):
+    """Per-fold zero-calibration two-factor fusion (routing logit + amplitude MF).
+
+    all_data: {subject: (X_raw (N,C,T), y (N,))} — RAW epochs; each fold
+    normalizes with its own checkpoint's (norm_mean, norm_std). Writes
+    two_factor_{s}.npz per subject and returns {subject: auroc} (None if any
+    fold checkpoint is missing).
+    """
+    from pathlib import Path
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+
+    results_dir = Path(results_dir)
+    subjects = list(all_data.keys())
+    per_subject = {}
+    for s in subjects:
+        ckpt_path = results_dir / f"checkpoint_{s}.pt"
+        if not ckpt_path.exists():
+            return None
+        ckpt = torch.load(str(ckpt_path), map_location=device, weights_only=False)
+        f_s = load_frozen_model(ckpt, device)
+        nm, ns = ckpt["norm_mean"], ckpt["norm_std"]
+
+        # Combiner training set = the OTHER subjects through f_s (consistent K_s).
+        Xtr, ytr = [], []
+        for o in subjects:
+            if o == s:
+                continue
+            Xo, yo = all_data[o]
+            rl, mf = _fold_features(f_s, ((Xo - nm) / ns).astype(np.float32), device)
+            Xtr.append(np.column_stack([rl, mf]))
+            ytr.append(yo)
+        clf = LogisticRegression(max_iter=1000, class_weight="balanced")
+        clf.fit(np.concatenate(Xtr), np.concatenate(ytr))
+
+        # Held-out subject s, same f_s.
+        Xs, ys = all_data[s]
+        rls, mfs = _fold_features(f_s, ((Xs - nm) / ns).astype(np.float32), device)
+        prob = clf.predict_proba(np.column_stack([rls, mfs]))[:, 1]
+        auc = float(roc_auc_score(ys, prob))
+        per_subject[s] = auc
+        np.savez_compressed(str(results_dir / f"two_factor_{s}.npz"),
+                            probs=prob, labels=ys, auroc=auc,
+                            coef=clf.coef_[0], intercept=clf.intercept_)
+    return per_subject
