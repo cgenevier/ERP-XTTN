@@ -1,0 +1,81 @@
+{
+  "run_name": "20260723_230716_bnci_errp_013-2015_midline3_erpxttn_peak",
+  "args": {
+    "dataset": "bnci_errp_013-2015",
+    "channels": "midline3",
+    "model": "erpxttn",
+    "seed": 1,
+    "resume": true,
+    "max_k": 4,
+    "no_self_attn": false,
+    "num_heads": 4,
+    "patch_width": 8,
+    "d_model": 64,
+    "peak_prominence": null,
+    "epmn_recipe": "shared",
+    "ablation_tag": null
+  },
+  "seed": 1,
+  "device": "cuda",
+  "elapsed_seconds": 3.1,
+  "folds": [
+    {
+      "fold": 0,
+      "test_subject": "sub-01",
+      "best_epoch": 0,
+      "test_auroc": 0.8042027194066749,
+      "test_bal_acc": 0.7086921074086736
+    },
+    {
+      "fold": 1,
+      "test_subject": "sub-02",
+      "best_epoch": 0,
+      "test_auroc": 0.7441369652261385,
+      "test_bal_acc": 0.7051371821929426
+    },
+    {
+      "fold": 2,
+      "test_subject": "sub-03",
+      "best_epoch": 0,
+      "test_auroc": 0.8370822460859091,
+      "test_bal_acc": 0.7510161581694099
+    },
+    {
+      "fold": 3,
+      "test_subject": "sub-04",
+      "best_epoch": 0,
+      "test_auroc": 0.6492890995260663,
+      "test_bal_acc": 0.5880609294960298
+    },
+    {
+      "fold": 4,
+      "test_subject": "sub-05",
+      "best_epoch": 0,
+      "test_auroc": 0.7893132356677112,
+      "test_bal_acc": 0.7147491084954036
+    },
+    {
+      "fold": 5,
+      "test_subject": "sub-06",
+      "best_epoch": 0,
+      "test_auroc": 0.5739946162003426,
+      "test_bal_acc": 0.5426897245561084
+    }
+  ],
+  "mean_auroc": 0.733,
+  "std_auroc": 0.0926,
+  "mean_bal_acc": 0.6684,
+  "std_bal_acc": 0.0755,
+  "mean_routing_auroc": 0.733,
+  "mean_two_factor_auroc": 0.7686,
+  "std_two_factor_auroc": 0.077,
+  "two_factor_auroc_per_subject": {
+    "sub-01": 0.8714,
+    "sub-02": 0.7513,
+    "sub-03": 0.8374,
+    "sub-04": 0.687,
+    "sub-05": 0.8054,
+    "sub-06": 0.6592
+  },
+  "two_factor_combiner": "perfold_zerocal_v2"
+}
