@@ -728,6 +728,13 @@ async function fetchJson(relPath) {
 
 
 function _mean(a) { return a.reduce((x, y) => x + y, 0) / a.length; }
+// Headline AUROC for the overview table: fusion (two-factor) when the model has it
+// (ERP-XTTN), else the plain routing/test AUROC (baselines). Keeps best-model
+// selection and coloring on a like-for-like "headline number" basis.
+function headlineAuroc(r) {
+  if (!r) return null;
+  return r.mean_two_factor != null ? r.mean_two_factor : r.mean_auroc;
+}
 function _std(a) {
   if (a.length < 2) return 0;
   const m = _mean(a);
@@ -742,11 +749,14 @@ function aggregateSeeds(seedResults, expectedSeeds) {
   let elapsed = 0;
   for (const { results } of seedResults) {
     if (results.elapsed_seconds != null) elapsed += results.elapsed_seconds;
+    // Two-factor (fusion) AUROC is stored per-subject at the top level, not per fold.
+    const tfMap = results.two_factor_auroc_per_subject || {};
     for (const f of (results.folds || [])) {
-      if (!bySubj.has(f.test_subject)) bySubj.set(f.test_subject, { a: [], b: [] });
+      if (!bySubj.has(f.test_subject)) bySubj.set(f.test_subject, { a: [], b: [], tf: [] });
       const e = bySubj.get(f.test_subject);
       if (f.test_auroc != null) e.a.push(f.test_auroc);
       if (f.test_bal_acc != null) e.b.push(f.test_bal_acc);
+      if (tfMap[f.test_subject] != null) e.tf.push(tfMap[f.test_subject]);
     }
   }
   const folds = [];
@@ -754,11 +764,13 @@ function aggregateSeeds(seedResults, expectedSeeds) {
     folds.push({
       test_subject: subj,
       test_auroc: e.a.length ? _mean(e.a) : null,
+      two_factor_auroc: e.tf.length ? _mean(e.tf) : null,
       test_bal_acc: e.b.length ? _mean(e.b) : null,
       n_seeds: e.a.length,
     });
   }
   const aurocs = folds.map(f => f.test_auroc).filter(v => v != null);
+  const tfs = folds.map(f => f.two_factor_auroc).filter(v => v != null);
   // Per-seed dataset-mean AUROC (seed stability).
   const seedMeans = seedResults.map(sr => {
     const a = (sr.results.folds || []).map(f => f.test_auroc).filter(v => v != null);
@@ -768,6 +780,9 @@ function aggregateSeeds(seedResults, expectedSeeds) {
   return {
     mean_auroc: aurocs.length ? _mean(aurocs) : null,
     std_auroc: aurocs.length > 1 ? _std(aurocs) : 0,
+    // Seed-averaged fusion (two-factor) headline; null for models without it (baselines).
+    mean_two_factor: tfs.length ? _mean(tfs) : null,
+    std_two_factor: tfs.length > 1 ? _std(tfs) : 0,
     folds: folds,
     elapsed_seconds: elapsed || null,
     _seedInfo: {
@@ -1193,9 +1208,9 @@ function renderOverviewTable(filterCategory) {
     let bestAuroc = -1;
     let bestModel = null;
     for (const m of KNOWN_MODELS) {
-      const r = modelMap[m]?.results;
-      if (r && r.mean_auroc != null && r.mean_auroc > bestAuroc) {
-        bestAuroc = r.mean_auroc;
+      const h = headlineAuroc(modelMap[m]?.results);
+      if (h != null && h > bestAuroc) {
+        bestAuroc = h;
         bestModel = m;
       }
     }
@@ -1206,7 +1221,7 @@ function renderOverviewTable(filterCategory) {
     html += '<td>' + escapeHtml(vk) + '</td>';
     for (const m of KNOWN_MODELS) {
       const r = modelMap[m]?.results;
-      if (r && r.mean_auroc != null) {
+      if (r && headlineAuroc(r) != null) {
         const isBest = m === bestModel;
         const si = r._seedInfo;
         let seedBadge = '';
@@ -1218,7 +1233,14 @@ function renderOverviewTable(filterCategory) {
           seedBadge = ' <span title="' + escapeHtml(tip) + '" style="font-size:0.68rem;color:' + color + ';">'
             + si.nSeeds + '/' + si.expectedSeeds + 's' + (si.complete ? '' : ' &#9203;') + '</span>';
         }
-        html += '<td><span class="auroc-cell' + (isBest ? ' cell-best' : '') + '" style="background:' + aurocColor(r.mean_auroc) + '">' + fmt(r.mean_auroc) + ' &plusmn; ' + fmt(r.std_auroc) + '</span>' + seedBadge + '</td>';
+        // Fusion is the headline when present (ERP-XTTN); routing shown underneath.
+        const hasFusion = r.mean_two_factor != null;
+        const head = hasFusion ? r.mean_two_factor : r.mean_auroc;
+        const headStd = hasFusion ? r.std_two_factor : r.std_auroc;
+        const routingSub = (hasFusion && r.mean_auroc != null)
+          ? '<div style="font-size:0.68rem;color:var(--text-secondary);margin-top:2px;">routing ' + fmt(r.mean_auroc) + '</div>'
+          : '';
+        html += '<td><span class="auroc-cell' + (isBest ? ' cell-best' : '') + '" style="background:' + aurocColor(head) + '">' + fmt(head) + ' &plusmn; ' + fmt(headStd) + '</span>' + seedBadge + routingSub + '</td>';
       } else {
         html += '<td><span class="cell-missing">&mdash;</span></td>';
       }
