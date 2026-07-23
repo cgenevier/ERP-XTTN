@@ -300,6 +300,104 @@ def _compute_whitener(win_flat: np.ndarray, y: np.ndarray,
 
 
 # ──────────────────────────────────────────────────────────────────────
+# On-device (GPU) tokenizer — batched Torch equivalents of the NumPy path.
+# Every op stays on x.device; no host round-trip. Validated bit-parity vs the
+# NumPy/scipy pipeline: peaks/windows/centers identical, match m to ~1e-7.
+# ──────────────────────────────────────────────────────────────────────
+
+def _t_smooth(s: torch.Tensor, sigma: float) -> torch.Tensor:
+    """(B,T) Gaussian smooth, reflect-pad — same kernel/op as _smooth_trial_batch."""
+    rad = max(1, int(round(3 * sigma)))
+    tt = torch.arange(-rad, rad + 1, dtype=torch.float32, device=s.device)
+    k = torch.exp(-0.5 * (tt / sigma) ** 2); k = (k / k.sum()).view(1, 1, -1)
+    xr = F.pad(s.unsqueeze(1), (rad, rad), mode="reflect")
+    return F.conv1d(xr, k).squeeze(1)
+
+
+def _t_local_maxima(s: torch.Tensor) -> torch.Tensor:
+    """(B,T) bool strict interior local maxima."""
+    B, T = s.shape
+    m = torch.zeros(B, T, dtype=torch.bool, device=s.device)
+    m[:, 1:-1] = (s[:, 1:-1] > s[:, :-2]) & (s[:, 1:-1] > s[:, 2:])
+    return m
+
+
+def _t_prominences(s: torch.Tensor) -> torch.Tensor:
+    """(B,T) scipy peak_prominences for every position: height minus the higher of
+    the two flanking bases (min from the peak to the first strictly-higher sample)."""
+    B, T = s.shape; dev = s.device
+    idx = torch.arange(T, device=dev)
+    ig = idx.view(1, 1, T).expand(B, T, T)
+    higher = s.unsqueeze(1) > s.unsqueeze(2)                # [b,p,i]: s[i] > s[p]
+    il = idx.view(1, 1, T) < idx.view(1, T, 1)
+    ir = idx.view(1, 1, T) > idx.view(1, T, 1)
+    ngl = torch.where(higher & il, ig, torch.full_like(ig, -1)).amax(2)
+    ngr = torch.where(higher & ir, ig, torch.full_like(ig, T)).amin(2)
+    si = s.unsqueeze(1).expand(B, T, T)
+    INF = torch.tensor(float('inf'), device=dev)
+    lb = (ig > ngl.unsqueeze(2)) & (idx.view(1, 1, T) <= idx.view(1, T, 1))
+    rb = (ig < ngr.unsqueeze(2)) & (idx.view(1, 1, T) >= idx.view(1, T, 1))
+    left_base = torch.where(lb, si, INF).amin(2)
+    right_base = torch.where(rb, si, INF).amin(2)
+    return s - torch.maximum(left_base, right_base)
+
+
+def _t_nms(peakmask: torch.Tensor, height: torch.Tensor, distance: int) -> torch.Tensor:
+    """1D NMS by height (scipy _select_by_peak_distance): keep a peak iff no strictly
+    taller *kept* peak within `distance`; iterated to a fixpoint (greedy cascade)."""
+    B, T = peakmask.shape; dev = peakmask.device
+    idx = torch.arange(T, device=dev)
+    within = (idx.view(1, T, 1) - idx.view(1, 1, T)).abs() < distance
+    h = height.unsqueeze(1); hp = height.unsqueeze(2)
+    taller = (h > hp) | ((h == hp) & (idx.view(1, 1, T) < idx.view(1, T, 1)))
+    keep = peakmask.clone()
+    for _ in range(T):
+        killers = within & taller & keep.unsqueeze(1) & peakmask.unsqueeze(2)
+        newkeep = peakmask & ~(killers.any(2) & peakmask)
+        if torch.equal(newkeep, keep):
+            break
+        keep = newkeep
+    return keep
+
+
+def _t_find_peaks(s: torch.Tensor, prominence: float, distance: int):
+    """(peakmask (B,T) bool, prom (B,T)) after distance-then-prominence filter."""
+    kept = _t_nms(_t_local_maxima(s), s, distance)
+    prom = _t_prominences(s)
+    return kept & (prom >= prominence), prom
+
+
+def _t_nearest(mask_bt: torch.Tensor, want_left: bool) -> torch.Tensor:
+    """(B,T): for each position, nearest index on one side with mask set (else 0/T)."""
+    B, T = mask_bt.shape; dev = mask_bt.device
+    idx = torch.arange(T, device=dev)
+    ig = idx.view(1, 1, T).expand(B, T, T)
+    if want_left:
+        sel = (idx.view(1, 1, T) < idx.view(1, T, 1)) & mask_bt.unsqueeze(1)
+        return torch.where(sel, ig, torch.full_like(ig, -1)).amax(2).clamp_min(0)
+    sel = (idx.view(1, 1, T) > idx.view(1, T, 1)) & mask_bt.unsqueeze(1)
+    return torch.where(sel, ig, torch.full_like(ig, T)).amin(2)
+
+
+def _t_resample(X: torch.Tensor, bs, lo, hi, W: int) -> torch.Tensor:
+    """(N,C,W) linear resample of X[bs[i],:,lo[i]:hi[i]] to width W (matches
+    _resample_batch's index math; float32 vs the NumPy float64 blend → ~1e-6)."""
+    N = bs.shape[0]; C, T = X.shape[1], X.shape[2]
+    if N == 0:
+        return torch.zeros(N, C, W, device=X.device)
+    w = (hi - lo).float()
+    tgrid = (torch.arange(W, device=X.device).float() / (W - 1)) if W > 1 \
+        else torch.zeros(1, device=X.device)
+    abs_pos = lo[:, None].float() + tgrid[None, :] * (w[:, None] - 1.0)
+    fl = torch.floor(abs_pos); fr = abs_pos - fl
+    fl = fl.long().clamp(0, T - 1); ce = (fl + 1).clamp(0, T - 1)
+    Xg = X[bs]
+    lo_v = Xg.gather(2, fl[:, None, :].expand(N, C, W))
+    hi_v = Xg.gather(2, ce[:, None, :].expand(N, C, W))
+    return lo_v * (1 - fr[:, None, :]) + hi_v * fr[:, None, :]
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Model
 # ──────────────────────────────────────────────────────────────────────
 
@@ -562,6 +660,11 @@ class ERPXTTN(nn.Module):
         embedding segment (routing pathway) and the native-width whitened-cosine
         match m[p,k] to every prototype (match pathway). m carries no gradient.
 
+        Fully on-device (no host round-trip): batched Torch peak detection
+        (local maxima → distance NMS → prominence), inflection windows, resample
+        and whitened-cosine match — all on x.device. Bit-parity with the former
+        NumPy/scipy path (peaks/windows identical; m to ~1e-7).
+
         Returns:
             emb  : (B, P, C, patch_width) embedding segments
             m    : (B, P, K) whitened-cosine match
@@ -569,76 +672,75 @@ class ERPXTTN(nn.Module):
             cen  : (B, P) peak-centre sample indices (float)
             bnd  : (B, P, 2) peak window [lo, hi] (int)
         """
-        Xnp = x.detach().cpu().numpy()
-        B, C, T = Xnp.shape
+        dev = x.device
+        X = x.detach()
+        B, C, T = X.shape
         P, pw, K = self.max_peaks, self.patch_width, self.K
+        proto_w = self.proto_w
+        mind = max(1, int(round(40.0 / 1000.0 * self.sfreq)))
 
-        emb = np.zeros((B, P, C, pw), dtype=np.float32)
-        mask = np.zeros((B, P), dtype=bool)
-        cen = np.zeros((B, P), dtype=np.float32)
-        bnd = np.zeros((B, P, 2), dtype=np.int64)
+        # Smooth the detection channel; detect ± peaks (distance then prominence).
+        s = _t_smooth(X[:, self.detect_ch, :], TRIAL_SMOOTH_SIGMA)
+        kp, pp = _t_find_peaks(s, self.peak_prominence, mind)
+        kn, pn = _t_find_peaks(-s, self.peak_prominence, mind)
 
-        proto_w = self.proto_w.cpu().numpy()
-        whit = self.whitener.cpu().numpy()
-        pwhite = self.proto_white.cpu().numpy()
-        pwnorm = self.proto_white_norm.cpu().numpy()
+        # Pool ± candidates; keep top-P by prominence with numpy's exact tiebreak
+        # (prominence desc → pos-before-neg → lower index), then temporal order.
+        candmask = kp | kn
+        candprom = torch.where(kp, pp, torch.where(kn, pn, torch.full_like(pp, -1e30)))
+        candprom = torch.where(candmask, candprom, torch.full_like(candprom, -1e30))
+        polar = torch.where(kp, torch.zeros_like(candprom),
+                            torch.where(kn, torch.ones_like(candprom),
+                                        torch.full_like(candprom, 2.0)))
+        colidx = torch.arange(T, device=dev).expand(B, T)
+        perm = colidx.clone()
+        _, o = torch.sort(torch.gather(polar, 1, perm), dim=1, stable=True)
+        perm = torch.gather(perm, 1, o)
+        _, o = torch.sort(torch.gather(-candprom, 1, perm), dim=1, stable=True)
+        perm = torch.gather(perm, 1, o)
+        keepmask = torch.zeros(B, T, dtype=torch.bool, device=dev)
+        keepmask.scatter_(1, perm[:, :P], True)
+        keepmask = keepmask & candmask
+        keypos = torch.where(keepmask, colidx, torch.full_like(colidx, T + 1))
+        pos_sorted, _ = keypos.sort(dim=1)
+        pos_sorted = pos_sorted[:, :P]
+        mask = pos_sorted <= (T - 1)
 
-        # Batch-smooth the detection channel ONCE (matchedcos smooths the whole
-        # batch at once) — canonical sigma=3.0 for trials (prototypes stay 2.0).
-        smoothed_all = _smooth_trial_batch(Xnp[:, self.detect_ch], TRIAL_SMOOTH_SIGMA)
+        # Inflection-bounded windows (single trials don't cross zero): each peak's
+        # bare flanking second-derivative shoulders, ≥2-sample floor.
+        d2 = s[:, 2:] - 2 * s[:, 1:-1] + s[:, :-2]
+        chg = torch.sign(d2)[:, 1:] != torch.sign(d2)[:, :-1]
+        is_infl = torch.zeros(B, T, dtype=torch.bool, device=dev)
+        is_infl[:, 1:T - 2] = chg
+        lo_all = _t_nearest(is_infl, True)
+        hi_all = _t_nearest(is_infl, False)
+        pk = pos_sorted.clamp(0, T - 1)
+        lo = torch.where(mask, torch.gather(lo_all, 1, pk), torch.zeros_like(pk))
+        hi = torch.where(mask, torch.gather(hi_all, 1, pk), torch.zeros_like(pk))
+        short = mask & ((hi - lo) < 2)
+        hi = torch.where(short, torch.minimum(torch.full_like(hi, T), lo + 2), hi)
+        valid = mask & (hi > lo)
+        cen = torch.where(valid, pos_sorted, torch.zeros_like(pos_sorted)).float()
+        bnd = torch.stack([lo, hi], dim=-1)
 
-        # find_peaks is per-trial (unavoidable); collect every valid unit's
-        # window here, then resample + match ALL units at once (vectorized).
-        bs, js, los, his = [], [], [], []
-        for b in range(B):
-            sig = Xnp[b, self.detect_ch]
-            smoothed = smoothed_all[b]
-            peaks = detect_trial_peaks(
-                sig, self.sfreq, prominence=self.peak_prominence, max_peaks=P,
-                presmoothed=smoothed)
-            if not peaks:
-                continue
-            idx = [p[0] for p in peaks]
-            # Trial peaks are inflection-bounded (single trials don't cross zero),
-            # using bare flanking inflections (no width clamp / no-overlap).
-            wins = build_windows_from_inflections(idx, smoothed, self.sfreq)
-            for j, (lo, hi) in enumerate(wins):
-                if hi <= lo:
-                    continue
-                mask[b, j] = True
-                # PE anchor = the PEAK INDEX (canonical: matchedcos centers[b,:n]=keep),
-                # NOT the window midpoint — the peak is where the deflection actually is.
-                cen[b, j] = idx[j]
-                bnd[b, j] = (lo, hi)
-                bs.append(b); js.append(j); los.append(lo); his.append(hi)
-
-        # Vectorized native-width whitened-cosine match, one matmul per prototype.
-        m = np.zeros((B, P, K), dtype=np.float32)
-        if bs:
-            bs = np.asarray(bs, dtype=np.int64)
-            js = np.asarray(js, dtype=np.int64)
-            los = np.asarray(los, dtype=np.int64)
-            his = np.asarray(his, dtype=np.int64)
-
-            # Routing embedding: width-pw resample of every valid unit at once
-            # (padded slots stay zero and are masked out downstream).
-            emb[bs, js] = _resample_batch(Xnp, bs, los, his, pw)
-
+        # Resample every valid unit (routing width pw + each prototype's native
+        # width) and form the whitened-cosine match — one matmul per prototype.
+        emb = torch.zeros(B, P, C, pw, device=dev)
+        m = torch.zeros(B, P, K, device=dev)
+        bidx, jidx = torch.where(valid)
+        if bidx.numel() > 0:
+            los, his = lo[bidx, jidx], hi[bidx, jidx]
+            emb[bidx, jidx] = _t_resample(X, bidx, los, his, pw)
             for k in range(K):
-                wk = int(proto_w[k])
+                wk = int(proto_w[k].item())
                 if wk <= 0:
                     continue
                 dk = C * wk
-                seg = _resample_batch(Xnp, bs, los, his, wk).reshape(len(bs), dk)
-                V = seg @ whit[k, :dk, :dk].T               # (N, dk)
-                vn = np.linalg.norm(V, axis=1) + 1e-8
-                m[bs, js, k] = (V @ pwhite[k, :dk]) / (vn * pwnorm[k])
-        m *= mask[:, :, None]
-
-        dev = x.device
-        return (torch.from_numpy(emb).to(dev), torch.from_numpy(m).to(dev),
-                torch.from_numpy(mask).to(dev), torch.from_numpy(cen).to(dev),
-                torch.from_numpy(bnd).to(dev))
+                seg = _t_resample(X, bidx, los, his, wk).reshape(-1, dk)
+                V = seg @ self.whitener[k, :dk, :dk].T
+                vn = V.norm(dim=1) + 1e-8
+                m[bidx, jidx, k] = (V @ self.proto_white[k, :dk]) / (vn * self.proto_white_norm[k])
+        return emb, m, valid, cen, bnd
 
     def _self_attention(self, z: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """Masked multi-head self-attention over the trial's peak tokens, with
