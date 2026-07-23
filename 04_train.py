@@ -24,7 +24,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import balanced_accuracy_score, roc_auc_score
-from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import DataLoader, TensorDataset
 

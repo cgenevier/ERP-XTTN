@@ -44,7 +44,7 @@ import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score
 
-from erpxttn import ERPXTTN, _resample_to_width
+from erpxttn import ERPXTTN, load_frozen_model, _t_resample
 
 REPO = Path(__file__).resolve().parent
 RNG_SEED = 20260722
@@ -54,26 +54,8 @@ RNG_SEED = 20260722
 # Model reconstruction + grounded forward
 # ──────────────────────────────────────────────────────────────────────
 
-def load_frozen_model(ckpt: dict, device) -> ERPXTTN:
-    """Rebuild a frozen ERPXTTN from a checkpoint dict and load its weights.
-
-    Reads the ACTUAL K off the state_dict and passes it as max_k so the proto
-    buffers are sized to it: set_prototypes() may have resized K per fold (e.g.
-    K=3 when detection found fewer components), and the shapes must match exactly.
-    """
-    c = ckpt["model_config"]
-    sd = ckpt["state_dict"]
-    K = int(sd["proto_seg"].shape[0])
-    # max_k=K sizes the proto buffers to the checkpoint's ACTUAL K (set_prototypes
-    # may have resized it per fold), so load_state_dict matches exactly.
-    model = ERPXTTN(
-        c["n_channels"], c["n_times"], channel_names=c.get("channel_names"),
-        detection_channel=c.get("detection_channel"),
-        max_k=K, max_peaks=c["max_peaks"],
-        use_self_attn=c["use_self_attn"], sfreq=c.get("sfreq", 256.0),
-        peak_prominence=c.get("peak_prominence", 0.02))
-    model.load_state_dict(sd)
-    return model.eval().to(device)
+# load_frozen_model is defined in erpxttn.py (shared with the Stage-2 fusion) and
+# imported above; the certificate reloads each fold's frozen checkpoint with it.
 
 
 @torch.no_grad()
@@ -100,35 +82,34 @@ def _forward_full(model: ERPXTTN, X: np.ndarray, device):
             aux["bounds"].cpu().numpy())
 
 
-def _match_from_bounds(X, bounds, mask, whit, pwhite, pwn, proto_w, C):
-    """Recompute the whitened-cosine match m from FIXED peak bounds and (swapped)
-    match buffers — no re-detection. Bit-identical to the model's own match, so
-    the ladder can tokenize once and only recompute m per swap.
+def _match_from_bounds(model, X, bounds, mask, device):
+    """Recompute the whitened-cosine match m from FIXED peak bounds and a (swapped)
+    model's match buffers — no re-detection. Uses the model's own on-device torch
+    path (`_t_resample`, fp32), so it is numerically identical to the model's own
+    match; the ladder can tokenize once and only recompute m per swap.
+
+    X/bounds/mask are the numpy intermediates from _forward_full; m is returned as
+    numpy for the numpy `readout`.
     """
+    Xt = torch.from_numpy(X).to(device)
+    bt = torch.from_numpy(bounds).to(device)
+    mt = torch.from_numpy(mask).to(device)
     B, P = mask.shape
-    K = proto_w.shape[0]
-    seg_k = [np.zeros((B, P, C * int(proto_w[k])), np.float32) for k in range(K)]
-    for b in range(B):
-        for j in np.where(mask[b])[0]:
-            lo, hi = int(bounds[b, j, 0]), int(bounds[b, j, 1])
-            if hi <= lo:
+    C, K = model.n_channels, int(model.proto_w.shape[0])
+    m = torch.zeros(B, P, K, device=device)
+    bidx, jidx = torch.where(mt)
+    if bidx.numel() > 0:
+        los, his = bt[bidx, jidx, 0], bt[bidx, jidx, 1]
+        for k in range(K):
+            wk = int(model.proto_w[k].item())
+            if wk <= 0:
                 continue
-            raw = X[b, :, lo:hi]
-            for k in range(K):
-                wk = int(proto_w[k])
-                if wk > 0:
-                    seg_k[k][b, j] = _resample_to_width(raw, wk).reshape(-1)
-    m = np.zeros((B, P, K), np.float32)
-    for k in range(K):
-        wk = int(proto_w[k])
-        if wk <= 0:
-            continue
-        dk = C * wk
-        S = seg_k[k].reshape(B * P, dk)
-        V = S @ whit[k, :dk, :dk].T
-        vn = np.linalg.norm(V, axis=1) + 1e-8
-        m[:, :, k] = ((V @ pwhite[k, :dk]) / (vn * pwn[k])).reshape(B, P)
-    return m * mask[:, :, None]
+            dk = C * wk
+            seg = _t_resample(Xt, bidx, los, his, wk).reshape(-1, dk)
+            V = seg @ model.whitener[k, :dk, :dk].T
+            vn = V.norm(dim=1) + 1e-8
+            m[bidx, jidx, k] = (V @ model.proto_white[k, :dk]) / (vn * model.proto_white_norm[k])
+    return (m * mt.unsqueeze(-1)).cpu().numpy()
 
 
 def _auroc(y, scores):
@@ -304,13 +285,9 @@ def check_swap_ladder(model, X, y, device, rng):
     peak bounds are shared, and only m is recomputed per swap."""
     scale = float(model.match_scale.item())
     _, a, m_intact, mask, bounds = _forward_full(model, X, device)
-    C = model.n_channels
 
     def rung(sw):
-        m = _match_from_bounds(
-            X, bounds, mask,
-            sw.whitener.cpu().numpy(), sw.proto_white.cpu().numpy(),
-            sw.proto_white_norm.cpu().numpy(), sw.proto_w.cpu().numpy(), C)
+        m = _match_from_bounds(sw, X, bounds, mask, device)
         return _auroc(y, readout(scale, a, m, mask))
 
     rungs = {"intact": _auroc(y, readout(scale, a, m_intact, mask))}
