@@ -56,6 +56,11 @@ DETECT_CHANNEL = "Cz"
 # noise/artifact before the physiological ERP response.
 MIN_P1_LATENCY_MS = 50.0
 
+# Gaussian smoothing sigma for TRIAL peak detection + inflection windows.
+# Canonical value is 3.0 (matchedcos match_smooth); prototypes use 2.0. A
+# smaller value over-detects noise-wiggle peaks and dilutes the Σ a·m routing.
+TRIAL_SMOOTH_SIGMA = 3.0
+
 
 def ms_to_sample(ms: float, sfreq: float = 256.0, tmin: float = 0.0) -> int:
     """Convert milliseconds to sample index."""
@@ -91,6 +96,39 @@ def _resample_to_width(seg: np.ndarray, width: int) -> np.ndarray:
     for c in range(C):
         out[c] = np.interp(x_new, x_old, seg[c])
     return out
+
+
+def _resample_batch(X: np.ndarray, bs: np.ndarray, los: np.ndarray,
+                    his: np.ndarray, width: int) -> np.ndarray:
+    """Vectorized linear resample of N variable-width windows to a common width.
+
+    For each i, resamples X[bs[i], :, los[i]:his[i]] (a (C, w_i) segment) to
+    (C, width) with the SAME linear interpolation as _resample_to_width, but
+    gathers all N units and all channels in one op. Returns (N, C, width).
+    Bit-for-bit equivalent to looping _resample_to_width over units (float64
+    blend, matching np.interp); this replaces ~P*K per-unit np.interp calls.
+    """
+    N = len(bs)
+    C, T = X.shape[1], X.shape[2]
+    if N == 0:
+        return np.zeros((0, C, width), dtype=np.float32)
+    w = (his - los).astype(np.float64)                          # (N,) native widths
+    if width > 1:
+        tgrid = np.arange(width, dtype=np.float64) / (width - 1.0)
+    else:
+        tgrid = np.zeros(1, dtype=np.float64)
+    frac_idx = tgrid[None, :] * (w[:, None] - 1.0)              # (N, width) in [0, w-1]
+    abs_pos = los[:, None].astype(np.float64) + frac_idx        # (N, width) absolute
+    flf = np.floor(abs_pos)
+    fr = abs_pos - flf                                          # (N, width) in [0,1) float64
+    fl = np.clip(flf.astype(np.int64), 0, T - 1)               # (N, width)
+    ce = np.clip(flf.astype(np.int64) + 1, 0, T - 1)
+    bexp = bs[:, None, None]                                    # (N,1,1)
+    cexp = np.arange(C)[None, :, None]                          # (1,C,1)
+    lo_v = X[bexp, cexp, fl[:, None, :]].astype(np.float64)     # (N, C, width)
+    hi_v = X[bexp, cexp, ce[:, None, :]].astype(np.float64)     # (N, C, width)
+    out = lo_v * (1.0 - fr[:, None, :]) + hi_v * fr[:, None, :]
+    return out.astype(np.float32)
 
 
 def detect_alternating_peaks(
@@ -159,8 +197,8 @@ def detect_trial_peaks(
     signal: np.ndarray, sfreq: float,
     prominence: float,
     max_peaks: int,
-    min_distance_ms: float = 31.0,
-    smooth_sigma: float = 2.0,
+    min_distance_ms: float = 40.0,
+    smooth_sigma: float = TRIAL_SMOOTH_SIGMA,
 ) -> list[tuple[int, str]]:
     """Detect a trial's peak *units* on its detection channel.
 
@@ -376,7 +414,9 @@ class ERPXTTN(nn.Module):
 
         # Frozen random positional grid, interpolated at fractional unit centres
         # (parameter-free: registered as a buffer, never trained).
-        self.register_buffer("pos_embed", torch.randn(self.n_grid, d_model) * 0.02)
+        # LEARNABLE positional grid (canonical: matchedcos base has freeze_frontend=False).
+        # Freezing this was a clean-room regression — it starves the routing attention.
+        self.pos_embed = nn.Parameter(torch.randn(self.n_grid, d_model) * 0.02)
 
         # Cross-attention (QK only — peaks query, prototypes key).
         self.ln_q = nn.LayerNorm(d_model)
@@ -551,15 +591,15 @@ class ERPXTTN(nn.Module):
         pwhite = self.proto_white.cpu().numpy()
         pwnorm = self.proto_white_norm.cpu().numpy()
 
-        # Per-prototype peak-segment buffers (native width w_k); the whitened
-        # match is then computed batched over (B, P) per prototype below.
-        seg_k = [np.zeros((B, P, C * int(proto_w[k])), dtype=np.float32)
-                 for k in range(K)]
-
-        # find_peaks is per-trial (unavoidable); the resample stays per unit.
+        # find_peaks is per-trial (unavoidable); collect every valid unit's
+        # window here, then resample + match ALL units at once (vectorized).
+        bs, js, los, his = [], [], [], []
         for b in range(B):
             sig = Xnp[b, self.detect_ch]
-            smoothed = _smooth_signal(sig, sigma=2.0)
+            # Trial peaks + inflection windows use the canonical sigma=3.0 smoothing
+            # (matchedcos match_smooth=3.0) — prototypes stay at 2.0. sigma=2.0 here
+            # over-detects noise-wiggle peaks and was the clean-room's routing regression.
+            smoothed = _smooth_signal(sig, sigma=TRIAL_SMOOTH_SIGMA)
             peaks = detect_trial_peaks(
                 sig, self.sfreq, prominence=self.peak_prominence, max_peaks=P)
             if not peaks:
@@ -571,27 +611,31 @@ class ERPXTTN(nn.Module):
             for j, (lo, hi) in enumerate(wins):
                 if hi <= lo:
                     continue
-                raw = Xnp[b, :, lo:hi]                       # (C, w_peak) native
-                emb[b, j] = _resample_to_width(raw, pw)
                 mask[b, j] = True
                 cen[b, j] = 0.5 * (lo + hi)
                 bnd[b, j] = (lo, hi)
-                for k in range(K):
-                    wk = int(proto_w[k])
-                    if wk > 0:
-                        seg_k[k][b, j] = _resample_to_width(raw, wk).reshape(-1)
+                bs.append(b); js.append(j); los.append(lo); his.append(hi)
 
-        # Batched native-width whitened-cosine match, one matmul per prototype.
+        # Vectorized native-width whitened-cosine match, one matmul per prototype.
         m = np.zeros((B, P, K), dtype=np.float32)
-        for k in range(K):
-            wk = int(proto_w[k])
-            if wk <= 0:
-                continue
-            dk = C * wk
-            S = seg_k[k].reshape(B * P, dk)             # (B·P, dk)
-            V = S @ whit[k, :dk, :dk].T                 # (B·P, dk)
-            vn = np.linalg.norm(V, axis=1) + 1e-8
-            m[:, :, k] = ((V @ pwhite[k, :dk]) / (vn * pwnorm[k])).reshape(B, P)
+        if bs:
+            bs = np.asarray(bs, dtype=np.int64)
+            js = np.asarray(js, dtype=np.int64)
+            los = np.asarray(los, dtype=np.int64)
+            his = np.asarray(his, dtype=np.int64)
+
+            # Routing embedding: width-pw resample of every unit at once.
+            emb[bs, js] = _resample_batch(Xnp, bs, los, his, pw)
+
+            for k in range(K):
+                wk = int(proto_w[k])
+                if wk <= 0:
+                    continue
+                dk = C * wk
+                seg = _resample_batch(Xnp, bs, los, his, wk).reshape(len(bs), dk)
+                V = seg @ whit[k, :dk, :dk].T               # (N, dk)
+                vn = np.linalg.norm(V, axis=1) + 1e-8
+                m[bs, js, k] = (V @ pwhite[k, :dk]) / (vn * pwnorm[k])
         m *= mask[:, :, None]
 
         dev = x.device
