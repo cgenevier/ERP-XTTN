@@ -57,19 +57,20 @@ RNG_SEED = 20260722
 def load_frozen_model(ckpt: dict, device) -> ERPXTTN:
     """Rebuild a frozen ERPXTTN from a checkpoint dict and load its weights.
 
-    Uses the ACTUAL post-resize K read off the state_dict, not model_config's
-    nominal n_proto: set_prototypes() may have resized K on folds where detection
-    found fewer components (e.g. K=3), and the buffer shapes must match exactly.
+    Reads the ACTUAL K off the state_dict and passes it as max_k so the proto
+    buffers are sized to it: set_prototypes() may have resized K per fold (e.g.
+    K=3 when detection found fewer components), and the shapes must match exactly.
     """
     c = ckpt["model_config"]
     sd = ckpt["state_dict"]
     K = int(sd["proto_seg"].shape[0])
+    # max_k=K sizes the proto buffers to the checkpoint's ACTUAL K (set_prototypes
+    # may have resized it per fold), so load_state_dict matches exactly.
     model = ERPXTTN(
         c["n_channels"], c["n_times"], channel_names=c.get("channel_names"),
-        detection_channel=c.get("detection_channel"), n_proto=K,
-        max_k=c["max_k"], max_peaks=c["max_peaks"],
+        detection_channel=c.get("detection_channel"),
+        max_k=K, max_peaks=c["max_peaks"],
         use_self_attn=c["use_self_attn"], sfreq=c.get("sfreq", 256.0),
-        polarity_pattern=c.get("polarity_pattern"),
         peak_prominence=c.get("peak_prominence", 0.02))
     model.load_state_dict(sd)
     return model.eval().to(device)
@@ -507,7 +508,7 @@ def run_self_test(device):
     X[y == 1, 1] += (np.sin(2 * np.pi * 3 * t) * 1.5).astype(np.float32)
     Xt, yt = torch.from_numpy(X).to(device), torch.from_numpy(y).to(device)
     model = ERPXTTN(C, T, channel_names=["Fz", "Cz", "Pz"], detection_channel="Cz",
-                    n_proto=4, max_k=4).to(device)
+                    max_k=4).to(device)
     model.set_prototypes(Xt, yt)
     opt = torch.optim.AdamW(model.parameters(), lr=1e-3)
     crit = torch.nn.BCEWithLogitsLoss()

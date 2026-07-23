@@ -86,7 +86,7 @@ def main() -> None:
 
     # ---- ERP-XTTN (3ch, K=4) ----
     erp = ERPXTTN(n_channels=N_CHANNELS, n_times=N_TIMES,
-                  n_proto=N_PROTO, sfreq=SFREQ)
+                  max_k=N_PROTO, sfreq=SFREQ)
     # Populate prototype buffers (otherwise the model's set_prototypes path
     # gets exercised differently). These don't change the FLOP count of the
     # forward pass, just give it a non-trivial K x C x T tensor.

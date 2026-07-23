@@ -117,7 +117,7 @@ def get_proto_config(cfg: dict, results_dir=None):
                 colors = PROTO_COLOR_PALETTE[:K]
                 return names, colors
 
-    names = cfg.get("proto_names", [f"Proto-{i}" for i in range(len(cfg.get("polarity_pattern", [])))])
+    names = cfg.get("proto_names", [f"Proto-{i}" for i in range(4)])
     colors = PROTO_COLOR_PALETTE[:len(names)]
     return names, colors
 

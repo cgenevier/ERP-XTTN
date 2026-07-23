@@ -72,8 +72,32 @@ def ms_to_sample(ms: float, sfreq: float = 256.0, tmin: float = 0.0) -> int:
 # ──────────────────────────────────────────────────────────────────────
 
 def _smooth_signal(diff_signal: np.ndarray, sigma: float = 2.0) -> np.ndarray:
-    """Gaussian-smooth a 1-D signal for robust peak/zero-crossing detection."""
+    """Gaussian-smooth a 1-D signal for robust peak/zero-crossing detection.
+
+    Used for PROTOTYPE detection (scipy default, 4σ truncation)."""
     return gaussian_filter1d(diff_signal, sigma=sigma)
+
+
+def _smooth_trial(sig: np.ndarray, sigma: float) -> np.ndarray:
+    """Trial-peak smoothing — bit-identical to matchedcos `_smooth_time`: a manual
+    Gaussian kernel truncated at 3σ (radius round(3σ)), reflect-padded, run as a
+    float32 torch conv1d (same op/dtype as matchedcos, so near-zero second-
+    derivatives flip identically and inflection windows match). scipy's
+    gaussian_filter1d truncates at 4σ and rounds differently — the old drift."""
+    return _smooth_trial_batch(sig[None, :], sigma)[0]
+
+
+def _smooth_trial_batch(sig2d: np.ndarray, sigma: float) -> np.ndarray:
+    """Batched `_smooth_trial`: (B, T) → (B, T) in one torch conv. matchedcos
+    smooths the whole batch's detection channel at once, so batching here is both
+    faster AND bit-identical (per-trial torch convs in the loop were ~10× slower)."""
+    rad = max(1, int(round(3 * sigma)))
+    t = torch.arange(-rad, rad + 1, dtype=torch.float32)
+    k = torch.exp(-0.5 * (t / sigma) ** 2)
+    k = (k / k.sum()).view(1, 1, -1)
+    x = torch.from_numpy(np.ascontiguousarray(sig2d, dtype=np.float32)).unsqueeze(1)
+    xr = F.pad(x, (rad, rad), mode="reflect")
+    return F.conv1d(xr, k).squeeze(1).numpy()
 
 
 def _find_zero_crossings(signal: np.ndarray) -> np.ndarray:
@@ -131,74 +155,13 @@ def _resample_batch(X: np.ndarray, bs: np.ndarray, los: np.ndarray,
     return out.astype(np.float32)
 
 
-def detect_alternating_peaks(
-    diff_signal: np.ndarray, sfreq: float,
-    polarity_pattern: list[str] = None,
-    prominence: float = 0.02,
-    min_distance_ms: float = 31.0,
-    smooth_sigma: float = 2.0,
-    min_latency_ms: float = 50.0,
-) -> list[tuple[int, str]]:
-    """Detect the prototype peak chain enforcing an alternating polarity pattern.
-
-    Places the K prototype windows on the grand-average difference wave: the
-    temporally-ordered chain matching `polarity_pattern` that maximizes total
-    prominence. Returns a list of (sample_index, polarity) sorted by time.
-    """
-    if polarity_pattern is None:
-        polarity_pattern = ['pos', 'neg', 'pos', 'neg']
-
-    min_distance = max(1, int(round(min_distance_ms / 1000.0 * sfreq)))
-    min_latency_sample = int(round(min_latency_ms / 1000.0 * sfreq))
-    smoothed = _smooth_signal(diff_signal, sigma=smooth_sigma)
-
-    pos_peaks, pos_props = find_peaks(
-        smoothed, prominence=prominence, distance=min_distance)
-    pos_list = sorted([(int(i), float(p)) for i, p in
-                       zip(pos_peaks, pos_props['prominences'])])
-    neg_peaks, neg_props = find_peaks(
-        -smoothed, prominence=prominence, distance=min_distance)
-    neg_list = sorted([(int(i), float(p)) for i, p in
-                       zip(neg_peaks, neg_props['prominences'])])
-
-    slot_candidates = [pos_list if pol == 'pos' else neg_list
-                       for pol in polarity_pattern]
-
-    first_candidates = [(i, p) for i, p in slot_candidates[0]
-                        if i >= min_latency_sample]
-    if not first_candidates:
-        return []
-    p1_idx, p1_prom = first_candidates[0]
-
-    best_chain: list[tuple[int, float]] = []
-    best_score = -1.0
-
-    def search(slot: int, min_sample: int, chain: list, score: float):
-        nonlocal best_chain, best_score
-        if slot == len(polarity_pattern):
-            if score > best_score:
-                best_score = score
-                best_chain = list(chain)
-            return
-        for idx, prom in slot_candidates[slot]:
-            if idx < min_sample:
-                continue
-            chain.append((idx, prom))
-            search(slot + 1, idx + min_distance, chain, score + prom)
-            chain.pop()
-
-    search(1, p1_idx + min_distance, [(p1_idx, p1_prom)], p1_prom)
-    if not best_chain:
-        return []
-    return [(idx, polarity_pattern[i]) for i, (idx, _) in enumerate(best_chain)]
-
-
 def detect_trial_peaks(
     signal: np.ndarray, sfreq: float,
     prominence: float,
     max_peaks: int,
     min_distance_ms: float = 40.0,
     smooth_sigma: float = TRIAL_SMOOTH_SIGMA,
+    presmoothed: np.ndarray = None,
 ) -> list[tuple[int, str]]:
     """Detect a trial's peak *units* on its detection channel.
 
@@ -210,7 +173,7 @@ def detect_trial_peaks(
     Returns (sample_index, polarity) by time.
     """
     min_distance = max(1, int(round(min_distance_ms / 1000.0 * sfreq)))
-    smoothed = _smooth_signal(signal, sigma=smooth_sigma)
+    smoothed = _smooth_trial(signal, smooth_sigma) if presmoothed is None else presmoothed
 
     pos_peaks, pos_props = find_peaks(
         smoothed, prominence=prominence, distance=min_distance)
@@ -296,10 +259,16 @@ def build_windows_from_inflections(
     infl = _find_inflections(smoothed_signal)
     windows = []
     for peak in peak_indices:
-        i = int(np.searchsorted(infl, peak))
-        lo = int(infl[i - 1]) if i > 0 else 0
-        hi = int(infl[i]) if i < len(infl) else T
-        hi = max(lo + 2, hi)
+        # matchedcos exactly: lower bound from side='left', UPPER bound from
+        # side='right' — so a peak that coincides with an inflection takes the
+        # NEXT inflection as its right shoulder (a single 'left' search would
+        # take the coincident one, one sample low).
+        posL = int(np.searchsorted(infl, peak, side='left'))
+        posR = int(np.searchsorted(infl, peak, side='right'))
+        lo = int(infl[posL - 1]) if posL > 0 else 0
+        hi = int(infl[posR]) if posR < len(infl) else T
+        if hi - lo < 2:
+            hi = min(T, lo + 2)
         windows.append((max(lo, 0), min(hi, T)))
     return windows
 
@@ -359,8 +328,6 @@ class ERPXTTN(nn.Module):
                  d_model: int = 64, num_heads: int = 4,
                  patch_width: int = 8, dropout: float = 0.3,
                  sfreq: float = 256.0, tmin: float = 0.0,
-                 n_proto: int = 4,
-                 polarity_pattern: list[str] = None,
                  peak_prominence: float = 0.02,
                  min_window_ms: float = 40.0,
                  max_window_ms: float = 200.0,
@@ -381,10 +348,9 @@ class ERPXTTN(nn.Module):
         self.d_head = d_model // num_heads
         self.patch_width = patch_width
         self.use_self_attn = use_self_attn
-        self.K = n_proto
-        self.polarity_pattern = polarity_pattern or ['pos', 'neg', 'pos', 'neg']
-        self.peak_prominence = peak_prominence
         self.max_k = max_k
+        self.K = max_k                 # initial proto count; re-derived per fold
+        self.peak_prominence = peak_prominence
         self.max_peaks = max_peaks
         self.sfreq = sfreq
         self.tmin = tmin
@@ -426,7 +392,12 @@ class ERPXTTN(nn.Module):
 
         # Learned scalar calibrating the grounded logit's range (cannot change
         # WHICH prototype a peak matches — only the overall scale).
-        self.match_scale = nn.Parameter(torch.tensor(1.0))
+        # Init 10.0 (matchedcos): Σ_k a·m per peak is bounded ≈[-1,1], so scale=1
+        # kept logits in ≈[-1,1] → sigmoid stuck ≈[0.27,0.73] → weak early gradient
+        # through the routing attention (∂L/∂a ∝ scale·m). match_bias centers the
+        # magnitude-pooled readout (AUROC-neutral but affects the BCE fit).
+        self.match_scale = nn.Parameter(torch.tensor(10.0))
+        self.match_bias = nn.Parameter(torch.zeros(1))
         self.dropout_layer = nn.Dropout(dropout)
 
         # Self-attention over peak tokens (ablatable via use_self_attn).
@@ -462,6 +433,24 @@ class ERPXTTN(nn.Module):
         self.to(self.match_scale.device)
 
     # ── prototype construction ─────────────────────────────────────────
+    def _auto_detect_peaks(self, diff_signal: np.ndarray, sfreq: float):
+        """Prototype peaks, matchedcos peak_mode='auto': the top-max_k most
+        prominent pos/neg deflections — sign-consistent (pos where smoothed>0,
+        neg where <0), past MIN_P1 latency, 80 ms min-distance, ranked by
+        prominence. NO polarity-alternation constraint. Returns [(idx, pol)]."""
+        min_distance = max(1, int(round(80.0 / 1000.0 * sfreq)))
+        min_latency = int(round(MIN_P1_LATENCY_MS / 1000.0 * sfreq))
+        smoothed = _smooth_signal(diff_signal, sigma=2.0)
+        pos, pp = find_peaks(smoothed, prominence=self.peak_prominence, distance=min_distance)
+        neg, npp = find_peaks(-smoothed, prominence=self.peak_prominence, distance=min_distance)
+        cand = [(int(i), 'pos', float(p)) for i, p in zip(pos, pp['prominences'])
+                if i >= min_latency and smoothed[i] > 0]
+        cand += [(int(i), 'neg', float(p)) for i, p in zip(neg, npp['prominences'])
+                 if i >= min_latency and smoothed[i] < 0]
+        cand.sort(key=lambda t: t[2], reverse=True)
+        keep = sorted(cand[:self.max_k], key=lambda t: t[0])
+        return [(i, pol) for i, pol, _ in keep]
+
     def set_prototypes(self, X_train: torch.Tensor, y_train: torch.Tensor):
         """Detect prototype windows and build grounded templates + whiteners.
 
@@ -480,21 +469,24 @@ class ERPXTTN(nn.Module):
         sig = diff[self.detect_ch]
         smoothed = _smooth_signal(sig, sigma=2.0)
 
-        peaks = detect_alternating_peaks(
-            sig, self.sfreq, polarity_pattern=self.polarity_pattern,
-            prominence=self.peak_prominence, min_latency_ms=MIN_P1_LATENCY_MS)
-        if len(peaks) < 2:
+        # matchedcos peak_mode='auto': top-max_k most-prominent pos/neg
+        # deflections (NO polarity-alternation constraint — that was a clean-room
+        # deviation that dropped/mis-placed prototypes on non-alternating waves).
+        peaks = self._auto_detect_peaks(sig, self.sfreq)
+        if not peaks:
             raise RuntimeError(
-                f"Prototype detection found only {len(peaks)} peak(s) on the "
-                f"grand-average difference wave (prominence={self.peak_prominence}, "
-                f"pattern={self.polarity_pattern}). Check preprocessing/detection "
-                f"channel.")
-        if len(peaks) > self.max_k:
-            peaks = peaks[:self.max_k]
+                f"Auto peak detection found no peaks on the grand-average "
+                f"difference wave (prominence={self.peak_prominence}). Check "
+                f"preprocessing/detection channel.")
 
         peak_idx = [p[0] for p in peaks]
-        windows = build_windows_from_zero_crossings(
+        raw_windows = build_windows_from_zero_crossings(
             peak_idx, smoothed, self.min_window_ms, self.max_window_ms, self.sfreq)
+        # Auto mode: drop peaks whose zero-crossing window doesn't contain them
+        # (K shrinks). This is also what avoids the degenerate zero-width window
+        # that used to crash set_prototypes on N400.
+        keep = [(p, w) for p, w in zip(peaks, raw_windows) if w[0] <= p[0] <= w[1]]
+        windows = [w for _, w in keep]
 
         if len(windows) != self.K:
             self._resize_K(len(windows))
@@ -591,17 +583,19 @@ class ERPXTTN(nn.Module):
         pwhite = self.proto_white.cpu().numpy()
         pwnorm = self.proto_white_norm.cpu().numpy()
 
+        # Batch-smooth the detection channel ONCE (matchedcos smooths the whole
+        # batch at once) — canonical sigma=3.0 for trials (prototypes stay 2.0).
+        smoothed_all = _smooth_trial_batch(Xnp[:, self.detect_ch], TRIAL_SMOOTH_SIGMA)
+
         # find_peaks is per-trial (unavoidable); collect every valid unit's
         # window here, then resample + match ALL units at once (vectorized).
         bs, js, los, his = [], [], [], []
         for b in range(B):
             sig = Xnp[b, self.detect_ch]
-            # Trial peaks + inflection windows use the canonical sigma=3.0 smoothing
-            # (matchedcos match_smooth=3.0) — prototypes stay at 2.0. sigma=2.0 here
-            # over-detects noise-wiggle peaks and was the clean-room's routing regression.
-            smoothed = _smooth_signal(sig, sigma=TRIAL_SMOOTH_SIGMA)
+            smoothed = smoothed_all[b]
             peaks = detect_trial_peaks(
-                sig, self.sfreq, prominence=self.peak_prominence, max_peaks=P)
+                sig, self.sfreq, prominence=self.peak_prominence, max_peaks=P,
+                presmoothed=smoothed)
             if not peaks:
                 continue
             idx = [p[0] for p in peaks]
@@ -612,7 +606,9 @@ class ERPXTTN(nn.Module):
                 if hi <= lo:
                     continue
                 mask[b, j] = True
-                cen[b, j] = 0.5 * (lo + hi)
+                # PE anchor = the PEAK INDEX (canonical: matchedcos centers[b,:n]=keep),
+                # NOT the window midpoint — the peak is where the deflection actually is.
+                cen[b, j] = idx[j]
                 bnd[b, j] = (lo, hi)
                 bs.append(b); js.append(j); los.append(lo); his.append(hi)
 
@@ -624,7 +620,8 @@ class ERPXTTN(nn.Module):
             los = np.asarray(los, dtype=np.int64)
             his = np.asarray(his, dtype=np.int64)
 
-            # Routing embedding: width-pw resample of every unit at once.
+            # Routing embedding: width-pw resample of every valid unit at once
+            # (padded slots stay zero and are masked out downstream).
             emb[bs, js] = _resample_batch(Xnp, bs, los, his, pw)
 
             for k in range(K):
@@ -644,7 +641,9 @@ class ERPXTTN(nn.Module):
                 torch.from_numpy(bnd).to(dev))
 
     def _self_attention(self, z: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        """Masked multi-head self-attention over peak tokens, with residual."""
+        """Masked multi-head self-attention over the trial's peak tokens, with
+        residual. Only the actually-detected peaks attend to each other; the
+        padded slots are excluded (no attending to empty padding)."""
         B, N, d = z.shape
         H, d_h = self.num_heads, self.d_head
         z_ln = self.sa_ln(z)
@@ -653,10 +652,27 @@ class ERPXTTN(nn.Module):
         v = self.sa_W_v(z_ln).view(B, N, H, d_h).permute(0, 2, 1, 3)
         scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(d_h)
         scores = scores.masked_fill((~mask).view(B, 1, 1, N), float('-inf'))
-        attn = torch.nan_to_num(F.softmax(scores, dim=-1))
-        attn = self.sa_dropout(attn)
+        attn = self.sa_dropout(torch.nan_to_num(F.softmax(scores, dim=-1)))
         out = torch.matmul(attn, v).permute(0, 2, 1, 3).reshape(B, N, d)
         return z + self.sa_out_proj(out)
+
+    def _proto_patch_idx(self) -> torch.Tensor:
+        """Prototype PE anchor = window-midpoint PATCH index (matchedcos exactly):
+        center_ms = (start_ms+end_ms)/2 → ms_to_sample → // patch_width. The
+        ms→sample ROUND happens before the floor-divide (the raw sample midpoint
+        would occasionally floor one patch lower).
+
+        Derived from mf_window (a restored buffer), NOT detected_windows_ms (a
+        Python attr set only in set_prototypes) — so it survives a checkpoint
+        reload without re-running set_prototypes (e.g. the certificate)."""
+        idx = []
+        for k in range(self.K):
+            s = int(self.mf_window[k, 0]); e = int(self.mf_window[k, 1])
+            start_ms = round(s / self.sfreq * 1000 + self.tmin * 1000, 1)
+            end_ms = round(e / self.sfreq * 1000 + self.tmin * 1000, 1)
+            cs = ms_to_sample((start_ms + end_ms) / 2.0, self.sfreq, self.tmin)
+            idx.append(max(0, min(cs // self.patch_width, self.n_grid - 1)))
+        return torch.tensor(idx, dtype=torch.long, device=self.pos_embed.device)
 
     def forward(self, x: torch.Tensor):
         """Forward pass → (logit (B,1), aux)."""
@@ -666,15 +682,19 @@ class ERPXTTN(nn.Module):
         emb, m, mask, center, bounds = self._tokenize_and_match(x)
         P = emb.shape[1]
 
-        # Learned peak-token embeddings + interpolated positional encoding.
+        # Peak-token embeddings + PE at the peak index; padded slots are zeroed
+        # (masked self-attention and the m·mask readout both exclude them).
         z = self.patch_embed(emb) + self._interp_pos(center)
         z = z * mask.unsqueeze(-1)
         z = self.dropout_layer(z)
         if self.use_self_attn:
             z = self._self_attention(z, mask)
 
-        # Prototype key embeddings + PE at prototype centre.
-        p = self.patch_embed(self.proto_seg) + self._interp_pos(self.proto_center)
+        # Prototype KEY = the compact resampled window segment (proto_seg) patch-
+        # embedded — a sharp, non-diluted fingerprint — + PE at the window-midpoint
+        # patch. (A full-template mean-pool key was tested and matched within noise
+        # but is more diluted; the compact key is the cleaner choice.)
+        p = self.patch_embed(self.proto_seg) + self.pos_embed[self._proto_patch_idx()]
         p_exp = p.unsqueeze(0).expand(B, -1, -1)
 
         # QK cross-attention: peaks query, prototypes key → a[b,p,k].
@@ -684,13 +704,13 @@ class ERPXTTN(nn.Module):
         scores = scores.clamp(-10, 10)
         a = F.softmax(scores, dim=-1).mean(dim=1)          # (B, P, K)
 
-        # Fixed grounded bilinear readout: s · Σ_{p,k} a·m / (#valid peaks).
+        # Fixed grounded bilinear readout: s · Σ_{p,k} a·m / (#valid peaks) + bias.
         contrib = (a * m) * mask.unsqueeze(-1)
         n_valid = mask.sum(dim=1).clamp_min(1).float()
         logit = self.match_scale * contrib.sum(dim=(1, 2)) / n_valid
 
         aux = {"a": a, "m": m, "mask": mask, "center": center, "bounds": bounds}
-        return logit.unsqueeze(-1), aux
+        return logit.unsqueeze(-1) + self.match_bias, aux
 
     @torch.no_grad()
     def compute_mf(self, x: torch.Tensor) -> torch.Tensor:

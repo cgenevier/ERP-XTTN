@@ -241,7 +241,6 @@ SKLEARN_MODELS = {"xdawn_rg"}
 def make_model(model_name: str, n_channels: int, n_times: int,
                srate: int, device: torch.device,
                channel_names: list[str] = None,
-               polarity_pattern: list[str] = None,
                peak_prominence: float = 0.02,
                detection_channel: str = None,
                max_k: int = 4,
@@ -256,15 +255,12 @@ def make_model(model_name: str, n_channels: int, n_times: int,
     elif model_name == "epmn":
         return EPMN(n_channels, n_times).to(device)
     elif model_name == "erpxttn":
-        # Prototypes are placed via the alternating-polarity detector using the
-        # dataset's polarity_pattern; K is capped at max_k and re-derived in
-        # set_prototypes() from the actual detected windows.
-        n_proto = len(polarity_pattern) if polarity_pattern else max_k
+        # Prototypes are auto-detected (top-max_k by prominence); K is re-derived
+        # per fold in set_prototypes() from the actual detected windows.
         return ERPXTTN(
             n_channels, n_times, channel_names=channel_names,
-            sfreq=float(srate), n_proto=n_proto,
+            sfreq=float(srate),
             d_model=d_model, num_heads=num_heads, patch_width=patch_width,
-            polarity_pattern=polarity_pattern,
             peak_prominence=peak_prominence,
             detection_channel=detection_channel,
             max_k=max_k,
@@ -727,7 +723,6 @@ def run_fold(fold_idx: int, test_subj: str,
              all_data: dict, model_name: str, srate: int,
              device: torch.device, results_dir: Path,
              channel_names: list[str] = None,
-             polarity_pattern: list[str] = None,
              peak_prominence: float = 0.02,
              pos_key: str = "error", neg_key: str = "correct",
              detection_channel: str = None,
@@ -835,7 +830,6 @@ def run_fold(fold_idx: int, test_subj: str,
     set_seed(SEED)
     model = make_model(model_name, n_channels, n_times, srate, device,
                        channel_names=channel_names,
-                       polarity_pattern=polarity_pattern,
                        peak_prominence=peak_prominence,
                        detection_channel=detection_channel,
                        max_k=max_k, **_xttn_kwargs)
@@ -905,7 +899,6 @@ def run_fold(fold_idx: int, test_subj: str,
     set_seed(SEED)
     model2 = make_model(model_name, n_channels, n_times, srate, device,
                         channel_names=channel_names,
-                        polarity_pattern=polarity_pattern,
                         peak_prominence=peak_prominence,
                         detection_channel=detection_channel,
                         max_k=max_k, **_xttn_kwargs)
@@ -1004,7 +997,6 @@ def run_fold(fold_idx: int, test_subj: str,
                 "patch_width": patch_width, "n_proto": model2.K,
                 "max_k": max_k, "max_peaks": model2.max_peaks,
                 "use_self_attn": use_self_attn,
-                "polarity_pattern": polarity_pattern,
                 "peak_prominence": peak_prominence,
                 "detection_channel": detection_channel,
                 "channel_names": channel_names,
@@ -1169,7 +1161,6 @@ def main():
         logging.info(f"Channels ({len(channel_names)}): {channel_names}")
 
     # LOSO cross-validation
-    polarity_pattern = cfg.get("polarity_pattern")
     peak_prominence = (args.peak_prominence if args.peak_prominence is not None
                        else cfg.get("peak_prominence", 0.02))
     pos_key = cfg["label_map"]["pos_key"]
@@ -1194,7 +1185,6 @@ def main():
         fold_result = run_fold(i, test_subj, all_data, args.model, srate,
                                device, results_dir,
                                channel_names=channel_names,
-                               polarity_pattern=polarity_pattern,
                                peak_prominence=peak_prominence,
                                pos_key=pos_key, neg_key=neg_key,
                                detection_channel=cfg.get("detection_channel"),
