@@ -623,6 +623,166 @@ def _select_routing(labels, probs, mode):
     return (int(L), cap(L)), (int(R), cap(R))
 
 
+def _as_scalar_str(x):
+    arr = np.asarray(x)
+    return str(arr.item() if arr.shape == () else arr)
+
+
+def _sigmoid(x):
+    return 1.0 / (1.0 + np.exp(-np.clip(x, -60, 60)))
+
+
+def _legacy_fusion_metadata(K):
+    return {
+        "feature_names": ["routing_logit"] + [f"MF_proto{k}" for k in range(K)],
+        "feature_slices": {"routing_logit": [0, 1], "mf": [1, 1 + K]},
+        "feature_order": ["routing_logit", "mf"],
+        "combiner_features": "legacy_routing_mf",
+    }
+
+
+def _fusion_evidence_for_trials(npz_path, Xn, trial_ids):
+    """Return per-trial fusion accounting, or None if artifacts are absent.
+
+    Evidence is LR-logit contribution = feature_value * fitted coefficient. The
+    feature vector is recomputed from the held-out subject's own frozen
+    checkpoint, matching the zero-calibration Stage-2 combiner.
+    """
+    rpath = Path(npz_path)
+    results_dir = rpath.parent
+    subject = rpath.stem.replace("routing_", "")
+    ckpt_path = results_dir / f"checkpoint_{subject}.pt"
+    tf_path = results_dir / f"two_factor_{subject}.npz"
+    if not (ckpt_path.exists() and tf_path.exists()):
+        return None
+
+    try:
+        import torch
+        from erpxttn import _fold_features, fusion_feature_metadata, load_frozen_model
+
+        device = torch.device("cpu")
+        ckpt = torch.load(str(ckpt_path), map_location=device, weights_only=False)
+        model = load_frozen_model(ckpt, device)
+        full_feats = _fold_features(model, Xn[np.asarray(trial_ids)].astype(np.float32),
+                                    device, bs=max(1, len(trial_ids)))
+
+        tf = np.load(tf_path, allow_pickle=True)
+        coef = np.asarray(tf["coef"], dtype=float).reshape(-1)
+        intercept = float(tf["intercept"])
+
+        meta = None
+        if "feature_metadata_json" in tf.files:
+            try:
+                meta = json.loads(_as_scalar_str(tf["feature_metadata_json"]))
+            except Exception:
+                meta = None
+        if meta is None:
+            meta = fusion_feature_metadata(model)
+
+        if full_feats.shape[1] == coef.shape[0]:
+            feats = full_feats
+            feature_names = list(meta.get("feature_names", []))
+            slices = dict(meta.get("feature_slices", {}))
+            combiner_features = _as_scalar_str(
+                tf["combiner_features"]) if "combiner_features" in tf.files else \
+                "routing_mf_channel_contrast_v1"
+        else:
+            legacy = full_feats[:, :1 + model.K]
+            if legacy.shape[1] != coef.shape[0]:
+                return None
+            feats = legacy
+            meta = _legacy_fusion_metadata(model.K)
+            feature_names = meta["feature_names"]
+            slices = meta["feature_slices"]
+            combiner_features = "legacy_routing_mf"
+
+        if not feature_names or len(feature_names) != feats.shape[1]:
+            feature_names = [f"f{i}" for i in range(feats.shape[1])]
+
+        probs = tf["probs"] if "probs" in tf.files and len(tf["probs"]) >= max(trial_ids) + 1 else None
+        out = {}
+        for row, tr in enumerate(trial_ids):
+            contrib = feats[row] * coef
+            groups = {"intercept": intercept}
+            for key in ("routing_logit", "mf", "mf_channel", "mf_contrast"):
+                if key in slices:
+                    s, e = [int(v) for v in slices[key]]
+                    groups[key] = float(contrib[s:e].sum())
+            logit = float(contrib.sum() + intercept)
+            spatial_idx = []
+            for key in ("mf_channel", "mf_contrast"):
+                if key in slices:
+                    s, e = [int(v) for v in slices[key]]
+                    spatial_idx.extend(range(s, e))
+            top = sorted(
+                [(feature_names[i], float(contrib[i]), float(feats[row, i]))
+                 for i in spatial_idx],
+                key=lambda t: abs(t[1]), reverse=True)[:5]
+            out[int(tr)] = {
+                "groups": groups,
+                "top_spatial": top,
+                "logit": logit,
+                "prob": float(probs[tr]) if probs is not None else float(_sigmoid(logit)),
+                "combiner_features": combiner_features,
+            }
+        return out
+    except Exception as e:
+        print(f"  {subject}: fusion evidence unavailable for routing figure ({e})")
+        return None
+
+
+def _short_feature_label(name, proto_names):
+    label = str(name)
+    for k, pname in enumerate(proto_names):
+        label = label.replace(f"proto{k}", pname)
+    label = label.replace("MF_", "")
+    label = label.replace("_channel_", ":")
+    label = label.replace("_contrast_", ":")
+    return label
+
+
+def _plot_fusion_evidence(ax, evidence, proto_names, xlim=None):
+    """Compact decision ledger + top spatial amplitude terms for one trial."""
+    group_specs = [
+        ("intercept", "bias"),
+        ("routing_logit", "routing"),
+        ("mf", "MF"),
+        ("mf_channel", "channel MF"),
+        ("mf_contrast", "contrast MF"),
+    ]
+    labels, vals = [], []
+    for key, label in group_specs:
+        if key in evidence["groups"]:
+            labels.append(label)
+            vals.append(float(evidence["groups"][key]))
+    y = np.arange(len(vals))
+    colors = ["#2e7d32" if v >= 0 else "#b23b3b" for v in vals]
+    lim = xlim if xlim is not None else \
+        max(0.25, max(abs(v) for v in vals) * 1.25 if vals else 1.0)
+    ax.barh(y, vals, color=colors, alpha=0.78, height=0.55)
+    ax.axvline(0, color="0.45", lw=0.7)
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels, fontsize=8.5)
+    ax.set_xlim(-lim, lim)
+    ax.invert_yaxis()
+    ax.set_xlabel("LR logit contribution", fontsize=10)
+    ax.set_title(f"fusion p(err)={evidence['prob']:.2f}", fontsize=10.5,
+                 fontweight="bold")
+    ax.grid(axis="x", color="0.88", lw=0.6)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+
+    top = evidence.get("top_spatial", [])
+    if top:
+        lines = []
+        for name, c, _val in top[:4]:
+            sign = "+" if c >= 0 else ""
+            lines.append(f"{_short_feature_label(name, proto_names)} {sign}{c:.2f}")
+        ax.text(1.02, 0.98, "top spatial\n" + "\n".join(lines),
+                transform=ax.transAxes, ha="left", va="top", fontsize=8.0,
+                color="#555")
+
+
 def plot_peak_routing(npz_path, out_png, dataset_label='ERP',
                       subject='sub-01', mode='high'):
     """Per-peak routing figure (TP vs TN) from a self-contained routing dump.
@@ -658,10 +818,31 @@ def plot_peak_routing(npz_path, out_png, dataset_label='ERP',
         print(f"  {subject} [{mode}]: no TP/TN pair, skipping")
         return
     (tp, tp_lab), (tn, tn_lab) = sel
+    fusion_evidence = _fusion_evidence_for_trials(npz_path, X, [tp, tn])
+    has_fusion_evidence = fusion_evidence is not None
+    fusion_xlim = None
+    if has_fusion_evidence:
+        vals = []
+        for tr in (tp, tn):
+            ev = fusion_evidence[int(tr)]
+            vals.extend(float(ev["groups"].get(k, 0.0))
+                        for k in ("intercept", "routing_logit", "mf",
+                                  "mf_channel", "mf_contrast")
+                        if k in ev["groups"])
+        fusion_xlim = max(0.25, max(abs(v) for v in vals) * 1.25 if vals else 1.0)
 
-    fig = plt.figure(figsize=(14, 13.5))
-    gs = gridspec.GridSpec(4, 2, figure=fig, height_ratios=[0.65, 1.0, 0.9, 0.9],
-                           hspace=0.42, wspace=0.22)
+    if has_fusion_evidence:
+        fig = plt.figure(figsize=(15.5, 16.2))
+        gs = gridspec.GridSpec(
+            5, 2, figure=fig,
+            height_ratios=[0.65, 1.0, 0.88, 0.88, 1.0],
+            hspace=0.50, wspace=0.38)
+    else:
+        fig = plt.figure(figsize=(14, 13.5))
+        gs = gridspec.GridSpec(
+            4, 2, figure=fig,
+            height_ratios=[0.65, 1.0, 0.9, 0.9],
+            hspace=0.42, wspace=0.22)
 
     axp = fig.add_subplot(gs[0, :])
     for k in range(K):
@@ -734,14 +915,22 @@ def plot_peak_routing(npz_path, out_png, dataset_label='ERP',
         ax3.set_ylabel('Attention  a  (per peak)', fontsize=12)
         ax3.set_xlim(0, time_ms[-1]); ax3.set_ylim(0, amax)
 
+        if has_fusion_evidence:
+            ax4 = fig.add_subplot(gs[4, col_i])
+            _plot_fusion_evidence(ax4, fusion_evidence[int(tr)], names, fusion_xlim)
+
     _mtitle = {'confident': 'confident cases', 'high': 'HIGH confidence',
                'median': 'MEDIAN confidence', 'low': 'LOW confidence',
                'wrong': 'MISCLASSIFIED cases'}.get(mode, mode)
     fig.suptitle(f'Peak-Unit Routing ({_mtitle}) — {dataset_label} ({subject})',
                  fontsize=16, fontweight='bold', y=1.005)
-    fig.text(0.5, 0.982, 'each variable-width peak gets one m & a per prototype.  '
-             'filled ▼ = RESEMBLES proto (m>0);  hollow ▽ = ANTI-matches (m<0)',
-             ha='center', fontsize=10.5, color='#555', style='italic')
+    subtitle = ('each variable-width peak gets one m & a per prototype.  '
+                'filled ▼ = RESEMBLES proto (m>0);  hollow ▽ = ANTI-matches (m<0)')
+    if has_fusion_evidence:
+        subtitle += ('; bottom row = Stage-2 LR evidence from routing, MF, '
+                     'channel MF, and contrast MF')
+    fig.text(0.5, 0.982, subtitle, ha='center', fontsize=10.5,
+             color='#555', style='italic')
     fig.savefig(out_png, dpi=130, bbox_inches='tight')
     plt.close(fig)
 
