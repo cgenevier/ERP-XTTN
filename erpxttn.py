@@ -885,10 +885,9 @@ def fusion_feature_metadata(model: "ERPXTTN") -> dict:
     slices = {"routing_logit": [0, 1]}
     start = 1
 
-    names.extend([f"MF_proto{k}" for k in range(model.K)])
-    slices["mf"] = [start, start + model.K]
-    start += model.K
-
+    # Scalar MF_k is excluded from the fusion vector (Σ_c MF_kc = MF_k exactly →
+    # collinear); the channel-resolved MF_kc is the finest grounded amplitude
+    # factor and the contrast carries the non-collinear cross-channel terms.
     names.extend([
         f"MF_proto{k}_channel_{channels[c]}"
         for k in range(model.K) for c in range(model.n_channels)
@@ -913,10 +912,9 @@ def fusion_feature_metadata(model: "ERPXTTN") -> dict:
             {"i": int(i), "j": int(j), "name": f"{channels[i]}-{channels[j]}"}
             for i, j in pairs
         ],
-        "feature_order": ["routing_logit", "mf", "mf_channel", "mf_contrast"],
+        "feature_order": ["routing_logit", "mf_channel", "mf_contrast"],
         "normalization": {
-            "mf": "global_template_norm",
-            "mf_channel": "global_template_norm; sums over channels to MF",
+            "mf_channel": "global_template_norm; sums over channels to the (excluded) scalar MF",
             "mf_contrast": "global_template_norm",
         },
     }
@@ -953,17 +951,22 @@ def load_frozen_model(ckpt: dict, device) -> "ERPXTTN":
 @torch.no_grad()
 def _fold_features(model: "ERPXTTN", Xn: np.ndarray, device, bs: int = 256):
     """Grounded two-factor fusion features per trial (N, D):
-    [routing_logit, MF_k, MF_kc (channel-resolved), contrast_MF (bipolar)].
+    [routing_logit, MF_kc (channel-resolved), contrast_MF (bipolar)].
+
+    The scalar matched filter MF_k is DELIBERATELY excluded: Σ_c MF_kc = MF_k
+    exactly (same template norm), so including MF_k alongside MF_kc adds an exact
+    linear dependency (rank-deficient design, zero marginal AUROC — verified via
+    leave-one-group-out). compute_mf() is retained for the amplitude certificate
+    and as a reported interpretability scalar, but is not a decision feature.
     All from the frozen model over normalized epochs."""
     feats = []
     for i in range(0, len(Xn), bs):
         xb = torch.from_numpy(Xn[i:i + bs]).to(device)
         B = xb.shape[0]
         logit, _ = model(xb)
-        mf = model.compute_mf(xb)
         kc, ct = model.compute_mf_channel(xb)
         feats.append(np.column_stack([
-            logit.squeeze(-1).cpu().numpy(), mf.cpu().numpy(),
+            logit.squeeze(-1).cpu().numpy(),
             kc.reshape(B, -1).cpu().numpy(), ct.reshape(B, -1).cpu().numpy()]))
     return np.concatenate(feats)
 
@@ -1015,7 +1018,7 @@ def two_factor_fusion(results_dir, all_data: dict, device):
                             feature_names=np.asarray(meta["feature_names"], dtype=str),
                             feature_metadata_json=json.dumps(meta),
                             feature_slices_json=json.dumps(meta["feature_slices"]),
-                            combiner_features="routing_mf_channel_contrast_v1",
+                            combiner_features="routing_channel_contrast_v2",
                             lr_class_weight="balanced",
                             lr_penalty="l2")
     return per_subject
