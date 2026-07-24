@@ -685,9 +685,12 @@ def _fusion_evidence_for_trials(npz_path, Xn, trial_ids):
             slices = dict(meta.get("feature_slices", {}))
             combiner_features = _as_scalar_str(
                 tf["combiner_features"]) if "combiner_features" in tf.files else \
-                "routing_mf_channel_contrast_v1"
+                "routing_channel_contrast_v2"
         else:
-            legacy = full_feats[:, :1 + model.K]
+            xb = torch.from_numpy(
+                Xn[np.asarray(trial_ids)].astype(np.float32)).to(device)
+            legacy_mf = model.compute_mf(xb).cpu().numpy()
+            legacy = np.column_stack([full_feats[:, 0], legacy_mf])
             if legacy.shape[1] != coef.shape[0]:
                 return None
             feats = legacy
@@ -746,7 +749,7 @@ def _plot_fusion_evidence(ax, evidence, proto_names, xlim=None):
     group_specs = [
         ("intercept", "bias"),
         ("routing_logit", "routing"),
-        ("mf", "MF"),
+        ("mf", "scalar MF (legacy)"),
         ("mf_channel", "channel MF"),
         ("mf_contrast", "contrast MF"),
     ]

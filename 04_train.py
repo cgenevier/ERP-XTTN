@@ -1204,7 +1204,7 @@ def main():
         summary["std_two_factor_auroc"] = round(float(np.std(tf_vals)), 4)
         summary["two_factor_auroc_per_subject"] = {
             s: round(two_factor[s], 4) for s in subjects}
-        summary["two_factor_combiner"] = "perfold_zerocal_spatial_amp_v1"
+        summary["two_factor_combiner"] = "perfold_zerocal_routing_channel_contrast_v2"
     for d in [results_dir, log_dir]:
         with open(d / "results.json", "w") as f:
             json.dump(summary, f, indent=2)

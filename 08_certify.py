@@ -379,7 +379,7 @@ def check_amplitude(model, X, y, device, rng):
             "contrast_permute_trial_auroc": _feature_auroc(ct_perm, y)}
 
 
-def check_combined_sufficiency(scale, a, m, mask, mf, y, combiner=None,
+def check_combined_sufficiency(scale, a, m, mask, legacy_mf, y, combiner=None,
                                combiner_feats=None, Ms=(1, 2, 3, 5)):
     """Routing-pathway sufficiency + fusion.
 
@@ -387,8 +387,8 @@ def check_combined_sufficiency(scale, a, m, mask, mf, y, combiner=None,
     grounded a·m terms). The headline two-factor AUROC is produced by
     04_train.combine_two_factor (a cross-subject LOSO logistic combiner) and is
     NOT re-derivable per fold — so here:
-      * `two_factor_proxy_auroc` is an unweighted routing_logit + Σ MF proxy
-        (labelled a proxy so it is never quoted as the headline);
+      * `legacy_scalar_mf_proxy_auroc` is an old unweighted routing_logit + Σ MF
+        diagnostic, kept only for continuity with earlier certificates;
       * `two_factor_auroc` is the TRUE combined logit, present only when this
         fold's fitted combiner weights (coef, intercept) are passed in.
     """
@@ -405,16 +405,19 @@ def check_combined_sufficiency(scale, a, m, mask, mf, y, combiner=None,
         r2.append({"M": M, "R2": float(1 - ((routing_logit - approx) ** 2).mean() / var)})
 
     out = {"routing_only_auroc": _auroc(y, routing_logit),
-           "two_factor_proxy_auroc": _auroc(y, routing_logit + mf.sum(axis=1)),
+           "legacy_scalar_mf_proxy_auroc": _auroc(
+               y, routing_logit + legacy_mf.sum(axis=1)),
            "topM_routing_R2": r2}
     if combiner is not None:
         coef, intercept = combiner
-        # Use the SAME grounded feature vector the combiner was fit on
-        # ([routing_logit, MF, MF_kc, contrasts]); fall back to [routing_logit, MF].
-        feats = combiner_feats if combiner_feats is not None else np.column_stack([routing_logit, mf])
+        # Use the SAME grounded feature vector the current combiner was fit on
+        # ([routing_logit, channel-resolved MF_kc, bipolar contrasts]). Fall
+        # back only for legacy [routing_logit, scalar MF_k] artifacts.
+        feats = combiner_feats if combiner_feats is not None else np.column_stack(
+            [routing_logit, legacy_mf])
         coef = np.asarray(coef).reshape(-1)
         if feats.shape[1] != coef.shape[0]:
-            legacy = np.column_stack([routing_logit, mf])
+            legacy = np.column_stack([routing_logit, legacy_mf])
             if legacy.shape[1] == coef.shape[0]:
                 feats = legacy
                 out["two_factor_feature_vector"] = "legacy_routing_mf"
@@ -424,7 +427,7 @@ def check_combined_sufficiency(scale, a, m, mask, mf, y, combiner=None,
                     f"full features {feats.shape[1]} or legacy features {legacy.shape[1]}")
                 return out
         else:
-            out["two_factor_feature_vector"] = "routing_mf_channel_contrast"
+            out["two_factor_feature_vector"] = "routing_channel_contrast_v2"
         combined = feats @ coef + float(intercept)
         out["two_factor_auroc"] = _auroc(y, combined)
     return out
@@ -439,8 +442,8 @@ def certify_fold(model, X, y, device, rng, combiner=None):
     logits, a, m, mask = grounded_forward(model, X, device)
     scale = float(model.match_scale.item())
     mf = model.compute_mf(torch.from_numpy(X).float().to(device)).cpu().numpy()
-    # Full grounded fusion feature vector (matches the combiner: routing_logit,
-    # MF, channel-resolved MF_kc, and bipolar contrasts).
+    # Full grounded fusion feature vector (matches the v2 combiner:
+    # routing_logit, channel-resolved MF_kc, and bipolar contrasts).
     feats = _fold_features(model, X.astype(np.float32), device) if combiner is not None else None
     return {
         "routing_auroc": _auroc(y, logits),
@@ -489,7 +492,7 @@ def aggregate(fold_results):
         "amp_contrast_off": _agg(g("amplitude.contrast_off_component_auroc")),
         "amp_contrast_baseline": _agg(g("amplitude.contrast_early_baseline_auroc")),
         "amp_contrast_permute": _agg(g("amplitude.contrast_permute_trial_auroc")),
-        "two_factor_proxy": _agg(g("combined.two_factor_proxy_auroc")),
+        "legacy_scalar_mf_proxy": _agg(g("combined.legacy_scalar_mf_proxy_auroc")),
         "two_factor": _agg(g("combined.two_factor_auroc")),
     }
 
@@ -600,7 +603,7 @@ def main():
                 "amp_permute", "amp_channel_on", "amp_channel_off",
                 "amp_channel_baseline", "amp_channel_permute",
                 "amp_contrast_on", "amp_contrast_off", "amp_contrast_baseline",
-                "amp_contrast_permute", "two_factor_proxy", "two_factor"):
+                "amp_contrast_permute", "legacy_scalar_mf_proxy", "two_factor"):
         v = agg.get(key)
         if v:
             print(f"  {key:22s} {v['mean']:.3f} ± {v['sd']:.3f}")
