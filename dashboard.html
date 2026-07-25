@@ -798,33 +798,33 @@ function aggregateSeeds(seedResults, expectedSeeds) {
 }
 
 /* ── Ablations tab ── */
+// Two-factor ablation grid — HRI first, then ERN/P300/N400.
 const ABL_DATASETS = [
-  // Full config grid (8 single-axis changes) on these three:
+  {label: 'HRI',  dir: 'hri_errp_cursor', preset: 'midline3'},
   {label: 'ERN',  dir: 'erpcore_ern',  preset: 'midline3_ern'},
   {label: 'P300', dir: 'erpcore_p300', preset: 'midline3'},
   {label: 'N400', dir: 'erpcore_n400', preset: 'midline3_n400'},
-  // Self-attention (nosa) ablation extended to the rest of the benchmark;
-  // other configs show — where not run:
-  {label: 'N170', dir: 'erpcore_n170',       preset: 'occipital3_n170'},
-  {label: 'BNCI', dir: 'bnci_errp_013-2015', preset: 'midline3'},
-  {label: 'HRI',  dir: 'hri_errp_cursor',    preset: 'midline3'},
-  {label: 'N2pc', dir: 'erpcore_n2pc',       preset: 'posterior3_n2pc'},
-  {label: 'LRP',  dir: 'erpcore_lrp',        preset: 'lateral3_lrp'},
-  {label: 'MMN',  dir: 'erpcore_mmn',        preset: 'midline3'},
 ];
+// metric: 'fusion' = mean two-factor per-subject; 'forward' = the model's own
+// forward AUROC (fold test_auroc — for e2e/learned_readout which have no Stage-2
+// fusion, and for route_only which is the routing pathway). dir = results subdir.
 const ABL_CONFIGS = [
-  {tag: null,       label: 'Base — QK-only',    axis: '—'},
-  {tag: 'qkv',      label: '+ value proj (QKV)',     axis: 'Cross-attention'},
-  {tag: 'nosa',     label: 'No self-attention',      axis: 'Self-attention'},
-  {tag: 'k2',       label: 'K = 2',                  axis: '# prototypes'},
-  {tag: 'k6',       label: 'K = 6',                  axis: '# prototypes'},
-  {tag: 'prom0.01', label: 'Prominence 0.01',        axis: 'Peak detection'},
-  {tag: 'prom0.05', label: 'Prominence 0.05',        axis: 'Peak detection'},
-  {tag: 'h2',       label: '2 heads',                axis: 'Attention heads'},
-  {tag: 'h8',       label: '8 heads',                axis: 'Attention heads'},
+  {tag: null,             label: 'Base — routing + amplitude', axis: '—',      dir: 'erpxttn_peak',                     metric: 'fusion'},
+  {tag: 'route_only',     label: 'Routing only',               axis: 'Tier 1', dir: 'erpxttn_peak',                     metric: 'forward'},
+  {tag: 'amp_only',       label: 'Amplitude only',             axis: 'Tier 1', dir: 'erpxttn_peak_amp_only',            metric: 'fusion'},
+  {tag: 'e2e',            label: 'End-to-end joint head',      axis: 'Tier 1', dir: 'ablation_erpxttn_e2e',             metric: 'forward'},
+  {tag: 'nowhiten',       label: 'No whitening (raw cosine)',  axis: 'Tier 1', dir: 'ablation_erpxttn_nowhiten',        metric: 'fusion'},
+  {tag: 'nosa',           label: 'No self-attention',          axis: 'Tier 2', dir: 'erpxttn_peak_nosa',                metric: 'fusion'},
+  {tag: 'k2',             label: 'K = 2',                      axis: 'Tier 2', dir: 'erpxttn_peak_k2',                  metric: 'fusion'},
+  {tag: 'k6',             label: 'K = 6',                      axis: 'Tier 2', dir: 'erpxttn_peak_k6',                  metric: 'fusion'},
+  {tag: 'prom0.01',       label: 'Prominence 0.01',            axis: 'Tier 2', dir: 'erpxttn_peak_prom0.01',            metric: 'fusion'},
+  {tag: 'prom0.05',       label: 'Prominence 0.05',            axis: 'Tier 2', dir: 'erpxttn_peak_prom0.05',            metric: 'fusion'},
+  {tag: 'h2',             label: '2 heads',                    axis: 'Tier 2', dir: 'erpxttn_peak_h2',                  metric: 'fusion'},
+  {tag: 'h8',             label: '8 heads',                    axis: 'Tier 2', dir: 'erpxttn_peak_h8',                  metric: 'fusion'},
+  {tag: 'learned_readout',label: 'Learned free head',          axis: 'Tier 3', dir: 'ablation_erpxttn_learned_readout', metric: 'forward'},
 ];
 
-async function ablAuroc(dir, variantDir, modelDir) {
+async function ablAuroc(dir, variantDir, modelDir, metric) {
   const base = 'datasets/' + dir + '/results/tmin0ms_tmax800ms/' + variantDir + '/' + modelDir;
   const bySubj = {};
   const seedMeans = [];
@@ -835,15 +835,22 @@ async function ablAuroc(dir, variantDir, modelDir) {
   );
   for (const r of seedResults) {
     if (!r) continue;
-    nSeeds++;
     const a = [];
-    for (const f of (r.folds || [])) {
-      if (f.test_auroc != null) {
-        (bySubj[f.test_subject] = bySubj[f.test_subject] || []).push(f.test_auroc);
-        a.push(f.test_auroc);
+    if (metric === 'fusion' && r.two_factor_auroc_per_subject) {
+      // Stage-2 fusion headline (base / nowhiten / Tier-2 / amp_only).
+      for (const [subj, v] of Object.entries(r.two_factor_auroc_per_subject)) {
+        if (v != null) { (bySubj[subj] = bySubj[subj] || []).push(v); a.push(v); }
+      }
+    } else {
+      // Model's own forward AUROC (e2e / learned_readout / routing-only).
+      for (const f of (r.folds || [])) {
+        if (f.test_auroc != null) {
+          (bySubj[f.test_subject] = bySubj[f.test_subject] || []).push(f.test_auroc);
+          a.push(f.test_auroc);
+        }
       }
     }
-    if (a.length) seedMeans.push(_mean(a));
+    if (a.length) { nSeeds++; seedMeans.push(_mean(a)); }
   }
   const perSubj = Object.values(bySubj).map(v => _mean(v));
   return {
@@ -863,10 +870,11 @@ async function renderAblations() {
   container.innerHTML = '<div class="no-fig" style="padding:24px;">Loading ablation results…</div>';
 
   const intro = '<div style="color:var(--text-secondary);font-size:0.85rem;margin:8px 0 16px;">'
-    + 'ERP-XTTN, 3-channel, seed-averaged. Each config is a single-axis change from the base (QK-only) paper model. '
-    + '&Delta; = config &minus; base per-subject AUROC; green = higher than base, red = lower. '
-    + 'Full 8-config grid on ERN, P300, N400; the no-self-attention (nosa) ablation extends to all 9 datasets '
-    + '(remaining configs show &mdash; where not run).</div>';
+    + 'ERP-XTTN two-factor ablations, 3-channel, 5-seed-averaged, on ERN/HRI/P300/N400. '
+    + '&Delta; = arm &minus; base per-subject AUROC (base = routing + amplitude fusion); green higher, red lower. '
+    + 'Tier 1 = the rebuild (route_only / amp_only / e2e / nowhiten); Tier 2 = retained knobs; Tier 3 = learned free head. '
+    + 'e2e, learned_readout and route_only report the model&rsquo;s own forward AUROC (no Stage-2 fusion); the rest report fusion. '
+    + 'Arms appear as the grid completes (&mdash; = not yet run).</div>';
 
   try {
   let html = intro;
@@ -875,12 +883,11 @@ async function renderAblations() {
     const cfg = await fetchJson('datasets/' + ds.dir + '/dataset_config.json');
     if (!cfg || !cfg.variants || !cfg.variants[ds.preset]) continue;
     const variantDir = cfg.variants[ds.preset];
-    const baseAuroc = await ablAuroc(ds.dir, variantDir, 'erpxttn_peak');
+    const baseAuroc = await ablAuroc(ds.dir, variantDir, 'erpxttn_peak', 'fusion');
 
-    // All configs for this dataset fetched concurrently.
+    // All configs for this dataset fetched concurrently (each from its own tagged dir).
     const rows = await Promise.all(ABL_CONFIGS.map(async c => {
-      const modelDir = c.tag ? 'erpxttn_peak_' + c.tag : 'erpxttn_peak';
-      const r = await ablAuroc(ds.dir, variantDir, modelDir);
+      const r = await ablAuroc(ds.dir, variantDir, c.dir, c.metric);
       const delta = (r.mean != null && baseAuroc.mean != null) ? r.mean - baseAuroc.mean : null;
       return {...c, ...r, delta, isBase: !c.tag};
     }));

@@ -228,7 +228,7 @@ def set_lr(optimizer, lr: float):
 # Training loops
 # ──────────────────────────────────────────────────────────────────────
 
-XTTN_MODELS = {"erpxttn"}
+XTTN_MODELS = {"erpxttn", "ablation_erpxttn"}
 
 # Metric-based meta-learning model with its own (episodic) training loop.
 EPMN_MODELS = {"epmn"}
@@ -246,7 +246,8 @@ def make_model(model_name: str, n_channels: int, n_times: int,
                num_heads: int = 4,
                patch_width: int = 8,
                d_model: int = 64,
-               use_self_attn: bool = True):
+               use_self_attn: bool = True,
+               ablation_mode: str = "nowhiten"):
     if model_name == "eegnet":
         return EEGNet(n_channels, n_times, srate=srate).to(device)
     elif model_name == "eeg_deformer":
@@ -264,6 +265,21 @@ def make_model(model_name: str, n_channels: int, n_times: int,
             detection_channel=detection_channel,
             max_k=max_k,
             use_self_attn=use_self_attn,
+        ).to(device)
+    elif model_name == "ablation_erpxttn":
+        # Ablation-only variants (nowhiten / e2e / learned_readout); isolated in
+        # ablation_erpxttn.py so production erpxttn.py stays untouched. Lazy import
+        # so a bug here can never crash the base erpxttn training path.
+        from ablation_erpxttn import ERPXTTNAblation
+        return ERPXTTNAblation(
+            n_channels, n_times, channel_names=channel_names,
+            sfreq=float(srate),
+            d_model=d_model, num_heads=num_heads, patch_width=patch_width,
+            peak_prominence=peak_prominence,
+            detection_channel=detection_channel,
+            max_k=max_k,
+            use_self_attn=use_self_attn,
+            ablation_mode=ablation_mode,
         ).to(device)
     elif model_name == "xdawn_rg":
         return XDawnRG(nfilter=4)
@@ -730,6 +746,7 @@ def run_fold(fold_idx: int, test_subj: str,
              patch_width: int = 8,
              d_model: int = 64,
              use_self_attn: bool = True,
+             ablation_mode: str = "nowhiten",
              epmn_recipe: str = 'shared') -> dict:
     """Run one LOSO fold: Phase 1 (find best epoch) + Phase 2 (retrain)."""
 
@@ -744,7 +761,8 @@ def run_fold(fold_idx: int, test_subj: str,
                        results_dir, pos_key=pos_key, neg_key=neg_key)
 
     _xttn_kwargs = dict(num_heads=num_heads, patch_width=patch_width,
-                        d_model=d_model, use_self_attn=use_self_attn)
+                        d_model=d_model, use_self_attn=use_self_attn,
+                        ablation_mode=ablation_mode)
 
     # --- Collect train/test data ---
     train_subjects = [s for s in all_data if s != test_subj]
@@ -1000,6 +1018,7 @@ def run_fold(fold_idx: int, test_subj: str,
                 "detection_channel": detection_channel,
                 "channel_names": channel_names,
                 "sfreq": float(srate),
+                "ablation_mode": getattr(model2, "ablation_mode", None),
             },
             "norm_mean": mean2, "norm_std": std2,
             "detected_windows_ms": model2.detected_windows_ms,
@@ -1020,7 +1039,7 @@ def main():
     parser.add_argument("--dataset", required=True, choices=available)
     parser.add_argument("--channels", required=True)
     parser.add_argument("--model", required=True,
-                        choices=["eegnet", "eeg_deformer", "epmn", "erpxttn", "xdawn_rg"])
+                        choices=["eegnet", "eeg_deformer", "epmn", "erpxttn", "ablation_erpxttn", "xdawn_rg"])
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed. Results are written under seed-<N>/ (default: 42)")
     parser.add_argument("--resume", action="store_true",
@@ -1028,6 +1047,11 @@ def main():
     parser.add_argument("--max-k", type=int, default=4,
                         help="Max number of difference-wave prototypes (K, default: 4)")
     # ── Ablation knobs (ERP-XTTN only) ──────────────────────────────────
+    parser.add_argument("--ablation-mode", choices=["nowhiten", "e2e", "learned_readout"],
+                        default="nowhiten",
+                        help="Mode for --model ablation_erpxttn: nowhiten (raw-cosine match), "
+                             "e2e (learned joint head, no Stage-2 fusion), or learned_readout "
+                             "(free head over the attention). Ignored by other models.")
     parser.add_argument("--no-self-attn", action="store_true",
                         help="Disable the self-attention layer. Ablation.")
     parser.add_argument("--num-heads", type=int, default=4,
@@ -1146,6 +1170,7 @@ def main():
                                patch_width=args.patch_width,
                                d_model=args.d_model,
                                use_self_attn=not args.no_self_attn,
+                               ablation_mode=getattr(args, "ablation_mode", "nowhiten"),
                                epmn_recipe=args.epmn_recipe)
         results.append(fold_result)
 
@@ -1154,7 +1179,13 @@ def main():
     # training subjects are computed with s's OWN frozen model f_s (never saw s),
     # so K is consistent per fold and no test-subject data touches s's fusion.
     two_factor = None
-    if args.model in XTTN_MODELS:
+    # e2e / learned_readout fold their decision into the model's own forward pass,
+    # so the post-hoc Stage-2 combiner is skipped for them (their forward AUROC is
+    # the headline, compared to base fusion + routing-only). nowhiten keeps the
+    # standard two-factor fusion (it is ERPXTTN-buffer-compatible).
+    _skip_fusion = (args.model == "ablation_erpxttn"
+                    and getattr(args, "ablation_mode", "nowhiten") in ("e2e", "learned_readout"))
+    if args.model in XTTN_MODELS and not _skip_fusion:
         two_factor = two_factor_fusion(results_dir, all_data, device)
         if two_factor is not None:
             tf = [two_factor[s] for s in subjects]

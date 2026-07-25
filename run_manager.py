@@ -89,33 +89,55 @@ QUEUE_3CH = build_main_queue(lambda p3: p3)
 QUEUE_FULL = build_main_queue(lambda p3: "full")
 
 
-# ── Ablation grid (ERP-XTTN, 3-channel, ERN / P300 / N400) ──────────────
+# ── Ablation grid (two-factor architecture) — R2.1 ──────────────────────
+# Robustness subset kept for the native-EPMN queue (ERN / P300 / N400).
 ABLATION_DATASETS = [
     ("ERN",  "erpcore_ern",  "midline3_ern"),
     ("P300", "erpcore_p300", "midline3"),
     ("N400", "erpcore_n400", "midline3_n400"),
 ]
 
-# (tag, extra CLI args). The base (qk, self-attn on, auto K=4, prom from config,
-# 4 heads) is the main erpxttn_auto 3ch run already in QUEUE_3CH.
+# The ablation grid runs on FOUR datasets, HRI FIRST (quick/small — surfaces bad
+# arms before the 40-subject sets). Base/reference = the 5-seed headline 3ch run.
+ABLATION_GRID_DATASETS = [
+    ("HRI",  "hri_errp_cursor", "midline3"),
+    ("ERN",  "erpcore_ern",     "midline3_ern"),
+    ("P300", "erpcore_p300",    "midline3"),
+    ("N400", "erpcore_n400",    "midline3_n400"),
+]
+
+# (tag, model, extra CLI args). Tier-1 code arms use --model ablation_erpxttn
+# (ablation_erpxttn.py); Tier-2 knob arms use --model erpxttn + a flag. Each arm
+# writes to a tagged dir (erpxttn_peak_<tag> / ablation_erpxttn_<tag>) so the base
+# 3ch is never overwritten. NOTE: `amp_only` and `route_only` are fusion-subset
+# reads of the base checkpoints — amp_only is produced by ablation_amp_only.py
+# (no training), route_only is already the base's mean_routing_auroc. Neither is a
+# training run, so neither is in this queue.
 ABLATION_CONFIGS = [
-    ("nosa",      ["--no-self-attn"]),               # no self-attention layer
-    ("k2",        ["--max-k", "2"]),                 # fewer prototypes
-    ("k6",        ["--max-k", "6"]),                 # more prototypes
-    ("prom0.01",  ["--peak-prominence", "0.01"]),    # looser peak detection
-    ("prom0.05",  ["--peak-prominence", "0.05"]),    # stricter peak detection
-    ("h2",        ["--num-heads", "2"]),             # fewer heads
-    ("h8",        ["--num-heads", "8"]),             # more heads
+    # Tier 1 — the rebuild (main-text §3.4)
+    ("e2e",             "ablation_erpxttn", ["--ablation-mode", "e2e"]),        # joint head, no Stage-2 fusion
+    ("nowhiten",        "ablation_erpxttn", ["--ablation-mode", "nowhiten"]),   # raw cosine match
+    # Tier 2 — retained knobs (supplementary)
+    ("nosa",            "erpxttn", ["--no-self-attn"]),
+    ("k2",              "erpxttn", ["--max-k", "2"]),
+    ("k6",              "erpxttn", ["--max-k", "6"]),
+    ("prom0.01",        "erpxttn", ["--peak-prominence", "0.01"]),
+    ("prom0.05",        "erpxttn", ["--peak-prominence", "0.05"]),
+    ("h2",              "erpxttn", ["--num-heads", "2"]),
+    ("h8",              "erpxttn", ["--num-heads", "8"]),
+    # Tier 3 — optional (free-head contrast; also needs the cert to make its point)
+    ("learned_readout", "ablation_erpxttn", ["--ablation-mode", "learned_readout"]),
 ]
 
 
 def build_ablation_queue():
+    """HRI-first: every arm on HRI before the other three datasets."""
     runs = []
-    for tag, extra in ABLATION_CONFIGS:
-        for label, ds, preset in ABLATION_DATASETS:
+    for label, ds, preset in ABLATION_GRID_DATASETS:
+        for tag, model, extra in ABLATION_CONFIGS:
             for seed in SEEDS:
-                runs.append(Run(f"{label} 3ch erpxttn[{tag}] s{seed}",
-                                ds, preset, "erpxttn", seed, list(extra), tag))
+                runs.append(Run(f"{label} 3ch {model}[{tag}] s{seed}",
+                                ds, preset, model, seed, list(extra), tag))
     return runs
 
 
