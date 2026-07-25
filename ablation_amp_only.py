@@ -20,7 +20,13 @@ from sklearn.metrics import roc_auc_score
 from erpxttn import load_frozen_model, fusion_feature_metadata
 
 REPO = Path(__file__).resolve().parent
-ABLATION_DATASETS = ["erpcore_ern", "hri_errp_cursor", "erpcore_p300", "erpcore_n400"]
+ABLATION_PRESETS = {
+    "hri_errp_cursor": "midline3",
+    "erpcore_ern": "midline3_ern",
+    "erpcore_p300": "midline3",
+    "erpcore_n400": "midline3_n400",
+}
+ABLATION_DATASETS = ["hri_errp_cursor", "erpcore_ern", "erpcore_p300", "erpcore_n400"]
 
 
 def _load_train():
@@ -44,7 +50,7 @@ def _amp_features(model, Xn, device, bs=256):
 def run(dataset, seed, device):
     train = _load_train()
     cfg = train.load_dataset_config(dataset)
-    ch = [k for k in cfg["variants"] if k != "full"][0]
+    ch = ABLATION_PRESETS[dataset]
     all_data, _ = train.load_all_subjects(cfg, ch)
     variant = cfg["variants"][ch]
     base = REPO / "datasets" / cfg["name"] / "results" / "tmin0ms_tmax800ms" / variant / "erpxttn_peak" / f"seed-{seed}"

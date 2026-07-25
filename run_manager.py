@@ -147,7 +147,7 @@ QUEUE_ABLATION = build_ablation_queue()
 # ── Native-recipe EPMN robustness runs (writes to epmn_native/) ─────────
 def build_epmn_native_queue():
     """EPMN under its own native recipe, on the robustness-subset datasets
-    (ERN/P300/N400 — same as the ablation grid; ERN is the key imbalance test),
+    (ERN/P300/N400; ERN is the key imbalance test),
     both montages."""
     runs = []
     for label, ds, preset3 in ABLATION_DATASETS:
@@ -343,7 +343,7 @@ def main():
     parser.add_argument("--include-full", action="store_true",
                         help="Include full-montage runs")
     parser.add_argument("--include-ablation", action="store_true",
-                        help="Include the ERP-XTTN ablation grid (ERN/P300/N400, 3ch)")
+                        help="Include the ERP-XTTN ablation grid (HRI/ERN/P300/N400, 3ch)")
     parser.add_argument("--include-epmn-native", action="store_true",
                         help="Include the native-recipe EPMN robustness runs (epmn_native/)")
     parser.add_argument("--only-epmn-native", action="store_true",

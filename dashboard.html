@@ -874,7 +874,8 @@ async function renderAblations() {
     + '&Delta; = arm &minus; base per-subject AUROC (base = routing + amplitude fusion); green higher, red lower. '
     + 'Tier 1 = the rebuild (route_only / amp_only / e2e / nowhiten); Tier 2 = retained knobs; Tier 3 = learned free head. '
     + 'e2e, learned_readout and route_only report the model&rsquo;s own forward AUROC (no Stage-2 fusion); the rest report fusion. '
-    + 'Arms appear as the grid completes (&mdash; = not yet run).</div>';
+    + 'route_only is read from the base run; amp_only is produced by ablation_amp_only.py. '
+    + 'Arms appear as results land (&mdash; = not yet run).</div>';
 
   try {
   let html = intro;

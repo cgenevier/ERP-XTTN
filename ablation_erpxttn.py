@@ -19,13 +19,12 @@ Modes (exactly one per run, selected by `ablation_mode`):
                   post-hoc combiner for this mode; compare its AUROC to base fusion
                   AND to routing-only.
 
-  learned_readout Free head: resurrects a learned readout over the attention. A value
-                  projection is applied to the prototype keys, the peaks attend
-                  (Σ_k a[p,k]·V_k), the result is masked-mean-pooled over peaks and a
-                  linear head produces the logit. The grounded match m does NOT enter
-                  the decision → the "grounded costs ~0 AUROC but the free head fails
+  learned_readout Free head: resurrects the old ungrounded readout as a learned
+                  linear head over the flattened attention tensor a[p,k]. The
+                  grounded match m and the amplitude features do NOT enter the
+                  decision → the "grounded costs ~0 AUROC but the free head fails
                   the certificate" contrast. 04_train reports its forward AUROC
-                  (routing-path) and skips the Stage-2 combiner.
+                  and skips the Stage-2 combiner.
 
 The aux dict (a, m, mask, center, bounds) is still returned in every mode, so the
 routing dumps and figures keep working.
