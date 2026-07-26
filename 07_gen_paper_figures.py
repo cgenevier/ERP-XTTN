@@ -1636,7 +1636,8 @@ def write_paired_table(out_path):
           r'Per-subject AUROCs are averaged over 5 seeds first (xDAWN+RG is deterministic). \textbf{Bold} $=$ '
           r'two-sided Wilcoxon signed-rank significant at $q<0.05$ after Benjamini--Hochberg FDR correction across '
           r'all 36 comparisons (9 datasets $\times$ 4 baselines). $^\dagger$ On BNCI ($n=6$) the exact test floors '
-          r'at $p=0.031$ and cannot survive FDR correction, so the CI is the informative quantity.}'),
+          r'at $p=0.031$ and cannot survive FDR correction regardless of effect size; BNCI is therefore reported '
+          r'descriptively, as the Hodges--Lehmann point estimate with the CI omitted.}'),
          r'\label{tab:paired}', r'\small', r'\setlength{\tabcolsep}{5pt}',
          r'\renewcommand{\arraystretch}{1.1}', r'\begin{tabular}{lcccc}', r'\toprule',
          r'Dataset & vs EEGNet & vs EEG-Deformer & vs EPMN & vs xDAWN+RG \\',
@@ -1646,7 +1647,10 @@ def write_paired_table(out_path):
         lab = f'{labels[i]} ($n{{=}}{N[i]}$)' + (r'$^\dagger$' if N[i] <= 6 else '')
         cells = []
         for j in range(m):
-            body = f'${HL[i, j]:+.3f}$\\\\ \\footnotesize[${LO[i, j]:+.3f}$,\\,${HI[i, j]:+.3f}$]'
+            if N[i] <= 6:       # descriptive: point estimate only, CI omitted at n<=6
+                body = f'${HL[i, j]:+.3f}$'
+            else:
+                body = f'${HL[i, j]:+.3f}$\\\\ \\footnotesize[${LO[i, j]:+.3f}$,\\,${HI[i, j]:+.3f}$]'
             cell = r'\makecell[c]{%s}' % body
             if np.isfinite(Q[i, j]) and Q[i, j] < 0.05:
                 cell = r'{\boldmath\makecell[c]{%s}}' % body
