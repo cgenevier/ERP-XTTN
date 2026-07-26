@@ -5,6 +5,7 @@ Reads from analysis_summary.json + per-subject results files. Produces:
 
   paper_figures/fig_tax_drivers.png
   paper_figures/fig_tpfp_tptn.png
+  paper_figures/fig_paired_heatmap.png   (Table 2 companion; HL Δ + BH-signed-rank)
   paper_figures/fig_morphology_hri_errp_3ch_Cz.png
   paper_figures/fig_morphology_bnci_errp_3ch_Cz.png         (supp replication)
   paper_figures/fig_routing_<dataset>_<channels>.png  (×9, 3-channel only)
@@ -29,7 +30,7 @@ from matplotlib import rcParams
 from matplotlib.colors import TwoSlopeNorm
 from matplotlib.gridspec import GridSpec
 import numpy as np
-from scipy.stats import spearmanr
+from scipy.stats import spearmanr, wilcoxon
 
 REPO = Path(__file__).resolve().parent
 DATASETS_DIR = REPO / 'datasets'
@@ -1460,6 +1461,204 @@ def fig_persubject_auroc(montage, out_name):
 
 
 # ====================================================================
+# Paired advantage heatmap (Table 2 companion)
+# ====================================================================
+# Per dataset x baseline: Hodges-Lehmann Delta of the paired per-subject AUROC
+# differences (ERP-XTTN - baseline), colored by effect size; bold + boxed where
+# the two-sided Wilcoxon signed-rank test is BH-significant (q<0.05) within each
+# baseline family across the 9 datasets. Rows sorted easiest->hardest by mean AUROC
+# across the 5 methods; dagger marks n<=6 (below the exact-test power floor).
+# Recomputed from per-subject results.json via _persubj_auroc — no external inputs.
+
+_HM_BASELINES = [('EEGNet', 'eegnet'), ('EEG-Deformer', 'eeg_deformer'),
+                 ('EPMN', 'epmn'), ('xDAWN+RG', 'xdawn_rg')]
+_HM_BLX = ['EEGNet', 'EEG-\nDeformer', 'EPMN', 'xDAWN\n+RG']
+
+
+def _qsignrank(p, k):
+    """p-quantile of the Wilcoxon signed-rank W+ null over k nonzero diffs (exact)."""
+    M = k * (k + 1) // 2
+    dp = [0] * (M + 1); dp[0] = 1
+    for r in range(1, k + 1):
+        for s in range(M, r - 1, -1):
+            dp[s] += dp[s - r]
+    tot = 2 ** k; c = 0
+    for x in range(len(dp)):
+        c += dp[x]
+        if c / tot >= p:
+            return x
+    return M
+
+
+def _hl_ci(diff, alpha=0.05):
+    """Hodges-Lehmann estimate (median of Walsh averages) and its exact
+    distribution-free signed-rank confidence interval, in the units of ``diff``.
+    The CI excludes 0 iff the two-sided signed-rank test rejects at ``alpha`` — so
+    the figure's boxing and the table's CI can never visually contradict."""
+    dd = np.asarray([x for x in diff if x != 0.0]); k = dd.size
+    if k == 0:
+        return np.nan, np.nan, np.nan
+    w = np.sort(np.array([(dd[i] + dd[j]) / 2 for i in range(k) for j in range(i, k)]))
+    M = w.size; qu = max(_qsignrank(alpha / 2, k), 1); ql = M - qu
+    return float(np.median(w)), float(w[qu - 1]), float(w[ql])
+
+
+def _bh_fdr(pvals):
+    """Benjamini-Hochberg adjusted p-values (monotone); NaNs passed through."""
+    p = np.asarray(pvals, float); out = np.full_like(p, np.nan)
+    idx = np.where(np.isfinite(p))[0]; m = idx.size
+    if m == 0:
+        return out
+    order = idx[np.argsort(p[idx])]; prev = 1.0; adj = np.empty(m)
+    for rank in range(m - 1, -1, -1):
+        prev = min(prev, p[order[rank]] * m / (rank + 1)); adj[rank] = prev
+    for rank, i in enumerate(order):
+        out[i] = min(adj[rank], 1.0)
+    return out
+
+
+def _paired_stats():
+    """Single source of truth for the paired figure AND table (so they never drift).
+
+    Per dataset x baseline (3-channel): Hodges-Lehmann Delta of the paired per-subject
+    AUROC differences (ERP-XTTN - baseline) with its exact signed-rank 95% CI, the
+    two-sided Wilcoxon raw p, and the BH-adjusted q across ALL 36 tests. Rows are
+    difficulty-sorted (easiest = highest mean AUROC across the 5 methods, at top).
+    Returns HL/LO/HI in raw AUROC units.
+    """
+    METH = ['erpxttn_peak'] + [m for _, m in _HM_BASELINES]
+    au, mean_auroc = {}, {}
+    for name, ds_dir, c3, cf, k3, kf, det in DATASETS:
+        au[ds_dir] = {mm: _persubj_auroc(ds_dir, c3, mm) for mm in METH}
+        mean_auroc[ds_dir] = float(np.mean([
+            np.mean(list(au[ds_dir][mm].values())) for mm in METH]))
+    order = sorted(DATASETS, key=lambda r: -mean_auroc[r[1]])
+    labels = [d[0].replace(' ErrP', '') for d in order]
+    n, m = len(order), len(_HM_BASELINES)
+    HL = np.full((n, m), np.nan); LO = np.full((n, m), np.nan); HI = np.full((n, m), np.nan)
+    praw = np.full((n, m), np.nan); N = np.zeros(n, int)
+    for i, row in enumerate(order):
+        xt = au[row[1]]['erpxttn_peak']
+        for j, (_, bl) in enumerate(_HM_BASELINES):
+            b = au[row[1]][bl]
+            subs = sorted(set(xt) & set(b))
+            if not subs:
+                continue
+            diff = np.array([xt[s] for s in subs]) - np.array([b[s] for s in subs])
+            N[i] = len(subs)
+            HL[i, j], LO[i, j], HI[i, j] = _hl_ci(diff)
+            try:
+                praw[i, j] = wilcoxon(diff, alternative='two-sided').pvalue
+            except ValueError:
+                praw[i, j] = np.nan
+    # BH across ALL 36 tests (global FDR control); not inflated when signal
+    # concentrates in one baseline column, unlike per-baseline families.
+    Q = _bh_fdr(praw.ravel()).reshape(praw.shape)
+    return dict(order=order, labels=labels, N=N, HL=HL, LO=LO, HI=HI,
+                praw=praw, Q=Q, mean_auroc=mean_auroc)
+
+
+def fig_paired_heatmap(out_path):
+    """9x4 annotated heatmap of paired ERP-XTTN vs baseline effects (3-channel)."""
+    st = _paired_stats()
+    labels, N, Q = st['labels'], st['N'], st['Q']
+    M = st['HL'] * 100.0            # Hodges-Lehmann Delta in AUROC points
+    n, m = M.shape
+    colmean = np.nanmean(M, axis=0)
+
+    from matplotlib import cm, colors
+    from matplotlib.patches import Rectangle
+    v = np.nanmax(np.abs(M)); norm = colors.Normalize(-v, v)
+    sm = cm.ScalarMappable(norm=norm, cmap='RdBu_r')
+
+    fig, ax = plt.subplots(figsize=(6.6, 7.6))
+    ax.imshow(M, cmap='RdBu_r', vmin=-v, vmax=v, aspect='auto')
+    for i in range(n):
+        for j in range(m):
+            sig = np.isfinite(Q[i, j]) and Q[i, j] < 0.05
+            ax.text(j, i, f'{M[i, j]:+.1f}', ha='center', va='center', fontsize=10,
+                    fontweight='bold' if sig else 'normal')
+            if sig:
+                ax.add_patch(Rectangle((j - .5, i - .5), 1, 1, fill=False, ec='k', lw=2.1))
+
+    GAP = 0.55; my = n - 1 + GAP + 1
+    for j in range(m):          # bottom margin: mean Delta per baseline (descriptive)
+        ax.add_patch(Rectangle((j - .5, my - .5), 1, 1, facecolor=sm.to_rgba(colmean[j]),
+                               ec='0.4', lw=.6))
+        ax.text(j, my, f'{colmean[j]:+.1f}', ha='center', va='center', fontsize=9.5, style='italic')
+    ax.text(-0.9, my, r'mean $\Delta$', ha='right', va='center', fontsize=8, style='italic', color='0.3')
+
+    # difficulty arrow (rows are sorted by mean AUROC; easiest at top)
+    ax.annotate('', xy=(-0.82, n - 0.6), xytext=(-0.82, -0.4),
+                arrowprops=dict(arrowstyle='-|>', color='0.65', lw=1.2))
+    ax.text(-1.12, n / 2 - 0.5, r'harder $\leftarrow$ easier', rotation=90,
+            ha='center', va='center', fontsize=7.5, color='0.5')
+
+    ax.set_xticks(range(m)); ax.set_xticklabels(_HM_BLX, fontsize=9.5)
+    ax.xaxis.set_ticks_position('top'); ax.xaxis.set_label_position('top')
+    ax.set_yticks(range(n))
+    ax.set_yticklabels([f'{l} ($n{{=}}{N[i]}$)' + ('$^\\dagger$' if N[i] <= 6 else '')
+                        for i, l in enumerate(labels)], fontsize=9)
+    ax.set_xlim(-1.45, m - 0.4); ax.set_ylim(my + 0.7, -1.5)
+    ax.tick_params(length=0)
+    for s in ax.spines.values():
+        s.set_visible(False)
+    fig.suptitle('Paired advantage of ERP-XTTN vs baselines (3-channel)\n'
+                 'Hodges–Lehmann $\\Delta$ (AUROC points, ERP-XTTN $-$ baseline)', fontsize=11, y=0.99)
+
+    cb = fig.colorbar(sm, ax=ax, fraction=0.040, pad=0.03, shrink=0.65)
+    cb.set_ticks([-5, -2.5, 0, 2.5, 5])
+    cb.set_ticklabels([f'{t:+.1f}'.replace('+0.0', '0') for t in [-5, -2.5, 0, 2.5, 5]])
+    cb.ax.tick_params(labelsize=8)
+    cb.set_label('HL $\\Delta$ (AUROC pts): red = ERP-XTTN higher, blue = lower', fontsize=8)
+    fig.text(0.5, 0.058, 'Bold text + black box: $q<0.05$ (Wilcoxon signed-rank, Benjamini–Hochberg',
+             ha='center', fontsize=8)
+    fig.text(0.5, 0.030, 'FDR across all 36 tests).   $^\\dagger$ $n\\leq6$: below exact-test power floor.',
+             ha='center', fontsize=8)
+    fig.subplots_adjust(left=0.17, right=0.92, top=0.855, bottom=0.11)
+    fig.savefig(out_path, bbox_inches='tight')
+    fig.savefig(Path(out_path).with_suffix('.pdf'), bbox_inches='tight')
+    plt.close(fig)
+
+
+def write_paired_table(out_path):
+    """LaTeX companion table for Table 2 — SAME stats as fig_paired_heatmap via
+    _paired_stats() (Hodges-Lehmann Delta, exact signed-rank 95% CI, global-36 BH).
+    Cell = HL Delta over its CI; bold = q<0.05. Needs \\usepackage{booktabs,makecell,amsmath}."""
+    st = _paired_stats()
+    labels, N, HL, LO, HI, Q = st['labels'], st['N'], st['HL'], st['LO'], st['HI'], st['Q']
+    n, m = HL.shape
+    L = [r'\begin{table}[t]', r'\centering',
+         (r'\caption{Paired comparison of ERP-XTTN against each baseline (3-channel montage), '
+          r'companion to Table~\ref{tab:table2}. Each cell reports the Hodges--Lehmann estimate of the '
+          r'paired per-subject AUROC difference $\Delta=\mathrm{AUROC}_{\text{ERP-XTTN}}-\mathrm{AUROC}_{\text{baseline}}$ '
+          r'(negative $=$ ERP-XTTN lower) with its 95\% exact distribution-free signed-rank CI below. '
+          r'Per-subject AUROCs are averaged over 5 seeds first (xDAWN+RG is deterministic). \textbf{Bold} $=$ '
+          r'two-sided Wilcoxon signed-rank significant at $q<0.05$ after Benjamini--Hochberg FDR correction across '
+          r'all 36 comparisons (9 datasets $\times$ 4 baselines). $^\dagger$ On BNCI ($n=6$) the exact test floors '
+          r'at $p=0.031$ and cannot survive FDR correction, so the CI is the informative quantity.}'),
+         r'\label{tab:paired}', r'\small', r'\setlength{\tabcolsep}{5pt}',
+         r'\renewcommand{\arraystretch}{1.1}', r'\begin{tabular}{lcccc}', r'\toprule',
+         r'Dataset & vs EEGNet & vs EEG-Deformer & vs EPMN & vs xDAWN+RG \\',
+         r'        & \multicolumn{4}{c}{\footnotesize Hodges--Lehmann $\Delta$ (95\% CI)} \\',
+         r'\midrule']
+    for i in range(n):
+        lab = f'{labels[i]} ($n{{=}}{N[i]}$)' + (r'$^\dagger$' if N[i] <= 6 else '')
+        cells = []
+        for j in range(m):
+            body = f'${HL[i, j]:+.3f}$\\\\ \\footnotesize[${LO[i, j]:+.3f}$,\\,${HI[i, j]:+.3f}$]'
+            cell = r'\makecell[c]{%s}' % body
+            if np.isfinite(Q[i, j]) and Q[i, j] < 0.05:
+                cell = r'{\boldmath\makecell[c]{%s}}' % body
+            cells.append(cell)
+        L.append(f'{lab} & ' + ' & '.join(cells) + r' \\')
+        if i < n - 1:
+            L.append(r'\midrule')
+    L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+    Path(out_path).write_text('\n'.join(L) + '\n')
+
+
+# ====================================================================
 # Main
 # ====================================================================
 
@@ -1479,6 +1678,12 @@ def main():
 
     print('TP↔FP / TP↔TN bar chart...')
     fig_tpfp_tptn()
+
+    print('Paired advantage heatmap (Table 2 companion)...')
+    fig_paired_heatmap(OUT_DIR / 'fig_paired_heatmap.png')
+
+    print('Paired advantage table (Table 2 companion, LaTeX)...')
+    write_paired_table(OUT_DIR / 'table_paired.tex')
 
     print('Routing combined figures (3-channel only)...')
     for name, ds_dir, c3, cf, k3, kf, det_idx in DATASETS:
