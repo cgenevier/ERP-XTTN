@@ -611,7 +611,12 @@ def metric_tp_fp_tn_correlations(ds_dir, var_key, cfg, loaded_epochs_cache):
     tp_fp, tp_tn = [], []
     n_skipped = 0
     for s in subjects:
-        pred_path = results_dir / f"predictions_{s}.npz"
+        # Condition on the MAIN model's headline output — the fused two-factor
+        # decision — not the single-factor routing (predictions_*.npz) or the
+        # learned free-head ablation.
+        pred_path = results_dir / f"two_factor_{s}.npz"
+        if not pred_path.exists():
+            pred_path = results_dir / f"predictions_{s}.npz"   # fallback (baselines)
         if not pred_path.exists():
             n_skipped += 1
             continue

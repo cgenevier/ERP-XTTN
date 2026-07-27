@@ -1,0 +1,68 @@
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{6pt}
+\caption{Two-factor ablation grid (3-channel, seed-averaged). AUROC is per-subject mean $\pm$ SD across subjects (fusion, except routing-only / end-to-end / learned free head, which report the forward AUROC). $\Delta$ = arm $-$ base.}
+\label{tab:ablation}
+\begin{tabular}{llcc}
+\toprule
+Dataset & Ablation & AUROC (mean $\pm$ SD) & $\Delta$ vs base \\
+\midrule
+HRI & Base (routing+amplitude) & 0.837 $\pm$ 0.101 & -- \\
+ & Routing only & 0.814 $\pm$ 0.098 & -0.024 \\
+ & Amplitude only & 0.820 $\pm$ 0.100 & -0.017 \\
+ & End-to-end head & 0.819 $\pm$ 0.103 & -0.018 \\
+ & No whitening & 0.839 $\pm$ 0.103 & +0.002 \\
+ & No self-attention & 0.828 $\pm$ 0.109 & -0.009 \\
+ & $K=2$ & 0.824 $\pm$ 0.103 & -0.013 \\
+ & $K=6$ & 0.836 $\pm$ 0.102 & -0.001 \\
+ & Prominence 0.01 & 0.835 $\pm$ 0.102 & -0.002 \\
+ & Prominence 0.05 & 0.834 $\pm$ 0.102 & -0.003 \\
+ & 2 heads & 0.833 $\pm$ 0.103 & -0.004 \\
+ & 8 heads & 0.838 $\pm$ 0.102 & +0.001 \\
+ & Learned free head & 0.823 $\pm$ 0.106 & -0.014 \\
+\midrule
+ERN & Base (routing+amplitude) & 0.824 $\pm$ 0.110 & -- \\
+ & Routing only & 0.813 $\pm$ 0.107 & -0.011 \\
+ & Amplitude only & 0.797 $\pm$ 0.121 & -0.027 \\
+ & End-to-end head & 0.809 $\pm$ 0.113 & -0.015 \\
+ & No whitening & 0.829 $\pm$ 0.107 & +0.004 \\
+ & No self-attention & 0.807 $\pm$ 0.115 & -0.017 \\
+ & $K=2$ & 0.815 $\pm$ 0.114 & -0.009 \\
+ & $K=6$ & 0.825 $\pm$ 0.110 & +0.000 \\
+ & Prominence 0.01 & 0.824 $\pm$ 0.111 & -0.001 \\
+ & Prominence 0.05 & 0.823 $\pm$ 0.115 & -0.002 \\
+ & 2 heads & 0.818 $\pm$ 0.117 & -0.006 \\
+ & 8 heads & 0.827 $\pm$ 0.109 & +0.003 \\
+ & Learned free head & 0.825 $\pm$ 0.113 & +0.001 \\
+\midrule
+P300 & Base (routing+amplitude) & 0.664 $\pm$ 0.071 & -- \\
+ & Routing only & 0.644 $\pm$ 0.068 & -0.020 \\
+ & Amplitude only & 0.635 $\pm$ 0.071 & -0.030 \\
+ & End-to-end head & 0.645 $\pm$ 0.073 & -0.020 \\
+ & No whitening & 0.667 $\pm$ 0.076 & +0.003 \\
+ & No self-attention & 0.661 $\pm$ 0.078 & -0.003 \\
+ & $K=2$ & 0.662 $\pm$ 0.066 & -0.002 \\
+ & $K=6$ & 0.669 $\pm$ 0.075 & +0.005 \\
+ & Prominence 0.01 & 0.667 $\pm$ 0.072 & +0.002 \\
+ & Prominence 0.05 & 0.664 $\pm$ 0.067 & -0.000 \\
+ & 2 heads & 0.664 $\pm$ 0.072 & -0.000 \\
+ & 8 heads & 0.662 $\pm$ 0.075 & -0.003 \\
+ & Learned free head & 0.629 $\pm$ 0.071 & -0.035 \\
+\midrule
+N400 & Base (routing+amplitude) & 0.565 $\pm$ 0.077 & -- \\
+ & Routing only & 0.544 $\pm$ 0.061 & -0.020 \\
+ & Amplitude only & 0.578 $\pm$ 0.084 & +0.013 \\
+ & End-to-end head & 0.571 $\pm$ 0.081 & +0.006 \\
+ & No whitening & 0.567 $\pm$ 0.080 & +0.003 \\
+ & No self-attention & 0.574 $\pm$ 0.083 & +0.009 \\
+ & $K=2$ & 0.564 $\pm$ 0.074 & -0.001 \\
+ & $K=6$ & 0.566 $\pm$ 0.076 & +0.001 \\
+ & Prominence 0.01 & 0.565 $\pm$ 0.077 & -0.000 \\
+ & Prominence 0.05 & 0.563 $\pm$ 0.071 & -0.001 \\
+ & 2 heads & 0.566 $\pm$ 0.080 & +0.001 \\
+ & 8 heads & 0.568 $\pm$ 0.080 & +0.003 \\
+ & Learned free head & 0.513 $\pm$ 0.045 & -0.052 \\
+\bottomrule
+\end{tabular}
+\end{table}

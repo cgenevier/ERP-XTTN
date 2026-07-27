@@ -101,15 +101,15 @@ rcParams.update({
 # --------------------------------------------------------------
 # (display, dataset_dir, 3ch_variant_dir, full_variant_dir, 3ch_combo_key, full_combo_key, detection_channel_idx_in_3ch)
 DATASETS = [
-    ('ERN',       'erpcore_ern',         'noref_midline3_ern_rs256_iir_fwd_bp-1-10',     'noref_rs256_iir_fwd_bp-1-10', 'erpcore_ern|midline3_ern',     'erpcore_ern|full',         1),  # FCz, Cz, Pz
+    ('ERN',       'erpcore_ern',         'noref_midline3_ern_rs256_iir_fwd_bp-1-10',     'noref_rs256_iir_fwd_bp-1-10', 'erpcore_ern|midline3_ern',     'erpcore_ern|full',         0),  # FCz, Cz, Pz
     ('LRP',       'erpcore_lrp',         'noref_lateral3_lrp_rs256_iir_fwd_bp-1-10',     'noref_rs256_iir_fwd_bp-1-10', 'erpcore_lrp|lateral3_lrp',     'erpcore_lrp|full',         0),  # C3, Cz, C4 — det=C3
     ('HRI ErrP',  'hri_errp_cursor',     'noref_midline3_iir_fwd_bp-1-10',               'noref_iir_fwd_bp-1-10',       'hri_errp_cursor|midline3',     'hri_errp_cursor|full',     1),
     ('BNCI ErrP', 'bnci_errp_013-2015',  'noref_midline3_rs256_iir_fwd_bp-1-10',         'noref_rs256_iir_fwd_bp-1-10', 'bnci_errp_013-2015|midline3',  'bnci_errp_013-2015|full',  1),
-    ('N170',      'erpcore_n170',        'noref_occipital3_n170_rs256_iir_fwd_bp-1-10',  'noref_rs256_iir_fwd_bp-1-10', 'erpcore_n170|occipital3_n170', 'erpcore_n170|full',        0),  # P7, Oz, P8 — det=P7
-    ('P300',      'erpcore_p300',        'noref_midline3_rs256_iir_fwd_bp-1-10',         'noref_rs256_iir_fwd_bp-1-10', 'erpcore_p300|midline3',        'erpcore_p300|full',        1),
+    ('N170',      'erpcore_n170',        'noref_occipital3_n170_rs256_iir_fwd_bp-1-10',  'noref_rs256_iir_fwd_bp-1-10', 'erpcore_n170|occipital3_n170', 'erpcore_n170|full',        2),  # P7, Oz, P8 — det=P7
+    ('P300',      'erpcore_p300',        'noref_midline3_rs256_iir_fwd_bp-1-10',         'noref_rs256_iir_fwd_bp-1-10', 'erpcore_p300|midline3',        'erpcore_p300|full',        2),
     ('N2pc',      'erpcore_n2pc',        'noref_posterior3_n2pc_rs256_iir_fwd_bp-1-10',  'noref_rs256_iir_fwd_bp-1-10', 'erpcore_n2pc|posterior3_n2pc', 'erpcore_n2pc|full',        0),  # PO7, Pz, PO8 — det=PO7
-    ('MMN',       'erpcore_mmn',         'noref_midline3_rs256_iir_fwd_bp-1-10',         'noref_rs256_iir_fwd_bp-1-10', 'erpcore_mmn|midline3',         'erpcore_mmn|full',         1),
-    ('N400',      'erpcore_n400',        'noref_midline3_n400_rs256_iir_fwd_bp-1-10',    'noref_rs256_iir_fwd_bp-1-10', 'erpcore_n400|midline3_n400',   'erpcore_n400|full',        0),  # Cz, CPz, Pz — det=Cz idx 0
+    ('MMN',       'erpcore_mmn',         'noref_midline3_rs256_iir_fwd_bp-1-10',         'noref_rs256_iir_fwd_bp-1-10', 'erpcore_mmn|midline3',         'erpcore_mmn|full',         0),
+    ('N400',      'erpcore_n400',        'noref_midline3_n400_rs256_iir_fwd_bp-1-10',    'noref_rs256_iir_fwd_bp-1-10', 'erpcore_n400|midline3_n400',   'erpcore_n400|full',        1),  # Cz, CPz, Pz — det=Cz idx 0
 ]
 
 
@@ -1665,6 +1665,297 @@ def write_paired_table(out_path):
 
 
 # ====================================================================
+# Supplementary LaTeX tables
+# ====================================================================
+# All share the same data helpers (results.json / validation.json / morphology
+# cache) so they stay consistent with the figures. booktabs required throughout.
+_SUP_METHODS = [('ERP-XTTN', 'erpxttn_peak'), ('EEGNet', 'eegnet'),
+                ('EEG-Deformer', 'eeg_deformer'), ('EPMN', 'epmn'), ('xDAWN+RG', 'xdawn_rg')]
+_SUP_ORDER = ['BNCI ErrP', 'HRI ErrP', 'ERN', 'P300', 'N400', 'N170', 'N2pc', 'LRP', 'MMN']
+
+
+def _sup_rows():
+    by = {d[0]: d for d in DATASETS}
+    return [(lab.replace(' ErrP', ''), by[lab]) for lab in _SUP_ORDER if lab in by]
+
+
+def _persubj_fusion(ds_dir, var_dir, model):
+    """{subj: seed-avg two-factor AUROC} — the fused headline."""
+    from collections import defaultdict
+    base = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / model
+    acc = defaultdict(list)
+    for sd in sorted(base.glob('seed-*')):
+        rj = sd / 'results.json'
+        if not rj.exists():
+            continue
+        for s, a in (json.load(open(rj)).get('two_factor_auroc_per_subject') or {}).items():
+            if a is not None:
+                acc[s].append(float(a))
+    return {s: float(np.mean(v)) for s, v in acc.items() if v}
+
+
+def _persubj_forward(ds_dir, var_dir, model):
+    """{subj: seed-avg per-fold test AUROC} — the model's own forward output."""
+    from collections import defaultdict
+    base = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / model
+    acc = defaultdict(list)
+    for sd in sorted(base.glob('seed-*')):
+        rj = sd / 'results.json'
+        if not rj.exists():
+            continue
+        for f in json.load(open(rj)).get('folds', []):
+            if f.get('test_auroc') is not None:
+                acc[f['test_subject']].append(float(f['test_auroc']))
+    return {s: float(np.mean(v)) for s, v in acc.items() if v}
+
+
+def _persubj_balacc(ds_dir, var_dir, model):
+    """{subj: seed-avg balanced accuracy @0.5}. ERP-XTTN uses the fused decision."""
+    from collections import defaultdict
+    from sklearn.metrics import balanced_accuracy_score
+    base = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / model
+    acc = defaultdict(list)
+    for sd in sorted(base.glob('seed-*')):
+        if model == 'erpxttn_peak':
+            for f in sd.glob('two_factor_*.npz'):
+                s = f.name[len('two_factor_'):-4]
+                d = np.load(f)
+                y = d['labels'].astype(int)
+                if len(np.unique(y)) < 2:
+                    continue
+                acc[s].append(balanced_accuracy_score(y, (d['probs'] >= 0.5).astype(int)))
+        else:
+            rj = sd / 'results.json'
+            if not rj.exists():
+                continue
+            for f in json.load(open(rj)).get('folds', []):
+                if f.get('test_bal_acc') is not None:
+                    acc[f['test_subject']].append(float(f['test_bal_acc']))
+    return {s: float(np.mean(v)) for s, v in acc.items() if v}
+
+
+def _msd(d):
+    v = list(d.values())
+    if not v:
+        return (None, None, 0)
+    return (float(np.mean(v)), float(np.std(v, ddof=1)) if len(v) > 1 else 0.0, len(v))
+
+
+def _val_agg_sup(ds_dir, var_dir):
+    """Seed-averaged validation.json aggregate; (dict, n_seeds)."""
+    base = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / 'erpxttn_peak'
+    acc = {}
+    ns = 0
+    for s in range(1, 6):
+        p = base / f'seed-{s}' / 'validation.json'
+        if not p.exists():
+            continue
+        agg = json.load(open(p)).get('aggregate', {})
+        if not agg:
+            continue
+        ns += 1
+        for k, v in agg.items():
+            if isinstance(v, dict) and 'mean' in v:
+                acc.setdefault(k, []).append(v['mean'])
+    return ({k: float(np.mean(v)) for k, v in acc.items()}, ns) if acc else (None, 0)
+
+
+def _tex(out_path, lines):
+    Path(out_path).write_text('\n'.join(lines) + '\n')
+
+
+# --- S3: full-montage AUROC ---
+def write_fullmontage_auroc_table(out_path):
+    L = [r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{5pt}',
+         r'\caption{Full-montage LOSO AUROC (seed-averaged per-subject mean). '
+         r'$\Delta$ = best baseline $-$ ERP-XTTN.}', r'\label{tab:fullmontage}',
+         r'\begin{tabular}{lcccccc}', r'\toprule',
+         r'Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\', r'\midrule']
+    for lab, d in _sup_rows():
+        vf = d[3]
+        m = {}
+        for name, mdl in _SUP_METHODS:
+            pj = _persubj_fusion(d[1], vf, mdl) if mdl == 'erpxttn_peak' else _persubj_forward(d[1], vf, mdl)
+            m[name] = _msd(pj)[0]
+        cells = [f'{m[n]:.3f}' if m[n] is not None else '--' for n, _ in _SUP_METHODS]
+        bl = [m[n] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and m[n] is not None]
+        dlt = f'{max(bl) - m["ERP-XTTN"]:+.3f}' if (bl and m['ERP-XTTN'] is not None) else '--'
+        L.append(f'{lab} & ' + ' & '.join(cells) + f' & {dlt} ' + r'\\')
+    L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+    _tex(out_path, L)
+
+
+# --- S4: balanced accuracy, 3-channel ---
+def write_balacc_table(out_path):
+    L = [r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{5pt}',
+         r'\caption{Balanced accuracy at threshold 0.5 (3-channel, seed-averaged per-subject mean; '
+         r'ERP-XTTN uses the fused decision). $\Delta$ = best baseline $-$ ERP-XTTN.}',
+         r'\label{tab:balacc}', r'\begin{tabular}{lcccccc}', r'\toprule',
+         r'Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\', r'\midrule']
+    for lab, d in _sup_rows():
+        v3 = d[2]
+        m = {name: _msd(_persubj_balacc(d[1], v3, mdl))[0] for name, mdl in _SUP_METHODS}
+        cells = [f'{m[n]:.3f}' if m[n] is not None else '--' for n, _ in _SUP_METHODS]
+        bl = [m[n] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and m[n] is not None]
+        dlt = f'{max(bl) - m["ERP-XTTN"]:+.3f}' if (bl and m['ERP-XTTN'] is not None) else '--'
+        L.append(f'{lab} & ' + ' & '.join(cells) + f' & {dlt} ' + r'\\')
+    L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+    _tex(out_path, L)
+
+
+# --- S5: per-subject AUROC, 3-channel — all 9 datasets in one file ---
+def write_persubject_auroc_tables(out_path):
+    parts = []
+    for lab, d in _sup_rows():
+        v3 = d[2]
+        pm = {name: _persubj_auroc(d[1], v3, mdl) for name, mdl in _SUP_METHODS}
+        subs = sorted(set().union(*[set(x) for x in pm.values() if x])) if any(pm.values()) else []
+        P = [r'\begin{table}[t]', r'\centering', r'\scriptsize',
+             r'\caption{Per-subject LOSO AUROC (3-channel, seed-averaged), %s.}' % lab,
+             r'\label{tab:persubj-%s}' % lab.lower().replace(' ', ''),
+             r'\begin{tabular}{lccccc}', r'\toprule',
+             r'Subject & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG \\', r'\midrule']
+        for s in subs:
+            cells = [f'{pm[n][s]:.3f}' if pm[n] and s in pm[n] else '--' for n, _ in _SUP_METHODS]
+            P.append(f'{s} & ' + ' & '.join(cells) + r' \\')
+        P += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+        parts.append('\n'.join(P))
+    _tex(out_path, ['% Per-subject AUROC tables, one per dataset (S5).', ''] + ['\n\n'.join(parts)])
+
+
+# --- S6: ablation grid ---
+_ABL_ARMS = [('Base (routing+amplitude)', 'erpxttn_peak', 'fusion'),
+             ('Routing only', 'erpxttn_peak', 'forward'),
+             ('Amplitude only', 'erpxttn_peak_amp_only', 'fusion'),
+             ('End-to-end head', 'ablation_erpxttn_e2e', 'forward'),
+             ('No whitening', 'ablation_erpxttn_nowhiten', 'fusion'),
+             ('No self-attention', 'erpxttn_peak_nosa', 'fusion'),
+             ('$K=2$', 'erpxttn_peak_k2', 'fusion'), ('$K=6$', 'erpxttn_peak_k6', 'fusion'),
+             ('Prominence 0.01', 'erpxttn_peak_prom0.01', 'fusion'),
+             ('Prominence 0.05', 'erpxttn_peak_prom0.05', 'fusion'),
+             ('2 heads', 'erpxttn_peak_h2', 'fusion'), ('8 heads', 'erpxttn_peak_h8', 'fusion'),
+             ('Learned free head', 'ablation_erpxttn_learned_readout', 'forward')]
+_ABL_DS = [('HRI', 'hri_errp_cursor'), ('ERN', 'erpcore_ern'),
+           ('P300', 'erpcore_p300'), ('N400', 'erpcore_n400')]
+
+
+def write_ablation_table(out_path):
+    by = {d[1]: d for d in DATASETS}
+    L = [r'\begin{table}[t]', r'\centering', r'\small', r'\setlength{\tabcolsep}{6pt}',
+         r'\caption{Two-factor ablation grid (3-channel, seed-averaged). AUROC is per-subject '
+         r'mean $\pm$ SD across subjects (fusion, except routing-only / end-to-end / learned free '
+         r'head, which report the forward AUROC). $\Delta$ = arm $-$ base.}',
+         r'\label{tab:ablation}', r'\begin{tabular}{llcc}', r'\toprule',
+         r'Dataset & Ablation & AUROC (mean $\pm$ SD) & $\Delta$ vs base \\', r'\midrule']
+    for di, (lab, dsdir) in enumerate(_ABL_DS):
+        v3 = by[dsdir][2]
+        basem = _msd(_persubj_fusion(dsdir, v3, 'erpxttn_peak'))[0]
+        for ai, (arm, mdir, metric) in enumerate(_ABL_ARMS):
+            pj = _persubj_fusion(dsdir, v3, mdir) if metric == 'fusion' else _persubj_forward(dsdir, v3, mdir)
+            m, sd, n = _msd(pj)
+            dcell = lab if ai == 0 else ''
+            if m is None:
+                L.append(f'{dcell} & {arm} & -- & -- ' + r'\\')
+                continue
+            dl = '--' if arm.startswith('Base') or basem is None else f'{m - basem:+.3f}'
+            L.append(f'{dcell} & {arm} & {m:.3f} $\\pm$ {sd:.3f} & {dl} ' + r'\\')
+        if di < len(_ABL_DS) - 1:
+            L.append(r'\midrule')
+    L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+    _tex(out_path, L)
+
+
+# --- S7 / S8: grounding interventions ---
+_GND_COLS = [('routing_auroc', 'route'), ('ladder_intact', 'L:int'), ('ladder_polarity', 'L:pol'),
+             ('ladder_cross', 'L:cross'), ('ladder_null', 'noise-null'),
+             ('carrier_peak_proto', 'c:proto'), ('carrier_trial', 'c:trial'),
+             ('amp_channel_on', 'ch:on'), ('amp_channel_off', 'ch:off'),
+             ('amp_channel_baseline', 'ch:base'), ('amp_channel_permute', 'ch:perm'),
+             ('amp_contrast_on', 'ct:on'), ('amp_contrast_off', 'ct:off'),
+             ('amp_contrast_baseline', 'ct:base'), ('amp_contrast_permute', 'ct:perm')]
+
+
+def write_grounding_table(out_path, montage):
+    vi = 2 if montage == '3-channel' else 3
+    hdr = 'Dataset & ' + ' & '.join(h for _, h in _GND_COLS) + r' \\'
+    L = [r'% wide table — consider \usepackage{rotating} + sidewaystable, or a two-column table*.',
+         r'\begin{table}[t]', r'\centering', r'\scriptsize', r'\setlength{\tabcolsep}{3pt}',
+         r'\caption{Grounding interventions, %s montage (AUROC, seed-averaged). Template-swap ladder '
+         r'(intact/polarity/cross), permutation null, carrier scrambles, and amplitude window-'
+         r'localization for the channel and contrast matched filters.}' % montage,
+         r'\label{tab:grounding-%s}' % montage.split('-')[0],
+         r'\begin{tabular}{l' + 'c' * len(_GND_COLS) + '}', r'\toprule', hdr, r'\midrule']
+    for lab, d in _sup_rows():
+        agg, ns = _val_agg_sup(d[1], d[vi])
+        if not agg:
+            L.append(f'{lab} & ' + ' & '.join(['--'] * len(_GND_COLS)) + r' \\')
+            continue
+        cells = [f'{agg[k]:.2f}' if k in agg else '--' for k, _ in _GND_COLS]
+        L.append(f'{lab} & ' + ' & '.join(cells) + r' \\')
+    L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+    _tex(out_path, L)
+
+
+# --- S9: EPMN native recipe ---
+def write_epmn_native_table(out_path):
+    by = {d[1]: d for d in DATASETS}
+    rows = [('ERN', 'erpcore_ern'), ('P300', 'erpcore_p300'), ('N400', 'erpcore_n400')]
+    L = [r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{6pt}',
+         r'\caption{EPMN native recipe vs shared protocol (3-channel, seed-averaged per-subject AUROC), '
+         r'on the datasets for which the native EPMN implementation was available.}',
+         r'\label{tab:epmn-native}', r'\begin{tabular}{llcc}', r'\toprule',
+         r'Dataset & Montage & Native AUROC & Shared-protocol AUROC \\', r'\midrule']
+    for lab, dsdir in rows:
+        v3 = by[dsdir][2]
+        nat = _msd(_persubj_forward(dsdir, v3, 'epmn_native'))[0]
+        sh = _msd(_persubj_forward(dsdir, v3, 'epmn'))[0]
+        L.append(f'{lab} & 3-channel & ' + (f'{nat:.3f}' if nat is not None else '--')
+                 + ' & ' + (f'{sh:.3f}' if sh is not None else '--') + r' \\')
+    L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+    _tex(out_path, L)
+
+
+# --- S10: TP<->FP / TP<->TN correlations ---
+def write_corr_table(out_path):
+    from scipy.stats import pearsonr
+    L = [r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{6pt}',
+         r'\caption{Outcome-conditioned waveform correlations at the detection channel '
+         r'(3-channel, fused decision). Per-subject Pearson $r$ between mean true-positive and mean '
+         r'false-positive (TP$\leftrightarrow$FP) / true-negative (TP$\leftrightarrow$TN) waveforms, '
+         r'reported as mean $\pm$ SD across subjects.}',
+         r'\label{tab:corr}', r'\begin{tabular}{llcc}', r'\toprule',
+         r'Dataset & Det.\ ch & TP$\leftrightarrow$FP & TP$\leftrightarrow$TN \\', r'\midrule']
+
+    def _rs(A, B):
+        rr = []
+        for a, b in zip(A, B):
+            if not (np.all(np.isfinite(a)) and np.all(np.isfinite(b))):
+                continue
+            if np.std(a) < 1e-12 or np.std(b) < 1e-12:
+                continue
+            rr.append(pearsonr(a, b)[0])
+        if not rr:
+            return None, None
+        return float(np.mean(rr)), (float(np.std(rr, ddof=1)) if len(rr) > 1 else 0.0)
+
+    for lab, d in _sup_rows():
+        ok = _ensure_morphology_cache(d[0], d[1], d[2], d[6])
+        cache = CACHE_DIR / f'{d[1]}_3ch_Cz.npz'
+        if not ok or not cache.exists():
+            L.append(f'{lab} & -- & -- & -- ' + r'\\')
+            continue
+        z = np.load(cache, allow_pickle=True)
+        det = str(z['det_channel_name'])
+        fpm, fps = _rs(z['tp'], z['fp'])
+        tnm, tns = _rs(z['tp'], z['tn'])
+        fpc = f'${fpm:+.2f} \\pm {fps:.2f}$' if fpm is not None else '--'
+        tnc = f'${tnm:+.2f} \\pm {tns:.2f}$' if tnm is not None else '--'
+        L.append(f'{lab} & {det} & {fpc} & {tnc} ' + r'\\')
+    L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+    _tex(out_path, L)
+
+
+# ====================================================================
 # Main
 # ====================================================================
 
@@ -1690,6 +1981,16 @@ def main():
 
     print('Paired advantage table (Table 2 companion, LaTeX)...')
     write_paired_table(OUT_DIR / 'table_paired.tex')
+
+    print('Supplementary tables (LaTeX)...')
+    write_fullmontage_auroc_table(OUT_DIR / 'tableS3_fullmontage_auroc.tex')
+    write_balacc_table(OUT_DIR / 'tableS4_balanced_accuracy.tex')
+    write_persubject_auroc_tables(OUT_DIR / 'tableS5_persubject_auroc.tex')
+    write_ablation_table(OUT_DIR / 'tableS6_ablation.tex')
+    write_grounding_table(OUT_DIR / 'tableS7_grounding_3ch.tex', '3-channel')
+    write_grounding_table(OUT_DIR / 'tableS8_grounding_full.tex', 'full-montage')
+    write_epmn_native_table(OUT_DIR / 'tableS9_epmn_native.tex')
+    write_corr_table(OUT_DIR / 'tableS10_tpfp_tptn_corr.tex')
 
     print('Routing combined figures (3-channel only)...')
     for name, ds_dir, c3, cf, k3, kf, det_idx in DATASETS:
