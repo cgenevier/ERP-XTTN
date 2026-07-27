@@ -589,8 +589,10 @@ def _build_morphology_cache(ds_label, ds_dir, var_dir, det_idx, cache_path):
     counts = {}
 
     for subj in subjects:
-        # Load predictions
-        pred = np.load(rdir / f'predictions_{subj}.npz')
+        # Load the FUSED two-factor decision (the model's actual output); fall back
+        # to the routing-only predictions if the fusion npz is absent.
+        pf = rdir / f'two_factor_{subj}.npz'
+        pred = np.load(pf if pf.exists() else rdir / f'predictions_{subj}.npz')
         probs = pred['probs']
         labels = pred['labels']
 
@@ -1586,7 +1588,7 @@ def fig_paired_heatmap(out_path):
         ax.add_patch(Rectangle((j - .5, my - .5), 1, 1, facecolor=sm.to_rgba(colmean[j]),
                                ec='0.4', lw=.6))
         ax.text(j, my, f'{colmean[j]:+.1f}', ha='center', va='center', fontsize=9.5, style='italic')
-    ax.text(-0.9, my, r'mean $\Delta$', ha='right', va='center', fontsize=8, style='italic', color='0.3')
+    ax.text(-0.9, my, 'mean', ha='right', va='center', fontsize=8, style='italic', color='0.3')
 
     # difficulty arrow (rows are sorted by mean AUROC; easiest at top)
     ax.annotate('', xy=(-0.82, n - 0.6), xytext=(-0.82, -0.4),
@@ -1604,13 +1606,13 @@ def fig_paired_heatmap(out_path):
     for s in ax.spines.values():
         s.set_visible(False)
     fig.suptitle('Paired advantage of ERP-XTTN vs baselines (3-channel)\n'
-                 'Hodges–Lehmann $\\Delta$ (AUROC points, ERP-XTTN $-$ baseline)', fontsize=11, y=0.99)
+                 'Hodges–Lehmann paired difference (AUROC points, ERP-XTTN $-$ baseline)', fontsize=11, y=0.99)
 
     cb = fig.colorbar(sm, ax=ax, fraction=0.040, pad=0.03, shrink=0.65)
     cb.set_ticks([-5, -2.5, 0, 2.5, 5])
     cb.set_ticklabels([f'{t:+.1f}'.replace('+0.0', '0') for t in [-5, -2.5, 0, 2.5, 5]])
     cb.ax.tick_params(labelsize=8)
-    cb.set_label('HL $\\Delta$ (AUROC pts): red = ERP-XTTN higher, blue = lower', fontsize=8)
+    cb.set_label('paired difference (AUROC pts): red = ERP-XTTN higher, blue = lower', fontsize=8)
     fig.text(0.5, 0.058, 'Bold text + black box: $q<0.05$ (Wilcoxon signed-rank, Benjamini–Hochberg',
              ha='center', fontsize=8)
     fig.text(0.5, 0.030, 'FDR across all 36 tests).   $^\\dagger$ $n\\leq6$: below exact-test power floor.',
@@ -1631,8 +1633,8 @@ def write_paired_table(out_path):
     L = [r'\begin{table}[t]', r'\centering',
          (r'\caption{Paired comparison of ERP-XTTN against each baseline (3-channel montage), '
           r'companion to Table~\ref{tab:table2}. Each cell reports the Hodges--Lehmann estimate of the '
-          r'paired per-subject AUROC difference $\Delta=\mathrm{AUROC}_{\text{ERP-XTTN}}-\mathrm{AUROC}_{\text{baseline}}$ '
-          r'(negative $=$ ERP-XTTN lower) with its 95\% exact distribution-free signed-rank CI below. '
+          r'paired per-subject AUROC difference (ERP-XTTN minus baseline; negative $=$ ERP-XTTN lower) '
+          r'with its 95\% exact distribution-free signed-rank CI below. '
           r'Per-subject AUROCs are averaged over 5 seeds first (xDAWN+RG is deterministic). \textbf{Bold} $=$ '
           r'two-sided Wilcoxon signed-rank significant at $q<0.05$ after Benjamini--Hochberg FDR correction across '
           r'all 36 comparisons (9 datasets $\times$ 4 baselines). $^\dagger$ On BNCI ($n=6$) the exact test floors '
@@ -1641,7 +1643,7 @@ def write_paired_table(out_path):
          r'\label{tab:paired}', r'\small', r'\setlength{\tabcolsep}{5pt}',
          r'\renewcommand{\arraystretch}{1.1}', r'\begin{tabular}{lcccc}', r'\toprule',
          r'Dataset & vs EEGNet & vs EEG-Deformer & vs EPMN & vs xDAWN+RG \\',
-         r'        & \multicolumn{4}{c}{\footnotesize Hodges--Lehmann $\Delta$ (95\% CI)} \\',
+         r'        & \multicolumn{4}{c}{\footnotesize Hodges--Lehmann paired difference (95\% CI)} \\',
          r'\midrule']
     for i in range(n):
         lab = f'{labels[i]} ($n{{=}}{N[i]}$)' + (r'$^\dagger$' if N[i] <= 6 else '')
