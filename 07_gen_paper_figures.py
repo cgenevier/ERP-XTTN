@@ -250,7 +250,7 @@ def fig_tax_drivers():
     fig.tight_layout(rect=(0, 0, 1, 0.88))
 
     out = OUT_DIR / 'fig_tax_drivers.png'
-    fig.savefig(out, bbox_inches='tight', pad_inches=0.05)
+    fig.savefig(out, bbox_inches='tight', pad_inches=0.02)
     plt.close(fig)
     print(f'  wrote {out}')
 
@@ -328,10 +328,10 @@ def fig_snr_gap():
                for l, _, c, mk in _SNR_BASELINES]
     fig.legend(handles=handles, ncol=4, loc='lower center', frameon=False,
                fontsize=9, bbox_to_anchor=(0.5, -0.02))
-    fig.suptitle('Interpretability gap vs signal strength', fontsize=12, y=1.0)
+    fig.suptitle('Interpretability Gap vs Signal Strength', fontsize=12, y=1.0)
     fig.tight_layout(rect=(0, 0.05, 1, 0.97))
     out = OUT_DIR / 'fig_snr_gap.png'
-    fig.savefig(out, bbox_inches='tight', pad_inches=0.05)
+    fig.savefig(out, bbox_inches='tight', pad_inches=0.02)
     plt.close(fig)
     print(f'  wrote {out}')
 
@@ -399,12 +399,12 @@ def fig_tpfp_tptn():
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.legend(loc='upper right', frameon=False, ncol=2, fontsize=9)
-    ax.set_title('TP↔FP and TP↔TN waveform correlations across datasets',
+    ax.set_title('TP↔FP and TP↔TN Waveform Correlations Across Datasets',
                  fontsize=11, pad=10)
 
     fig.tight_layout(rect=(0, 0.04, 1, 1))
     out = OUT_DIR / 'fig_tpfp_tptn.png'
-    fig.savefig(out, bbox_inches='tight')
+    fig.savefig(out, bbox_inches='tight', pad_inches=0.02)
     plt.close(fig)
     print(f'  wrote {out}')
 
@@ -539,7 +539,7 @@ def fig_routing_combined(ds_label, ds_dir, var_dir, out_path, n_bins=40):
         axA.plot(centers_ms, a_mean[1, k], color=c, lw=2.3, label=f'{names[k]} ({pos_label})')
         axA.plot(centers_ms, a_mean[0, k], color=c, lw=1.6, ls='--', alpha=0.8)
     axA.set_xlim(0, T / sfreq * 1000); axA.set_ylabel('Mean routed attention  a', fontsize=12)
-    axA.set_title(f'Routing by peak latency - {ds_label}  (solid={pos_label}, dashed={neg_label})',
+    axA.set_title(f'Routing by Peak Latency — {ds_label}  (solid={pos_label}, dashed={neg_label})',
                   fontsize=13, fontweight='bold')
     axA.legend(fontsize=9, ncol=K, loc='upper right')
     axB = fig.add_subplot(gs[1])
@@ -548,11 +548,11 @@ def fig_routing_combined(ds_label, ds_dir, var_dir, out_path, n_bins=40):
                     extent=[0, T / sfreq * 1000, len(subj_ids) - 0.5, -0.5], interpolation='nearest')
     axB.set_yticks(range(len(subj_ids))); axB.set_yticklabels(subj_ids, fontsize=6)
     axB.set_xlabel('Peak-centre latency (ms)', fontsize=12); axB.set_ylabel('Subject', fontsize=12)
-    axB.set_title(f'Delta grounded contribution ({pos_label}-{neg_label}) by latency', fontsize=12, fontweight='bold')
+    axB.set_title(f'Delta Grounded Contribution ({pos_label}−{neg_label}) by Latency', fontsize=12, fontweight='bold')
     for k in range(K):
         axB.axvline(windows[k][0], color=PEAK_PROTO_COLORS[k % len(PEAK_PROTO_COLORS)], lw=0.8, alpha=0.5)
     fig.colorbar(im, ax=axB, fraction=0.03, pad=0.01, label='Delta a.m')
-    fig.savefig(out_path, dpi=150, bbox_inches='tight'); plt.close(fig)
+    fig.savefig(out_path, dpi=150, bbox_inches='tight', pad_inches=0.02); plt.close(fig)
     print(f'  saved {Path(out_path).name}')
 
 
@@ -761,16 +761,15 @@ def fig_morphology_cz(ds_label, ds_dir, var_dir, det_idx, out_path):
     pwins = d['proto_windows']
     proto_windows = pwins[0] if len(pwins) > 0 else []
 
-    fig, axes = plt.subplots(2, 1, figsize=(7, 5.6), sharex=True)
+    fig, axes = plt.subplots(1, 2, figsize=(10, 3.4), sharey=True)
 
     for ax_idx, (a_m, a_s, a_label, a_color, b_m, b_s, b_label, b_color, panel_name) in enumerate([
         (tp_m, tp_s, f'TP (hit, n={n_tp} subj)', '#197b30',
-         fn_m, fn_s, f'FN (miss, n={n_fn} subj)', '#b22222', 'Error class'),
+         fn_m, fn_s, f'FN (miss, n={n_fn} subj)', '#b22222', 'TP / FN'),
         (tn_m, tn_s, f'TN (correct reject, n={n_tn} subj)', '#1f4e79',
-         fp_m, fp_s, f'FP (false alarm, n={n_fp} subj)', '#d97706', 'Correct class'),
+         fp_m, fp_s, f'FP (false alarm, n={n_fp} subj)', '#d97706', 'TN / FP'),
     ]):
         ax = axes[ax_idx]
-        # Prototype window shading
         for w in proto_windows:
             ax.axvspan(w[0], w[1], color='gray', alpha=0.10, zorder=1)
         if a_m is not None:
@@ -782,22 +781,18 @@ def fig_morphology_cz(ds_label, ds_dir, var_dir, det_idx, out_path):
             ax.fill_between(time_ms, b_m - b_s, b_m + b_s,
                             color=b_color, alpha=0.20, lw=0, zorder=2)
         ax.axhline(0, color='gray', lw=0.5, ls='--')
-        ax.set_ylabel(f'{panel_name}\namplitude (µV)', fontsize=9)
+        ax.set_xlabel('Time (ms)', fontsize=9)
+        ax.set_title(panel_name, fontsize=9.5, pad=2)
         ax.legend(loc='best', fontsize=7.5, frameon=False)
         ax.tick_params(axis='both', labelsize=8)
 
-    axes[1].set_xlabel('Time (ms)', fontsize=9)
+    axes[0].set_ylabel('Amplitude (µV)', fontsize=9)
 
-    fig.tight_layout()
-    fig.subplots_adjust(top=0.91)
-    fig.suptitle(
-        f'{ds_label} — outcome-conditioned grand averages at {det_name} '
-        f'(3-channel)\n'
-        f'totals: TP={total["tp"]}, FN={total["fn"]}, '
-        f'TN={total["tn"]}, FP={total["fp"]}',
-        fontsize=10, y=0.98,
-    )
-    fig.savefig(out_path, bbox_inches='tight', pad_inches=0.05)
+    fig.tight_layout(h_pad=0.5)
+    top = max(ax.get_position().y1 for ax in axes)
+    fig.text(0.5, top + 0.06, f'{ds_label} — Outcome-Conditioned Grand Averages at {det_name} (3-Channel)',
+             fontsize=10, ha='center', va='bottom')
+    fig.savefig(out_path, bbox_inches='tight', pad_inches=0.02)
     plt.close(fig)
     print(f'  wrote {out_path}')
 
@@ -984,7 +979,7 @@ def fig_morphology_grid_supp(out_path):
                fontsize=8.5, bbox_to_anchor=(0.5, 0.99), ncol=4,
                handletextpad=0.5, columnspacing=1.6)
 
-    fig.savefig(out_path, bbox_inches='tight', pad_inches=0.05)
+    fig.savefig(out_path, bbox_inches='tight', pad_inches=0.02)
     plt.close(fig)
     print(f'  wrote {out_path}')
 
@@ -1122,7 +1117,7 @@ def fig_tp_tn_two_subjects(ds_label, ds_dir, var_dir, det_idx, subjects, out_pat
     names = _peak_comp_names(proto_det, windows, sfreq); time_ms = np.arange(T) / sfreq * 1000
     mode = 'median' if conf == 'median' else 'highconf'
     fig = plt.figure(figsize=(13, 10))
-    gs = gridspec.GridSpec(3, 2, height_ratios=[0.7, 1.0, 1.0], hspace=0.4, wspace=0.18)
+    gs = gridspec.GridSpec(3, 2, height_ratios=[0.7, 1.0, 1.0], hspace=0.32, wspace=0.18)
     axp = fig.add_subplot(gs[0, :])
     for k in range(len(names)):
         c = PEAK_PROTO_COLORS[k % len(PEAK_PROTO_COLORS)]
@@ -1131,7 +1126,7 @@ def fig_tp_tn_two_subjects(ds_label, ds_dir, var_dir, det_idx, subjects, out_pat
         axp.plot(time_ms[s:e], proto_det[k, s:e], color=c, lw=2.5,
                  label=f'{names[k]} ({windows[k][0]:.0f}-{windows[k][1]:.0f} ms)')
     axp.axhline(0, color='gray', lw=0.5, ls='--'); axp.set_xlim(0, time_ms[-1])
-    axp.set_title('Difference-Wave Prototypes', fontsize=13, fontweight='bold')
+    axp.set_title('Difference-Wave Prototypes', fontsize=13, fontweight='bold', pad=2)
     axp.legend(fontsize=9, ncol=len(names), loc='upper right'); axp.set_ylabel(f'{det_name} (z)', fontsize=11)
     for row, (z, sid) in enumerate(zip(zs, subjects[:2])):
         sel = _sel_conf(z['labels'], z['probs'], mode)
@@ -1143,9 +1138,10 @@ def fig_tp_tn_two_subjects(ds_label, ds_dir, var_dir, det_idx, subjects, out_pat
             _sig_panel(ax, z, det, tr, f'{sid} - {lab}', T, sfreq, ymax)
             if row == 1:
                 ax.set_xlabel('Time (ms)', fontsize=11)
-    fig.suptitle(f'Peak-Unit Routing - {ds_label} ({subjects[0]} vs {subjects[1]})',
-                 fontsize=15, fontweight='bold', y=0.995)
-    fig.savefig(out_path, dpi=150, bbox_inches='tight'); plt.close(fig)
+    top = axp.get_position().y1
+    fig.text(0.5, top + 0.02, f'Peak-Unit Routing — {ds_label} ({subjects[0]} vs {subjects[1]})',
+             fontsize=15, fontweight='bold', ha='center', va='bottom')
+    fig.savefig(out_path, dpi=150, bbox_inches='tight', pad_inches=0.02); plt.close(fig)
     print(f'  saved {Path(out_path).name}')
 
 
@@ -1219,7 +1215,7 @@ def fig_prototypes_single_dataset(ds_label, ds_dir, var_dir, det_idx,
         ax.tick_params(axis='both', labelsize=9)
 
     fig.tight_layout()
-    fig.savefig(out_path, bbox_inches='tight')
+    fig.savefig(out_path, bbox_inches='tight', pad_inches=0.02)
     plt.close(fig)
     print(f'  wrote {out_path}')
 
@@ -1342,13 +1338,13 @@ def fig_prototypes_all_datasets():
         )
 
     fig.suptitle(
-        'Difference-wave prototypes (LOSO folds) across datasets — '
-        '3-channel, detection channel only',
+        'Difference-Wave Prototypes (LOSO Folds) Across Datasets — '
+        '3-Channel, Detection Channel Only',
         fontsize=11, y=0.995,
     )
     fig.tight_layout(rect=(0.04, 0, 1, 0.98))
     out = OUT_DIR / 'fig_prototypes_all_datasets.png'
-    fig.savefig(out, bbox_inches='tight')
+    fig.savefig(out, bbox_inches='tight', pad_inches=0.02)
     plt.close(fig)
     print(f'  wrote {out}')
 
@@ -1456,12 +1452,12 @@ def fig_persubject_auroc(montage, out_name):
     fig.legend(handles=handles, ncol=2, loc='lower center', frameon=False,
                fontsize=9, bbox_to_anchor=(0.5, 0.005))
 
-    label = '3-channel' if montage == '3ch' else 'Full montage'
-    fig.suptitle(f'Per-subject cross-subject AUROC — {label}', fontsize=12,
+    label = '3-Channel' if montage == '3ch' else 'Full Montage'
+    fig.suptitle(f'LOSO AUROC by Subject — {label}', fontsize=12,
                  y=0.995)
     fig.tight_layout(rect=(0, 0.03, 1, 0.985))
     out = OUT_DIR / out_name
-    fig.savefig(out, bbox_inches='tight', pad_inches=0.05)
+    fig.savefig(out, bbox_inches='tight', pad_inches=0.02)
     plt.close(fig)
     print(f'  wrote {out}')
 
@@ -1605,25 +1601,21 @@ def fig_paired_heatmap(out_path):
     ax.set_yticks(range(n))
     ax.set_yticklabels([f'{l} ($n{{=}}{N[i]}$)' + ('$^\\dagger$' if N[i] <= 6 else '')
                         for i, l in enumerate(labels)], fontsize=9)
-    ax.set_xlim(-1.45, m - 0.4); ax.set_ylim(my + 0.7, -1.5)
-    ax.tick_params(length=0)
+    ax.set_xlim(-1.45, m - 0.4); ax.set_ylim(my + 0.7, -1.0)
+    ax.tick_params(length=0, pad=3)
     for s in ax.spines.values():
         s.set_visible(False)
-    fig.suptitle('Paired advantage of ERP-XTTN vs baselines (3-channel)\n'
-                 'Hodges–Lehmann paired difference (AUROC points, ERP-XTTN $-$ baseline)', fontsize=11, y=0.99)
+    fig.suptitle('Paired Advantage of ERP-XTTN vs Baselines (3-Channel)',
+                 fontsize=11, y=0.975)
 
     cb = fig.colorbar(sm, ax=ax, fraction=0.040, pad=0.03, shrink=0.65)
     cb.set_ticks([-5, -2.5, 0, 2.5, 5])
     cb.set_ticklabels([f'{t:+.1f}'.replace('+0.0', '0') for t in [-5, -2.5, 0, 2.5, 5]])
     cb.ax.tick_params(labelsize=8)
-    cb.set_label('paired difference (AUROC pts): red = ERP-XTTN higher, blue = lower', fontsize=8)
-    fig.text(0.5, 0.058, 'Bold text + black box: $q<0.05$ (Wilcoxon signed-rank, Benjamini–Hochberg',
-             ha='center', fontsize=8)
-    fig.text(0.5, 0.030, 'FDR across all 36 tests).   $^\\dagger$ $n\\leq6$: below exact-test power floor.',
-             ha='center', fontsize=8)
-    fig.subplots_adjust(left=0.17, right=0.92, top=0.855, bottom=0.11)
-    fig.savefig(out_path, bbox_inches='tight')
-    fig.savefig(Path(out_path).with_suffix('.pdf'), bbox_inches='tight')
+    cb.set_label('Hodges–Lehmann $\\Delta$ (AUROC pts)', fontsize=8)
+    fig.subplots_adjust(left=0.17, right=0.92, top=0.89, bottom=0.04)
+    fig.savefig(out_path, bbox_inches='tight', pad_inches=0.02)
+    fig.savefig(Path(out_path).with_suffix('.pdf'), bbox_inches='tight', pad_inches=0.02)
     plt.close(fig)
 
 
