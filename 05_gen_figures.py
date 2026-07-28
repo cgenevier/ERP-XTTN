@@ -601,7 +601,7 @@ def _select_routing(labels, probs, mode):
     def cap(i):
         truth = 'Error' if labels[i] == 1 else 'Correct'
         ok = (labels[i] == 1) == (probs[i] >= 0.5)
-        return f"{truth} trial — p(err)={probs[i]:.2f} → {'✓' if ok else '✗ MISCLASSIFIED'}"
+        return f"{truth} Trial — p(err)={probs[i]:.2f}"
 
     if mode in ('high', 'median', 'low'):
         tp = err[probs[err] >= 0.5]; tn = cor[probs[cor] < 0.5]
@@ -747,11 +747,11 @@ def _short_feature_label(name, proto_names):
 def _plot_fusion_evidence(ax, evidence, proto_names, xlim=None):
     """Compact decision ledger + top spatial amplitude terms for one trial."""
     group_specs = [
-        ("intercept", "bias"),
-        ("routing_logit", "routing"),
-        ("mf", "scalar MF (legacy)"),
-        ("mf_channel", "channel MF"),
-        ("mf_contrast", "contrast MF"),
+        ("intercept", "Bias"),
+        ("routing_logit", "Routing"),
+        ("mf", "Scalar MF (Legacy)"),
+        ("mf_channel", "Channel MF"),
+        ("mf_contrast", "Contrast MF"),
     ]
     labels, vals = [], []
     for key, label in group_specs:
@@ -768,22 +768,12 @@ def _plot_fusion_evidence(ax, evidence, proto_names, xlim=None):
     ax.set_yticklabels(labels, fontsize=8.5)
     ax.set_xlim(-lim, lim)
     ax.invert_yaxis()
-    ax.set_xlabel("LR logit contribution", fontsize=10)
-    ax.set_title(f"fusion p(err)={evidence['prob']:.2f}", fontsize=10.5,
-                 fontweight="bold")
+    ax.set_xlabel("Logistic Regression Logit Contribution", fontsize=10)
+    ax.set_title("", fontsize=0)
     ax.grid(axis="x", color="0.88", lw=0.6)
     for spine in ("top", "right"):
         ax.spines[spine].set_visible(False)
 
-    top = evidence.get("top_spatial", [])
-    if top:
-        lines = []
-        for name, c, _val in top[:4]:
-            sign = "+" if c >= 0 else ""
-            lines.append(f"{_short_feature_label(name, proto_names)} {sign}{c:.2f}")
-        ax.text(1.02, 0.98, "top spatial\n" + "\n".join(lines),
-                transform=ax.transAxes, ha="left", va="top", fontsize=8.0,
-                color="#555")
 
 
 def plot_peak_routing(npz_path, out_png, dataset_label='ERP',
@@ -801,6 +791,7 @@ def plot_peak_routing(npz_path, out_png, dataset_label='ERP',
     A, M = z['a'], z['m']
     mask, center, bounds = z['mask'], z['center'], z['bounds']
     X, labels, probs = z['X'], z['labels'], z['probs']
+    auroc = float(z['auroc']) if 'auroc' in z.files else None
     proto_raw, windows = z['proto_raw'], z['proto_windows_ms']
     sfreq = float(z['sfreq'])
     chans = [str(c) for c in z['channel_names']] if len(z['channel_names']) else ['ch0']
@@ -835,17 +826,19 @@ def plot_peak_routing(npz_path, out_png, dataset_label='ERP',
         fusion_xlim = max(0.25, max(abs(v) for v in vals) * 1.25 if vals else 1.0)
 
     if has_fusion_evidence:
-        fig = plt.figure(figsize=(15.5, 16.2))
+        fig = plt.figure(figsize=(15.5, 15.5))
         gs = gridspec.GridSpec(
             5, 2, figure=fig,
-            height_ratios=[0.65, 1.0, 0.88, 0.88, 1.0],
-            hspace=0.50, wspace=0.38)
+            height_ratios=[0.75, 1.0, 0.88, 0.88, 1.0],
+            hspace=0.38, wspace=0.38,
+            top=0.95)
     else:
-        fig = plt.figure(figsize=(14, 13.5))
+        fig = plt.figure(figsize=(14, 12.0))
         gs = gridspec.GridSpec(
             4, 2, figure=fig,
             height_ratios=[0.65, 1.0, 0.9, 0.9],
-            hspace=0.42, wspace=0.22)
+            hspace=0.35, wspace=0.22,
+            top=0.95)
 
     axp = fig.add_subplot(gs[0, :])
     for k in range(K):
@@ -856,9 +849,11 @@ def plot_peak_routing(npz_path, out_png, dataset_label='ERP',
         axp.plot(time_ms[s:e], proto_det[k, s:e], color=col, lw=2.6,
                  label=f'{names[k]} ({s_ms:.0f}–{e_ms:.0f} ms)')
     axp.axhline(0, color='gray', lw=0.5, ls='--')
-    axp.set_xlim(0, time_ms[-1]); axp.set_ylabel(f'Prototype {det_name} (z)', fontsize=13)
-    axp.set_title('Difference-Wave Prototypes (grounded templates)',
-                  fontsize=14, fontweight='bold')
+    axp.set_xlim(0, time_ms[-1]); axp.set_ylabel(f'Prototype {det_name}', fontsize=13)
+    axp.set_title('Difference-Wave Prototypes',
+                  fontsize=12, fontweight='bold')
+    ylo, yhi = axp.get_ylim()
+    axp.set_ylim(ylo, yhi + (yhi - ylo) * 0.3)
     axp.legend(fontsize=11, loc='upper right', ncol=K)
 
     def _vmax(arr):
@@ -900,41 +895,50 @@ def plot_peak_routing(npz_path, out_png, dataset_label='ERP',
         ax2 = fig.add_subplot(gs[2, col_i])
         for k in range(K):
             colk = PROTO_COLORS[k % len(PROTO_COLORS)]
-            ax2.vlines(cen_ms, 0, M[tr, vj, k], color=colk, lw=1.2, alpha=0.5)
-            ax2.plot(cen_ms, M[tr, vj, k], 'o', color=colk, ms=6,
-                     label=names[k] if col_i == 0 else None)
+            ax2.plot(cen_ms, M[tr, vj, k], 'o', color=colk, ms=6)
         ax2.axhline(0, color='gray', lw=0.5, ls='--')
-        ax2.set_ylabel('Similarity  m  (per peak)', fontsize=12)
+        ax2.set_ylabel('Similarity (per peak)', fontsize=12)
         ax2.set_xlim(0, time_ms[-1]); ax2.set_ylim(-mmax, mmax)
-        if col_i == 0:
-            ax2.legend(fontsize=10, loc='upper right', ncol=K)
 
         ax3 = fig.add_subplot(gs[3, col_i])
         for k in range(K):
             colk = PROTO_COLORS[k % len(PROTO_COLORS)]
-            ax3.vlines(cen_ms, 0, A[tr, vj, k], color=colk, lw=1.2, alpha=0.5)
             ax3.plot(cen_ms, A[tr, vj, k], 'o', color=colk, ms=6)
         ax3.set_xlabel('Time (ms)', fontsize=13)
-        ax3.set_ylabel('Attention  a  (per peak)', fontsize=12)
+        ax3.set_ylabel('Attention (per peak)', fontsize=12)
         ax3.set_xlim(0, time_ms[-1]); ax3.set_ylim(0, amax)
 
         if has_fusion_evidence:
             ax4 = fig.add_subplot(gs[4, col_i])
             _plot_fusion_evidence(ax4, fusion_evidence[int(tr)], names, fusion_xlim)
 
-    _mtitle = {'confident': 'confident cases', 'high': 'HIGH confidence',
-               'median': 'MEDIAN confidence', 'low': 'LOW confidence',
-               'wrong': 'MISCLASSIFIED cases'}.get(mode, mode)
-    fig.suptitle(f'Peak-Unit Routing ({_mtitle}) — {dataset_label} ({subject})',
-                 fontsize=16, fontweight='bold', y=1.005)
-    subtitle = ('each variable-width peak gets one m & a per prototype.  '
-                'filled ▼ = RESEMBLES proto (m>0);  hollow ▽ = ANTI-matches (m<0)')
-    if has_fusion_evidence:
-        subtitle += ('; bottom row = Stage-2 LR evidence from routing, MF, '
-                     'channel MF, and contrast MF')
-    fig.text(0.5, 0.982, subtitle, ha='center', fontsize=10.5,
-             color='#555', style='italic')
-    fig.savefig(out_png, dpi=130, bbox_inches='tight')
+    _DISPLAY_NAMES = {
+        'hri_errp_cursor': 'HRI Cursor',
+        'bnci_errp_013-2015': 'BNCI 2015-013',
+        'erpcore_ern': 'ERP CORE ERN',
+        'erpcore_lrp': 'ERP CORE LRP',
+        'erpcore_mmn': 'ERP CORE MMN',
+        'erpcore_n170': 'ERP CORE N170',
+        'erpcore_n2pc': 'ERP CORE N2pc',
+        'erpcore_n400': 'ERP CORE N400',
+        'erpcore_p300': 'ERP CORE P300',
+    }
+    _mode_prefix = {'confident': 'Confident', 'high': 'High-Confidence',
+                    'median': 'Median-Confidence', 'low': 'Low-Confidence',
+                    'wrong': 'Misclassified'}.get(mode, mode.title())
+    ds_key = dataset_label.split(' — ')[0].lower().replace(' ', '_') \
+        if ' — ' in dataset_label else dataset_label.lower().replace(' ', '_')
+    ds_nice = _DISPLAY_NAMES.get(ds_key, dataset_label.split(' — ')[0])
+    auroc_str = f' — {auroc:.3f} AUROC' if auroc is not None else ''
+    fig.suptitle(
+        f'{_mode_prefix} Single-Trial ERP-XTTN Peak Routing — '
+        f'{ds_nice} {subject}{auroc_str}',
+        fontsize=16, fontweight='bold', y=1.025)
+    fig.text(0.5, 0.995,
+             'Filled ▼ = resembles prototype (m > 0)      '
+             'Hollow ▽ = anti-matches prototype (m < 0)',
+             ha='center', fontsize=13.5, color='#444')
+    fig.savefig(out_png, dpi=130, bbox_inches='tight', pad_inches=0.03)
     plt.close(fig)
 
 
