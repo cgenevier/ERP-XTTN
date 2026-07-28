@@ -482,79 +482,6 @@ def _class_labels(ds_dir):
             _format_class_label(lm.get('neg_key', 'correct')))
 
 
-def fig_routing_combined(ds_label, ds_dir, var_dir, out_path, n_bins=40):
-    """Peak-unit aggregate routing figure (peak-unit redesign; reads the
-    self-contained routing_<subj>.npz dumps).
-
-    Panel A: per-prototype routed-attention timecourse — mean attention a[.,k]
-    over detected peaks binned by peak-centre latency, error vs correct; each
-    prototype's curve should rise inside its shaded component window.
-    Panel B: per-subject heatmap of the class-difference grounded contribution
-    (sum_k a.m) by latency.
-    """
-    import matplotlib.gridspec as gridspec
-    rdir = _seed_dir(ds_dir, var_dir)
-    paths = sorted(rdir.glob('routing_*.npz'))
-    if not paths:
-        print(f'  [skip] fig_routing_combined ({ds_label}): no routing dumps')
-        return
-    pos_label, neg_label = _class_labels(ds_dir)
-    subj_ids = [p.stem.replace('routing_', '') for p in paths]
-    z0 = np.load(paths[0], allow_pickle=True)
-    windows = z0['proto_windows_ms']; sfreq = float(z0['sfreq'])
-    chans = [str(c) for c in z0['channel_names']]
-    det_name = str(z0['detection_channel']) if 'detection_channel' in z0.files else 'Cz'
-    proto_raw = z0['proto_raw']; det = chans.index(det_name) if det_name in chans else 1
-    K = z0['a'].shape[2]; T = proto_raw.shape[2]
-    names = _peak_comp_names(proto_raw[:, det, :], windows, sfreq)
-    edges = np.linspace(0, T, n_bins + 1)
-    centers_ms = (0.5 * (edges[:-1] + edges[1:])) / sfreq * 1000
-
-    a_sum = np.zeros((2, K, n_bins)); a_cnt = np.zeros((2, K, n_bins))
-    heat = np.full((len(paths), n_bins), np.nan)
-    for si, p in enumerate(paths):
-        z = np.load(p, allow_pickle=True)
-        a, m, mask, center, y = z['a'], z['m'], z['mask'], z['center'], z['labels']
-        contrib = a * m
-        bidx = np.clip(np.digitize(center, edges) - 1, 0, n_bins - 1)
-        dc = np.zeros((2, n_bins)); dcnt = np.zeros((2, n_bins))
-        for n in range(a.shape[0]):
-            cls = int(y[n])
-            for j in np.where(mask[n])[0]:
-                b = bidx[n, j]
-                a_sum[cls, :, b] += a[n, j]; a_cnt[cls, :, b] += 1
-                dc[cls, b] += contrib[n, j].sum(); dcnt[cls, b] += 1
-        with np.errstate(invalid='ignore'):
-            heat[si] = (dc[1] / np.where(dcnt[1] > 0, dcnt[1], np.nan)
-                        - dc[0] / np.where(dcnt[0] > 0, dcnt[0], np.nan))
-    with np.errstate(invalid='ignore'):
-        a_mean = a_sum / np.where(a_cnt > 0, a_cnt, np.nan)
-
-    fig = plt.figure(figsize=(12, 8.5))
-    gs = gridspec.GridSpec(2, 1, height_ratios=[1.0, 0.9], hspace=0.32)
-    axA = fig.add_subplot(gs[0])
-    for k in range(K):
-        c = PEAK_PROTO_COLORS[k % len(PEAK_PROTO_COLORS)]
-        axA.axvspan(windows[k][0], windows[k][1], color=c, alpha=0.12)
-        axA.plot(centers_ms, a_mean[1, k], color=c, lw=2.3, label=f'{names[k]} ({pos_label})')
-        axA.plot(centers_ms, a_mean[0, k], color=c, lw=1.6, ls='--', alpha=0.8)
-    axA.set_xlim(0, T / sfreq * 1000); axA.set_ylabel('Mean routed attention  a', fontsize=12)
-    axA.set_title(f'Routing by Peak Latency — {ds_label}  (solid={pos_label}, dashed={neg_label})',
-                  fontsize=13, fontweight='bold')
-    axA.legend(fontsize=9, ncol=K, loc='upper right')
-    axB = fig.add_subplot(gs[1])
-    vmax = np.nanmax(np.abs(heat)) or 1.0
-    im = axB.imshow(heat, aspect='auto', cmap='RdBu_r', vmin=-vmax, vmax=vmax,
-                    extent=[0, T / sfreq * 1000, len(subj_ids) - 0.5, -0.5], interpolation='nearest')
-    axB.set_yticks(range(len(subj_ids))); axB.set_yticklabels(subj_ids, fontsize=6)
-    axB.set_xlabel('Peak-centre latency (ms)', fontsize=12); axB.set_ylabel('Subject', fontsize=12)
-    axB.set_title(f'Delta Grounded Contribution ({pos_label}−{neg_label}) by Latency', fontsize=12, fontweight='bold')
-    for k in range(K):
-        axB.axvline(windows[k][0], color=PEAK_PROTO_COLORS[k % len(PEAK_PROTO_COLORS)], lw=0.8, alpha=0.5)
-    fig.colorbar(im, ax=axB, fraction=0.03, pad=0.01, label='Delta a.m')
-    fig.savefig(out_path, dpi=150, bbox_inches='tight', pad_inches=0.02); plt.close(fig)
-    print(f'  saved {Path(out_path).name}')
-
 
 def _load_subject_epochs(epoch_root, subj, pos_key, neg_key, label_groups):
     """Load one subject's epochs with event filtering, returning (X_uV, y, ch_names).
@@ -2290,17 +2217,6 @@ def main():
 
     print('Per-seed correlation stability (Table S11)...')
     write_corr_perseed_table(OUT_DIR / 'tableS11_perseed_corr.tex')
-
-    print('Routing combined figures (3-channel only)...')
-    for name, ds_dir, c3, cf, k3, kf, det_idx in DATASETS:
-        slug = ds_dir.replace('-', '_')
-        out = OUT_DIR / f'fig_routing_{slug}_3ch.png'
-        try:
-            fig_routing_combined(name, ds_dir, c3, out)
-        except Exception as e:
-            import traceback
-            print(f'  FAILED {name}: {e}')
-            traceback.print_exc()
 
     print('HRI Cz-only morphology...')
     hri = next(r for r in DATASETS if r[1] == 'hri_errp_cursor')
