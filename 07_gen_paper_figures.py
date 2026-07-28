@@ -1986,24 +1986,43 @@ _T1_LABELS = {
 }
 
 
+# Row order for Table 1: the two ErrP datasets first, then ERP CORE by
+# component (ERN, LRP, MMN, N170, N2pc, N400, P300). NOT difficulty order.
+_T1_ORDER = [
+    'bnci_errp_013-2015', 'hri_errp_cursor',
+    'erpcore_ern', 'erpcore_lrp', 'erpcore_mmn',
+    'erpcore_n170', 'erpcore_n2pc', 'erpcore_n400', 'erpcore_p300',
+]
+
+
 def write_dataset_table(out_path):
-    L = [r'\begin{table}[t]', r'\centering', r'\small',
-         r'\setlength{\tabcolsep}{4pt}',
-         r'\caption{List of datasets evaluated. EEG channels only; '
-         r'electrooculography/reference channels were excluded where applicable. '
-         r'Detection channel used to locate prototype time windows (peak detection); '
-         r'see Section~\ref{sec:tokenizer}. '
-         r'Trials/Subject refers to total classification epochs across both classes '
-         r'and is summed across sessions where applicable '
-         r'(BNCI includes two sessions per subject).}',
+    L = [r'\begin{table}',
+         r'\caption{Datasets evaluated. Electroencephalography (EEG) channels only; '
+         r'electrooculography and reference channels were excluded where applicable. '
+         r'Available Channels gives the full montage recorded for each dataset; the '
+         r'3-channel montage is the evaluation condition reported in the main text, '
+         r'chosen to cover the scalp region of the event-related potential (ERP) of '
+         r'interest. The detection channel is the single electrode on which prototype '
+         r'time windows are located by peak detection (Section~\ref{sec:architecture}); '
+         r'for the ERP CORE datasets it is the canonical site reported for that '
+         r'component by Kappenman et al.~\cite{kappenman2021}, and for BNCI and HRI it '
+         r'is Cz, the central midline site available in both montages. Trials/Subject '
+         r'refers to total classification epochs across both classes, summed across '
+         r'sessions where applicable (BNCI includes two sessions per subject).}',
          r'\label{tab:datasets}',
-         r'\begin{tabular}{llrrrll}', r'\toprule',
-         r'Dataset / ERP & Time-Locked Event & Total Subjects & Trials/Subject (approx) '
-         r'& Full Channels & 3-Channel Montage & Detection Channel \\',
-         r'\midrule']
-    for d in _difficulty_order():
+         r'\centering',
+         r'\begin{tabular}{lcccccc}', r'\hline',
+         r'\textbf{Dataset / ERP} & \textbf{Time-Locked} & \textbf{Total} & '
+         r'\textbf{Trials/Subject} & \textbf{Full} & \textbf{3-Ch} & '
+         r'\textbf{Detection} \\',
+         r' & \textbf{Event} & \textbf{Subjects} & \textbf{(approx)} & \textbf{Ch} & '
+         r'\textbf{Montage} & \textbf{Channel} \\',
+         r'\hline']
+    _by_dir = {d[1]: d for d in DATASETS}
+    for ds_dir in _T1_ORDER:
+        d = _by_dir[ds_dir]
         key = d[0]
-        ds_dir, v3, vf = d[1], d[2], d[3]
+        v3, vf = d[2], d[3]
         cfg = json.load(open(DATASETS_DIR / ds_dir / 'dataset_config.json'))
         v3name = [k for k in cfg['variants'] if k != 'full'][0]
         chans = cfg.get('channel_presets', {}).get(v3name, [])
@@ -2028,7 +2047,7 @@ def write_dataset_table(out_path):
         label = _T1_LABELS.get(key, key)
         L.append(f'{label} & {event} & {ns} & {trials_per_subj} & {n_full_ch} '
                  f'& {ch_str} & {det} \\\\')
-    L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+    L += [r'\hline', r'\end{tabular}', r'\end{table}']
     _tex(out_path, L)
 
 

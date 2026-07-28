@@ -1,22 +1,21 @@
-\begin{table}[t]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\caption{List of datasets evaluated. EEG channels only; electrooculography/reference channels were excluded where applicable. Detection channel used to locate prototype time windows (peak detection); see Section~\ref{sec:tokenizer}. Trials/Subject refers to total classification epochs across both classes and is summed across sessions where applicable (BNCI includes two sessions per subject).}
+\begin{table}
+\caption{Datasets evaluated. Electroencephalography (EEG) channels only; electrooculography and reference channels were excluded where applicable. Available Channels gives the full montage recorded for each dataset; the 3-channel montage is the evaluation condition reported in the main text, chosen to cover the scalp region of the event-related potential (ERP) of interest. The detection channel is the single electrode on which prototype time windows are located by peak detection (Section~\ref{sec:architecture}); for the ERP CORE datasets it is the canonical site reported for that component by Kappenman et al.~\cite{kappenman2021}, and for BNCI and HRI it is Cz, the central midline site available in both montages. Trials/Subject refers to total classification epochs across both classes, summed across sessions where applicable (BNCI includes two sessions per subject).}
 \label{tab:datasets}
-\begin{tabular}{llrrrll}
-\toprule
-Dataset / ERP & Time-Locked Event & Total Subjects & Trials/Subject (approx) & Full Channels & 3-Channel Montage & Detection Channel \\
-\midrule
+\centering
+\begin{tabular}{lcccccc}
+\hline
+\textbf{Dataset / ERP} & \textbf{Time-Locked} & \textbf{Total} & \textbf{Trials/Subject} & \textbf{Full} & \textbf{3-Ch} & \textbf{Detection} \\
+ & \textbf{Event} & \textbf{Subjects} & \textbf{(approx)} & \textbf{Ch} & \textbf{Montage} & \textbf{Channel} \\
+\hline
+BNCI / ErrP & Feedback & 6 & 1073 & 64 & Fz, Cz, Pz & Cz \\
 HRI / ErrP & Feedback & 11 & 483 & 27 & Fz, Cz, Pz & Cz \\
 ERP CORE / ERN & Response & 40 & 401 & 30 & FCz, Cz, Pz & FCz \\
 ERP CORE / LRP & Response & 40 & 356 & 30 & C3, Cz, C4 & C3 \\
-BNCI / ErrP & Feedback & 6 & 1073 & 64 & Fz, Cz, Pz & Cz \\
-ERP CORE / N170 & Stimulus & 40 & 160 & 30 & PO7, Oz, PO8 & PO8 \\
-ERP CORE / P300 & Stimulus & 40 & 200 & 30 & Fz, Cz, Pz & Pz \\
-ERP CORE / N2pc & Stimulus & 40 & 320 & 30 & PO7, Pz, PO8 & PO7 \\
 ERP CORE / MMN & Stimulus & 40 & 981 & 30 & FCz, Cz, Pz & FCz \\
+ERP CORE / N170 & Stimulus & 40 & 160 & 30 & PO7, Oz, PO8 & PO8 \\
+ERP CORE / N2pc & Stimulus & 40 & 320 & 30 & PO7, Pz, PO8 & PO7 \\
 ERP CORE / N400 & Stimulus & 40 & 120 & 30 & Cz, CPz, Pz & CPz \\
-\bottomrule
+ERP CORE / P300 & Stimulus & 40 & 200 & 30 & Fz, Cz, Pz & Pz \\
+\hline
 \end{tabular}
 \end{table}
