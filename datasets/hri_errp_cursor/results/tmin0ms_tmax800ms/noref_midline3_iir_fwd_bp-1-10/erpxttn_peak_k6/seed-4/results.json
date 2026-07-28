@@ -1,0 +1,203 @@
+{
+  "run_name": "20260725_043823_hri_errp_cursor_midline3_erpxttn_peak_k6",
+  "args": {
+    "dataset": "hri_errp_cursor",
+    "channels": "midline3",
+    "model": "erpxttn",
+    "seed": 4,
+    "resume": true,
+    "max_k": 6,
+    "ablation_mode": "nowhiten",
+    "no_self_attn": false,
+    "num_heads": 4,
+    "patch_width": 8,
+    "d_model": 64,
+    "peak_prominence": null,
+    "epmn_recipe": "shared",
+    "ablation_tag": "k6"
+  },
+  "seed": 4,
+  "device": "cuda",
+  "elapsed_seconds": 229.7,
+  "folds": [
+    {
+      "fold": 0,
+      "test_subject": "sub-02",
+      "best_epoch": 0,
+      "test_auroc": 0.7398569418386491,
+      "test_bal_acc": 0.660334584115072
+    },
+    {
+      "fold": 1,
+      "test_subject": "sub-03",
+      "best_epoch": 0,
+      "test_auroc": 0.8429057764111576,
+      "test_bal_acc": 0.761366132220514
+    },
+    {
+      "fold": 2,
+      "test_subject": "sub-04",
+      "best_epoch": 0,
+      "test_auroc": 0.9762651727357611,
+      "test_bal_acc": 0.9177404295051353
+    },
+    {
+      "fold": 3,
+      "test_subject": "sub-05",
+      "best_epoch": 0,
+      "test_auroc": 0.718607520248887,
+      "test_bal_acc": 0.6700727708344508
+    },
+    {
+      "fold": 4,
+      "test_subject": "sub-06",
+      "best_epoch": 0,
+      "test_auroc": 0.8174159484432022,
+      "test_bal_acc": 0.7508152806894945
+    },
+    {
+      "fold": 5,
+      "test_subject": "sub-07",
+      "best_epoch": 0,
+      "test_auroc": 0.8197546282691742,
+      "test_bal_acc": 0.7337275933000293
+    },
+    {
+      "fold": 6,
+      "test_subject": "sub-08",
+      "best_epoch": 0,
+      "test_auroc": 0.821752201897019,
+      "test_bal_acc": 0.7590193089430894
+    },
+    {
+      "fold": 7,
+      "test_subject": "sub-09",
+      "best_epoch": 0,
+      "test_auroc": 0.9038304308723735,
+      "test_bal_acc": 0.8247690295151664
+    },
+    {
+      "fold": 8,
+      "test_subject": "sub-10",
+      "best_epoch": 52,
+      "best_val_auroc": 0.909723403531453,
+      "test_auroc": 0.5772723983210306,
+      "test_bal_acc": 0.5344478216818642,
+      "detected_windows_ms": [
+        [
+          85.9,
+          199.2
+        ],
+        [
+          199.2,
+          273.4
+        ],
+        [
+          273.4,
+          371.1
+        ],
+        [
+          371.1,
+          519.5
+        ],
+        [
+          519.5,
+          660.2
+        ],
+        [
+          660.2,
+          773.4
+        ]
+      ]
+    },
+    {
+      "fold": 9,
+      "test_subject": "sub-11",
+      "best_epoch": 51,
+      "best_val_auroc": 0.871427007821643,
+      "test_auroc": 0.8130304346109817,
+      "test_bal_acc": 0.7464769273279912,
+      "detected_windows_ms": [
+        [
+          85.9,
+          199.2
+        ],
+        [
+          199.2,
+          273.4
+        ],
+        [
+          273.4,
+          371.1
+        ],
+        [
+          371.1,
+          519.5
+        ],
+        [
+          519.5,
+          683.6
+        ],
+        [
+          683.6,
+          761.7
+        ]
+      ]
+    },
+    {
+      "fold": 10,
+      "test_subject": "sub-13",
+      "best_epoch": 43,
+      "best_val_auroc": 0.8660888278853811,
+      "test_auroc": 0.8475892772567964,
+      "test_bal_acc": 0.7681443591929525,
+      "detected_windows_ms": [
+        [
+          85.9,
+          199.2
+        ],
+        [
+          199.2,
+          273.4
+        ],
+        [
+          273.4,
+          371.1
+        ],
+        [
+          371.1,
+          519.5
+        ],
+        [
+          519.5,
+          648.4
+        ],
+        [
+          648.4,
+          761.7
+        ]
+      ]
+    }
+  ],
+  "mean_auroc": 0.8071,
+  "std_auroc": 0.0984,
+  "mean_bal_acc": 0.7388,
+  "std_bal_acc": 0.0925,
+  "mean_routing_auroc": 0.8071,
+  "mean_two_factor_auroc": 0.8343,
+  "std_two_factor_auroc": 0.0975,
+  "two_factor_auroc_per_subject": {
+    "sub-02": 0.7314,
+    "sub-03": 0.8607,
+    "sub-04": 0.9783,
+    "sub-05": 0.7286,
+    "sub-06": 0.8431,
+    "sub-07": 0.8722,
+    "sub-08": 0.8621,
+    "sub-09": 0.9246,
+    "sub-10": 0.6179,
+    "sub-11": 0.8696,
+    "sub-13": 0.8888
+  },
+  "two_factor_combiner": "perfold_zerocal_routing_channel_contrast_v2"
+}
