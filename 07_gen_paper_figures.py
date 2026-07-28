@@ -556,6 +556,44 @@ def fig_routing_combined(ds_label, ds_dir, var_dir, out_path, n_bins=40):
     print(f'  saved {Path(out_path).name}')
 
 
+def _load_subject_epochs(epoch_root, subj, pos_key, neg_key, label_groups):
+    """Load one subject's epochs with event filtering, returning (X_uV, y, ch_names).
+
+    Returns (None, None, None) if no matching epochs are found.
+    Shared by the morphology cache builder and the per-seed correlation analysis."""
+    import mne
+    subj_dir = epoch_root / subj
+    fifs = sorted(subj_dir.rglob('*-epo.fif'))
+    if not fifs:
+        return None, None, None
+    all_X, all_y = [], []
+    ch_names = None
+    for f in fifs:
+        ep = mne.read_epochs(str(f), preload=True, verbose=False)
+        if ch_names is None:
+            ch_names = ep.ch_names
+        evid = ep.event_id
+        if label_groups:
+            pos_names = set(label_groups.get(pos_key, []))
+            neg_names = set(label_groups.get(neg_key, []))
+            pos_ids = {v for k, v in evid.items() if k in pos_names}
+            neg_ids = {v for k, v in evid.items() if k in neg_names}
+        else:
+            pos_ids = {v for k, v in evid.items() if pos_key in k.lower()}
+            neg_ids = {v for k, v in evid.items() if neg_key in k.lower()}
+        keep_ids = pos_ids | neg_ids
+        if not keep_ids:
+            continue
+        X = ep.get_data()
+        codes = ep.events[:, 2]
+        mask = np.isin(codes, list(keep_ids))
+        all_X.append(X[mask])
+        all_y.append(np.array([1 if c in pos_ids else 0 for c in codes[mask]]))
+    if not all_X:
+        return None, None, None
+    return np.concatenate(all_X, axis=0) * 1e6, np.concatenate(all_y, axis=0), ch_names
+
+
 def _build_morphology_cache(ds_label, ds_dir, var_dir, det_idx, cache_path):
     """Compute per-subject TP/FN/TN/FP grand-mean waveforms at the
     detection channel from epoched_fif + predictions, save to npz.
@@ -563,7 +601,6 @@ def _build_morphology_cache(ds_label, ds_dir, var_dir, det_idx, cache_path):
     Uses the same event filtering as 06_gen_analysis.py / training:
     keep epochs whose event name matches pos_key or neg_key (or
     label_groups if defined), drop everything else."""
-    import mne
 
     cfg = json.load(open(DATASETS_DIR / ds_dir / 'dataset_config.json'))
     pos_key = cfg['label_map']['pos_key']
@@ -589,51 +626,19 @@ def _build_morphology_cache(ds_label, ds_dir, var_dir, det_idx, cache_path):
     counts = {}
 
     for subj in subjects:
-        # Load the FUSED two-factor decision (the model's actual output); fall back
-        # to the routing-only predictions if the fusion npz is absent.
         pf = rdir / f'two_factor_{subj}.npz'
         pred = np.load(pf if pf.exists() else rdir / f'predictions_{subj}.npz')
         probs = pred['probs']
         labels = pred['labels']
 
-        # Load epochs (concatenate runs/sessions) with event filtering
-        subj_dir = epoch_root / subj
-        fifs = sorted(subj_dir.rglob('*-epo.fif'))
-        if not fifs:
-            print(f'    {subj}: no FIFs, skipping')
-            continue
-
-        all_X, all_y = [], []
-        ch_names = None
-        for f in fifs:
-            ep = mne.read_epochs(str(f), preload=True, verbose=False)
-            if ch_names is None:
-                ch_names = ep.ch_names
-            evid = ep.event_id
-            if label_groups:
-                pos_names = set(label_groups.get(pos_key, []))
-                neg_names = set(label_groups.get(neg_key, []))
-                pos_ids = {v for k, v in evid.items() if k in pos_names}
-                neg_ids = {v for k, v in evid.items() if k in neg_names}
-            else:
-                pos_ids = {v for k, v in evid.items() if pos_key in k.lower()}
-                neg_ids = {v for k, v in evid.items() if neg_key in k.lower()}
-            keep_ids = pos_ids | neg_ids
-            if not keep_ids:
-                continue
-            X = ep.get_data()
-            codes = ep.events[:, 2]
-            mask = np.isin(codes, list(keep_ids))
-            all_X.append(X[mask])
-            y_local = np.array([1 if c in pos_ids else 0 for c in codes[mask]])
-            all_y.append(y_local)
-
-        if not all_X:
+        X_uV, y_loaded, ch_names = _load_subject_epochs(
+            epoch_root, subj, pos_key, neg_key, label_groups)
+        if X_uV is None:
             print(f'    {subj}: no matching events, skipping')
             continue
-        X = np.concatenate(all_X, axis=0)  # (N, C, T)
-        y_loaded = np.concatenate(all_y, axis=0)
-        X_uV = X * 1e6
+
+        if ch_names_all is None:
+            ch_names_all = ch_names
 
         if X_uV.shape[0] != len(labels):
             print(f'    {subj}: epoch count mismatch ({X_uV.shape[0]} vs '
@@ -645,7 +650,6 @@ def _build_morphology_cache(ds_label, ds_dir, var_dir, det_idx, cache_path):
 
         if n_times is None:
             n_times = X_uV.shape[2]
-            ch_names_all = ch_names
 
         # Pull detection channel slice
         det_signal = X_uV[:, det_idx, :]  # (N, T)
@@ -1969,6 +1973,139 @@ def write_corr_table(out_path):
     _tex(out_path, L)
 
 
+def write_corr_perseed_table(out_path):
+    """Table S11: per-seed stability of the TP<->FP > TP<->TN ordering.
+
+    For each 3-channel dataset and each seed, computes the cross-subject mean
+    Pearson r between detection-channel grand-mean TP and FP (and TN) waveforms
+    using that seed's fused decision. Reports mean +/- SD across seeds."""
+    from scipy.stats import pearsonr
+
+    SEEDS = [1, 2, 3, 4, 5]
+
+    def _r(a, b):
+        if a is None or b is None:
+            return np.nan
+        if not (np.all(np.isfinite(a)) and np.all(np.isfinite(b))):
+            return np.nan
+        if np.std(a) < 1e-12 or np.std(b) < 1e-12:
+            return np.nan
+        return float(pearsonr(a, b)[0])
+
+    results = []
+    for lab, d in _sup_rows():
+        ds_dir, var_dir, det_idx = d[1], d[2], d[6]
+        cfg = json.load(open(DATASETS_DIR / ds_dir / 'dataset_config.json'))
+        pos_key = cfg['label_map']['pos_key']
+        neg_key = cfg['label_map']['neg_key']
+        label_groups = cfg.get('label_groups')
+        det_name = cfg.get('detection_channel', '?')
+        base = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / 'erpxttn_peak'
+
+        ref = base / 'seed-1' / 'results.json'
+        if not ref.exists():
+            print(f'  {lab}: no seed-1 results, skipping')
+            continue
+        subjects = [r['test_subject'] for r in json.load(open(ref))['folds']]
+
+        epoch_root = DATASETS_DIR / ds_dir / 'epoched_fif' / 'tmin0ms_tmax800ms' / var_dir
+        subj_cache = {}
+        for subj in subjects:
+            X_uV, y, _ = _load_subject_epochs(epoch_root, subj, pos_key, neg_key, label_groups)
+            if X_uV is not None:
+                subj_cache[subj] = (X_uV[:, det_idx, :], y)
+        if not subj_cache:
+            print(f'  {lab}: no epochs loaded, skipping')
+            continue
+
+        per_seed = []
+        for seed in SEEDS:
+            sdir = base / f'seed-{seed}'
+            if not sdir.exists():
+                continue
+            fps, tns = [], []
+            for subj, (det_sig, y) in subj_cache.items():
+                src = sdir / f'two_factor_{subj}.npz'
+                if not src.exists():
+                    src = sdir / f'predictions_{subj}.npz'
+                if not src.exists():
+                    continue
+                pred = np.load(src)
+                probs, labels = pred['probs'], pred['labels']
+                if len(labels) != len(y) or not np.array_equal(labels, y):
+                    continue
+                preds = (probs >= 0.5).astype(int)
+                tp = (labels == 1) & (preds == 1)
+                tn = (labels == 0) & (preds == 0)
+                fp = (labels == 0) & (preds == 1)
+                gm = lambda m: det_sig[m].mean(axis=0) if m.sum() > 0 else None
+                tpm, tnm, fpm = gm(tp), gm(tn), gm(fp)
+                rfp, rtn = _r(tpm, fpm), _r(tpm, tnm)
+                if np.isfinite(rfp):
+                    fps.append(rfp)
+                if np.isfinite(rtn):
+                    tns.append(rtn)
+            if fps and tns:
+                per_seed.append({'seed': seed, 'n_subj': len(fps),
+                                 'tp_fp_mean': float(np.mean(fps)),
+                                 'tp_tn_mean': float(np.mean(tns))})
+
+        if not per_seed:
+            print(f'  {lab}: no seeds computed, skipping')
+            continue
+
+        fp_means = np.array([s['tp_fp_mean'] for s in per_seed])
+        tn_means = np.array([s['tp_tn_mean'] for s in per_seed])
+        gaps = fp_means - tn_means
+        rec = {
+            'dataset': lab, 'det_channel': det_name, 'n_seeds': len(per_seed),
+            'tp_fp_mean': float(fp_means.mean()), 'tp_fp_sd': float(fp_means.std()),
+            'tp_tn_mean': float(tn_means.mean()), 'tp_tn_sd': float(tn_means.std()),
+            'seeds_fp_gt_tn': int((gaps > 0).sum()),
+            'min_margin': float(gaps.min()), 'max_margin': float(gaps.max()),
+            'per_seed': per_seed,
+        }
+        results.append(rec)
+        tag = 'OK' if rec['seeds_fp_gt_tn'] == rec['n_seeds'] else '*** FLIP ***'
+        print(f'  {lab:5s}  TP-FP={rec["tp_fp_mean"]:+.3f}+/-{rec["tp_fp_sd"]:.3f}  '
+              f'TP-TN={rec["tp_tn_mean"]:+.3f}+/-{rec["tp_tn_sd"]:.3f}  '
+              f'FP>TN {rec["seeds_fp_gt_tn"]}/{rec["n_seeds"]}  [{tag}]')
+
+    L = [r'\begin{table}[t]', r'\centering', r'\small',
+         r'\setlength{\tabcolsep}{6pt}',
+         r'\caption{Per-seed stability of the outcome-conditioned waveform ordering '
+         r'(3-channel, fused decision), companion to Table~\ref{tab:corr}. For each '
+         r'dataset and seed, TP$\leftrightarrow$FP and TP$\leftrightarrow$TN are the '
+         r'cross-subject mean of the per-subject Pearson $r$ between the '
+         r'detection-channel grand-mean true-positive and false-positive '
+         r'(true-negative) waveforms; columns report the mean $\pm$ SD of those '
+         r'cross-subject means across the five seeds. ``FP$>$TN seeds\'\' counts the '
+         r'seeds (of five) in which TP$\leftrightarrow$FP exceeded TP$\leftrightarrow$TN, '
+         r'and ``Min.\ margin\'\' is the smallest per-seed difference '
+         r'(TP$\leftrightarrow$FP $-$ TP$\leftrightarrow$TN).}',
+         r'\label{tab:corr-perseed}',
+         r'\begin{tabular}{llcccc}', r'\toprule',
+         r'Dataset & Det.\ ch & TP$\leftrightarrow$FP & TP$\leftrightarrow$TN & '
+         r'FP$>$TN seeds & Min.\ margin \\',
+         r'\midrule']
+    for r in results:
+        L.append(
+            f'{r["dataset"]} & {r["det_channel"]} & '
+            f'${r["tp_fp_mean"]:+.2f} \\pm {r["tp_fp_sd"]:.2f}$ & '
+            f'${r["tp_tn_mean"]:+.2f} \\pm {r["tp_tn_sd"]:.2f}$ & '
+            f'{r["seeds_fp_gt_tn"]}/{r["n_seeds"]} & '
+            f'${r["min_margin"]:+.2f}$ \\\\')
+    L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+    _tex(out_path, L)
+
+    json.dump(results, open(OUT_DIR / 's11_perseed_corr.json', 'w'), indent=2)
+    n_ok = sum(1 for r in results if r['seeds_fp_gt_tn'] == r['n_seeds'])
+    print(f'  Datasets with FP>TN in ALL seeds: {n_ok}/{len(results)}')
+    flips = [r['dataset'] for r in results if r['seeds_fp_gt_tn'] != r['n_seeds']]
+    if flips:
+        print(f'  *** ordering NOT stable on: {", ".join(flips)} ***')
+
+
 # --- Table 1: dataset summary ---
 _EVENT_TYPE = {
     'bnci_errp_013-2015': 'Feedback', 'hri_errp_cursor': 'Feedback',
@@ -2158,6 +2295,9 @@ def main():
     write_grounding_table(OUT_DIR / 'tableS8_grounding_full.tex', 'full-montage')
     write_epmn_native_table(OUT_DIR / 'tableS9_epmn_native.tex')
     write_corr_table(OUT_DIR / 'tableS10_tpfp_tptn_corr.tex')
+
+    print('Per-seed correlation stability (Table S11)...')
+    write_corr_perseed_table(OUT_DIR / 'tableS11_perseed_corr.tex')
 
     print('Routing combined figures (3-channel only)...')
     for name, ds_dir, c3, cf, k3, kf, det_idx in DATASETS:
