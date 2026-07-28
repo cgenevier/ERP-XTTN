@@ -1671,12 +1671,26 @@ def write_paired_table(out_path):
 # cache) so they stay consistent with the figures. booktabs required throughout.
 _SUP_METHODS = [('ERP-XTTN', 'erpxttn_peak'), ('EEGNet', 'eegnet'),
                 ('EEG-Deformer', 'eeg_deformer'), ('EPMN', 'epmn'), ('xDAWN+RG', 'xdawn_rg')]
-_SUP_ORDER = ['BNCI ErrP', 'HRI ErrP', 'ERN', 'P300', 'N400', 'N170', 'N2pc', 'LRP', 'MMN']
+def _difficulty_order():
+    """Datasets sorted by mean AUROC across all 5 methods, descending (hardest last).
+    Same order as the paired heatmap / paired table."""
+    METH = [m for _, m in _SUP_METHODS]
+    mean_auroc = {}
+    for d in DATASETS:
+        ds_dir, v3 = d[1], d[2]
+        vals = []
+        for mdl in METH:
+            pj = _persubj_fusion(ds_dir, v3, mdl) if mdl == 'erpxttn_peak' else _persubj_forward(ds_dir, v3, mdl)
+            m = _msd(pj)[0]
+            if m is not None:
+                vals.append(m)
+        mean_auroc[ds_dir] = float(np.mean(vals)) if vals else 0
+    return sorted(DATASETS, key=lambda r: -mean_auroc[r[1]])
 
 
 def _sup_rows():
-    by = {d[0]: d for d in DATASETS}
-    return [(lab.replace(' ErrP', ''), by[lab]) for lab in _SUP_ORDER if lab in by]
+    """Datasets in difficulty order (highest mean AUROC first), matching Table 2."""
+    return [(d[0].replace(' ErrP', ''), d) for d in _difficulty_order()]
 
 
 def _persubj_fusion(ds_dir, var_dir, model):
@@ -1955,6 +1969,136 @@ def write_corr_table(out_path):
     _tex(out_path, L)
 
 
+# --- Table 1: dataset summary ---
+_EVENT_TYPE = {
+    'bnci_errp_013-2015': 'Feedback', 'hri_errp_cursor': 'Feedback',
+    'erpcore_ern': 'Response', 'erpcore_lrp': 'Response',
+    'erpcore_mmn': 'Stimulus', 'erpcore_n170': 'Stimulus',
+    'erpcore_n2pc': 'Stimulus', 'erpcore_n400': 'Stimulus',
+    'erpcore_p300': 'Stimulus',
+}
+_T1_LABELS = {
+    'BNCI ErrP': 'BNCI / ErrP', 'HRI ErrP': 'HRI / ErrP',
+    'ERN': 'ERP CORE / ERN', 'LRP': 'ERP CORE / LRP',
+    'MMN': 'ERP CORE / MMN', 'N170': 'ERP CORE / N170',
+    'N2pc': 'ERP CORE / N2pc', 'N400': 'ERP CORE / N400',
+    'P300': 'ERP CORE / P300',
+}
+
+
+def write_dataset_table(out_path):
+    L = [r'\begin{table}[t]', r'\centering', r'\small',
+         r'\setlength{\tabcolsep}{4pt}',
+         r'\caption{List of datasets evaluated. EEG channels only; '
+         r'electrooculography/reference channels were excluded where applicable. '
+         r'Detection channel used to locate prototype time windows (peak detection); '
+         r'see Section~\ref{sec:tokenizer}. '
+         r'Trials/Subject refers to total classification epochs across both classes '
+         r'and is summed across sessions where applicable '
+         r'(BNCI includes two sessions per subject).}',
+         r'\label{tab:datasets}',
+         r'\begin{tabular}{llrrrll}', r'\toprule',
+         r'Dataset / ERP & Time-Locked Event & Total Subjects & Trials/Subject (approx) '
+         r'& Full Channels & 3-Channel Montage & Detection Channel \\',
+         r'\midrule']
+    for d in _difficulty_order():
+        key = d[0]
+        ds_dir, v3, vf = d[1], d[2], d[3]
+        cfg = json.load(open(DATASETS_DIR / ds_dir / 'dataset_config.json'))
+        v3name = [k for k in cfg['variants'] if k != 'full'][0]
+        chans = cfg.get('channel_presets', {}).get(v3name, [])
+        det = cfg.get('detection_channel', '?')
+        event = _EVENT_TYPE.get(ds_dir, '?')
+        rj = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / v3 / 'erpxttn_peak' / 'seed-1' / 'results.json'
+        ns = 0; trials_per_subj = 0; n_full_ch = '?'
+        if rj.exists():
+            r = json.load(open(rj))
+            ns = len(r.get('folds', []))
+            counts = []
+            for f in r['folds']:
+                pf = rj.parent / f"predictions_{f['test_subject']}.npz"
+                if pf.exists():
+                    counts.append(len(np.load(pf)['labels']))
+            trials_per_subj = int(round(np.mean(counts))) if counts else 0
+        pf_full = sorted((DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / vf
+                          / 'erpxttn_peak' / 'seed-1').glob('prototypes_*.npz'))
+        if pf_full:
+            n_full_ch = np.load(pf_full[0])['proto_seg'].shape[1]
+        ch_str = ', '.join(chans)
+        label = _T1_LABELS.get(key, key)
+        L.append(f'{label} & {event} & {ns} & {trials_per_subj} & {n_full_ch} '
+                 f'& {ch_str} & {det} \\\\')
+    L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+    _tex(out_path, L)
+
+
+# --- Table 2: main 3-channel AUROC comparison ---
+def write_main_auroc_table(out_path):
+    L = [r'\begin{table}[t]', r'\centering', r'\small',
+         r'\setlength{\tabcolsep}{5pt}',
+         r'\caption{AUROC (mean $\pm$ SD, LOSO) at the three-channel montage. '
+         r'\textbf{Bold} marks the highest mean per dataset. '
+         r'$\Delta$ = best baseline minus ERP-XTTN (interpretability cost, in AUROC). '
+         r'Rows ordered by best-method AUROC, descending. '
+         r'Full-montage results are in Supplementary Table~\ref{S-sup:tab-fullmontage}; '
+         r'per-subject AUROC values in Supplementary '
+         r'Tables~\ref{sup-tab:per-subject-ERN}--\ref{sup-tab:per-subject-N400}.}',
+         r'\label{tab:auroc}',
+         r'\begin{tabular}{lcccccc}', r'\toprule',
+         r'Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\',
+         r'\midrule']
+    rows = _difficulty_order()
+    all_means = {n: [] for n, _ in _SUP_METHODS}
+    all_deltas = []
+    for d in rows:
+        lab = d[0].replace(' ErrP', '')
+        v3 = d[2]
+        vals = {}
+        for name, mdl in _SUP_METHODS:
+            pj = _persubj_fusion(d[1], v3, mdl) if mdl == 'erpxttn_peak' else _persubj_forward(d[1], v3, mdl)
+            m, s, n = _msd(pj)
+            vals[name] = (m, s)
+        best = max((v[0] for v in vals.values() if v[0] is not None), default=None)
+        cells = []
+        for name, _ in _SUP_METHODS:
+            m, s = vals[name]
+            if m is None:
+                cells.append('--')
+            else:
+                all_means[name].append(m)
+                cell = f'{m:.3f} $\\pm$ {s:.3f}'
+                if best is not None and abs(m - best) < 1e-4:
+                    cell = r'\textbf{' + cell + '}'
+                cells.append(cell)
+        xt_m = vals['ERP-XTTN'][0]
+        bl = [vals[n][0] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and vals[n][0] is not None]
+        if bl and xt_m is not None:
+            delta = max(bl) - xt_m
+            all_deltas.append(delta)
+            L.append(f'{lab} & ' + ' & '.join(cells) + f' & \\textit{{{delta:.3f}}} \\\\')
+        else:
+            L.append(f'{lab} & ' + ' & '.join(cells) + r' & -- \\')
+    L.append(r'\midrule')
+    mean_cells = []
+    for name, _ in _SUP_METHODS:
+        v = all_means[name]
+        m = float(np.mean(v)) if v else None
+        if m is None:
+            mean_cells.append('--')
+        else:
+            mean_cells.append(f'{m:.3f}')
+    best_mean = max(float(np.mean(all_means[n])) for n, _ in _SUP_METHODS if all_means[n])
+    for i, (name, _) in enumerate(_SUP_METHODS):
+        v = all_means[name]
+        if v and abs(float(np.mean(v)) - best_mean) < 1e-4:
+            mean_cells[i] = r'\textbf{' + mean_cells[i] + '}'
+    mean_delta = float(np.mean(all_deltas)) if all_deltas else None
+    delta_cell = f'\\textbf{{{mean_delta:.3f}}}' if mean_delta is not None else '--'
+    L.append(r'\textit{Mean} & ' + ' & '.join(mean_cells) + f' & {delta_cell} \\\\')
+    L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+    _tex(out_path, L)
+
+
 # ====================================================================
 # Main
 # ====================================================================
@@ -1975,6 +2119,10 @@ def main():
 
     print('TP↔FP / TP↔TN bar chart...')
     fig_tpfp_tptn()
+
+    print('Main-text tables (LaTeX)...')
+    write_dataset_table(OUT_DIR / 'table1_datasets.tex')
+    write_main_auroc_table(OUT_DIR / 'table2_auroc_3ch.tex')
 
     print('Paired advantage heatmap (Table 2 companion)...')
     fig_paired_heatmap(OUT_DIR / 'fig_paired_heatmap.png')
