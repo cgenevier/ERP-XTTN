@@ -1488,59 +1488,63 @@ def _paired_stats():
 
 
 def fig_paired_heatmap(out_path):
-    """9x4 annotated heatmap of paired ERP-XTTN vs baseline effects (3-channel)."""
+    """4x9 horizontal annotated heatmap of paired ERP-XTTN vs baseline effects
+    (3-channel). Baselines on rows, datasets on columns (difficulty order)."""
     st = _paired_stats()
     labels, N, Q = st['labels'], st['N'], st['Q']
-    M = st['HL'] * 100.0            # Hodges-Lehmann Delta in AUROC points
-    n, m = M.shape
-    colmean = np.nanmean(M, axis=0)
+    M = st['HL'] * 100.0
+    n, m = M.shape  # n=9 datasets, m=4 baselines
+
+    Mt = M.T   # (4, 9) — baselines × datasets
+    Qt = Q.T
+    rowmean = np.nanmean(Mt, axis=1)
 
     from matplotlib import cm, colors
     from matplotlib.patches import Rectangle
-    v = np.nanmax(np.abs(M)); norm = colors.Normalize(-v, v)
+    v = np.nanmax(np.abs(Mt)); norm = colors.Normalize(-v, v)
     sm = cm.ScalarMappable(norm=norm, cmap='RdBu_r')
 
-    fig, ax = plt.subplots(figsize=(6.6, 7.6))
-    ax.imshow(M, cmap='RdBu_r', vmin=-v, vmax=v, aspect='auto')
-    for i in range(n):
-        for j in range(m):
-            sig = np.isfinite(Q[i, j]) and Q[i, j] < 0.05
-            ax.text(j, i, f'{M[i, j]:+.1f}', ha='center', va='center', fontsize=10,
+    fig, ax = plt.subplots(figsize=(12, 4.2))
+    ax.imshow(Mt, cmap='RdBu_r', vmin=-v, vmax=v, aspect='auto')
+    for i in range(m):
+        for j in range(n):
+            sig = np.isfinite(Qt[i, j]) and Qt[i, j] < 0.05
+            ax.text(j, i, f'{Mt[i, j]:+.1f}', ha='center', va='center', fontsize=10,
                     fontweight='bold' if sig else 'normal')
             if sig:
                 ax.add_patch(Rectangle((j - .5, i - .5), 1, 1, fill=False, ec='k', lw=2.1))
 
-    GAP = 0.55; my = n - 1 + GAP + 1
-    for j in range(m):          # bottom margin: mean Delta per baseline (descriptive)
-        ax.add_patch(Rectangle((j - .5, my - .5), 1, 1, facecolor=sm.to_rgba(colmean[j]),
+    GAP = 0.55; mx = n - 1 + GAP + 1
+    for i in range(m):
+        ax.add_patch(Rectangle((mx - .5, i - .5), 1, 1, facecolor=sm.to_rgba(rowmean[i]),
                                ec='0.4', lw=.6))
-        ax.text(j, my, f'{colmean[j]:+.1f}', ha='center', va='center', fontsize=9.5, style='italic')
-    ax.text(-0.9, my, 'mean', ha='right', va='center', fontsize=8, style='italic', color='0.3')
+        ax.text(mx, i, f'{rowmean[i]:+.1f}', ha='center', va='center', fontsize=9.5, style='italic')
+    ax.text(mx, -0.9, 'mean', ha='center', va='bottom', fontsize=8, style='italic', color='0.3')
 
-    # difficulty arrow (rows are sorted by mean AUROC; easiest at top)
-    ax.annotate('', xy=(-0.82, n - 0.6), xytext=(-0.82, -0.4),
+    ax.annotate('', xy=(n - 0.6, -0.82), xytext=(-0.4, -0.82),
                 arrowprops=dict(arrowstyle='-|>', color='0.65', lw=1.2))
-    ax.text(-1.12, n / 2 - 0.5, r'harder $\leftarrow$ easier', rotation=90,
+    ax.text(n / 2 - 0.5, -1.12, r'easier $\rightarrow$ harder',
             ha='center', va='center', fontsize=7.5, color='0.5')
 
-    ax.set_xticks(range(m)); ax.set_xticklabels(_HM_BLX, fontsize=9.5)
+    ds_labels = [f'{l}\n($n{{=}}{N[j]}$)' + ('$^\\dagger$' if N[j] <= 6 else '')
+                 for j, l in enumerate(labels)]
+    ax.set_xticks(range(n)); ax.set_xticklabels(ds_labels, fontsize=8.5)
     ax.xaxis.set_ticks_position('top'); ax.xaxis.set_label_position('top')
-    ax.set_yticks(range(n))
-    ax.set_yticklabels([f'{l} ($n{{=}}{N[i]}$)' + ('$^\\dagger$' if N[i] <= 6 else '')
-                        for i, l in enumerate(labels)], fontsize=9)
-    ax.set_xlim(-1.45, m - 0.4); ax.set_ylim(my + 0.7, -1.0)
+    ax.set_yticks(range(m)); ax.set_yticklabels(_HM_BLX, fontsize=9.5)
+    ax.set_ylim(m - 0.5, -1.4); ax.set_xlim(-0.5, mx + 0.7)
     ax.tick_params(length=0, pad=3)
     for s in ax.spines.values():
         s.set_visible(False)
-    fig.suptitle('Paired Advantage of ERP-XTTN vs Baselines (3-Channel)',
-                 fontsize=11, y=0.975)
 
-    cb = fig.colorbar(sm, ax=ax, fraction=0.040, pad=0.03, shrink=0.65)
+    fig.suptitle('Paired Advantage of ERP-XTTN vs Baselines (3-Channel)',
+                 fontsize=11, y=0.98)
+
+    cb = fig.colorbar(sm, ax=ax, fraction=0.025, pad=0.02, shrink=0.8)
     cb.set_ticks([-5, -2.5, 0, 2.5, 5])
     cb.set_ticklabels([f'{t:+.1f}'.replace('+0.0', '0') for t in [-5, -2.5, 0, 2.5, 5]])
     cb.ax.tick_params(labelsize=8)
     cb.set_label('Hodges–Lehmann $\\Delta$ (AUROC pts)', fontsize=8)
-    fig.subplots_adjust(left=0.17, right=0.92, top=0.89, bottom=0.04)
+    fig.subplots_adjust(top=0.82, bottom=0.08, left=0.10, right=0.92)
     fig.savefig(out_path, bbox_inches='tight', pad_inches=0.02)
     fig.savefig(Path(out_path).with_suffix('.pdf'), bbox_inches='tight', pad_inches=0.02)
     plt.close(fig)
