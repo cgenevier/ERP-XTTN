@@ -2273,9 +2273,9 @@ def write_corr_perseed_table(out_path):
          r'cross-subject mean of the per-subject Pearson $r$ between the '
          r'detection-channel grand-mean true-positive and false-positive '
          r'(true-negative) waveforms; columns report the mean $\pm$ SD of those '
-         r'cross-subject means across the five seeds. ``FP$>$TN seeds\'\' counts the '
+         r"cross-subject means across the five seeds. ``FP$>$TN seeds'' counts the "
          r'seeds (of five) in which TP$\leftrightarrow$FP exceeded TP$\leftrightarrow$TN, '
-         r'and ``Min.\ margin\'\' is the smallest per-seed difference '
+         r"and ``Min.\ margin'' is the smallest per-seed difference "
          r'(TP$\leftrightarrow$FP $-$ TP$\leftrightarrow$TN).}',
          r'\label{sup:tab-corr-perseed}',
          r'\begin{tabular}{llcccc}', r'\toprule',
