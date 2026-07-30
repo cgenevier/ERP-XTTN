@@ -1,0 +1,59 @@
+% Table S21 — Wilcoxon signed-rank test statistics
+\begin{table}[t]
+\centering
+\setlength{\tabcolsep}{4pt}
+\caption{%
+Paired Wilcoxon signed-rank tests for ERP-XTTN versus each baseline at the three-channel montage (companion to main text Figure~3 and Table~3). Per-subject AUROCs are averaged over five training seeds before pairing (xDAWN+RG: single deterministic run). $\hat{\Delta}$: Hodges--Lehmann estimate of the paired difference (ERP-XTTN minus baseline; negative = ERP-XTTN lower). 95\% CI: exact distribution-free signed-rank confidence interval. $p$: two-sided Wilcoxon signed-rank raw $p$-value. $q$: Benjamini--Hochberg adjusted $p$-value controlling the false-discovery rate across all 36 comparisons (9 datasets $\times$ 4 baselines). $r_{rb}$: rank-biserial correlation (matched-pairs), computed as $r_{rb} = 2W^{+} / [n(n+1)/2] - 1$ where $W^{+}$ is the sum of positive-difference ranks; values near $+1$/$-1$ indicate ERP-XTTN consistently higher/lower. Bold $q$ marks comparisons significant at $q < 0.05$. $^\dagger$BNCI ($n=6$): the exact signed-rank test floors at $p = 0.031$ and cannot survive FDR correction regardless of effect size; results are reported descriptively (CI omitted). Rows ordered by mean cross-method AUROC, descending. AUROC: area under the receiver operating characteristic curve; LOSO: leave-one-subject-out.%
+}
+\label{sup:tab-wilcoxon}
+\begin{tabular}{llccccc}
+\toprule
+Dataset & Baseline & $\hat{\Delta}$ & 95\% CI & $p$ & $q$ & $r_{rb}$ \\
+\midrule
+HRI ($n{=}11$) & EEGNet & $-0.021$ & [$-0.040$, $-0.001$] & 0.024 & 0.055 & $-0.758$ \\
+ & EEG-Deformer & $-0.014$ & [$-0.034$, $+0.004$] & 0.147 & 0.197 & $-0.515$ \\
+ & EPMN & $+0.006$ & [$-0.002$, $+0.013$] & 0.123 & 0.180 & $+0.545$ \\
+ & xDAWN+RG & $+0.000$ & [$-0.014$, $+0.015$] & 1.000 & 1.000 & $+0.000$ \\
+\midrule
+ERN ($n{=}40$) & EEGNet & $-0.041$ & [$-0.051$, $-0.029$] & $<$0.001 & \textbf{$<$0.001} & $-0.910$ \\
+ & EEG-Deformer & $-0.010$ & [$-0.022$, $+0.001$] & 0.062 & 0.112 & $-0.339$ \\
+ & EPMN & $+0.031$ & [$+0.017$, $+0.044$] & $<$0.001 & \textbf{$<$0.001} & $+0.698$ \\
+ & xDAWN+RG & $+0.027$ & [$+0.011$, $+0.046$] & $<$0.001 & \textbf{0.003} & $+0.580$ \\
+\midrule
+LRP ($n{=}40$) & EEGNet & $-0.029$ & [$-0.037$, $-0.023$] & $<$0.001 & \textbf{$<$0.001} & $-0.949$ \\
+ & EEG-Deformer & $-0.025$ & [$-0.034$, $-0.017$] & $<$0.001 & \textbf{$<$0.001} & $-0.807$ \\
+ & EPMN & $-0.008$ & [$-0.016$, $-0.001$] & 0.015 & \textbf{0.039} & $-0.437$ \\
+ & xDAWN+RG & $-0.034$ & [$-0.042$, $-0.026$] & $<$0.001 & \textbf{$<$0.001} & $-0.971$ \\
+\midrule
+BNCI ($n{=}6$)$^\dagger$ & EEGNet & $-0.022$ & -- & 0.219 & 0.272 & $-0.619$ \\
+ & EEG-Deformer & $-0.015$ & -- & 0.031 & 0.062 & $-1.000$ \\
+ & EPMN & $+0.037$ & -- & 0.031 & 0.062 & $+1.000$ \\
+ & xDAWN+RG & $-0.014$ & -- & 0.438 & 0.492 & $-0.429$ \\
+\midrule
+N170 ($n{=}40$) & EEGNet & $+0.007$ & [$-0.008$, $+0.021$] & 0.301 & 0.361 & $+0.190$ \\
+ & EEG-Deformer & $+0.008$ & [$-0.008$, $+0.028$] & 0.327 & 0.380 & $+0.180$ \\
+ & EPMN & $+0.025$ & [$+0.011$, $+0.039$] & $<$0.001 & \textbf{0.003} & $+0.580$ \\
+ & xDAWN+RG & $-0.012$ & [$-0.028$, $+0.003$] & 0.135 & 0.187 & $-0.273$ \\
+\midrule
+P300 ($n{=}40$) & EEGNet & $-0.057$ & [$-0.076$, $-0.036$] & $<$0.001 & \textbf{$<$0.001} & $-0.861$ \\
+ & EEG-Deformer & $-0.051$ & [$-0.073$, $-0.035$] & $<$0.001 & \textbf{$<$0.001} & $-0.839$ \\
+ & EPMN & $-0.011$ & [$-0.026$, $+0.003$] & 0.121 & 0.180 & $-0.283$ \\
+ & xDAWN+RG & $+0.005$ & [$-0.017$, $+0.025$] & 0.646 & 0.684 & $+0.085$ \\
+\midrule
+N2pc ($n{=}40$) & EEGNet & $-0.009$ & [$-0.018$, $-0.000$] & 0.050 & 0.094 & $-0.356$ \\
+ & EEG-Deformer & $-0.002$ & [$-0.011$, $+0.007$] & 0.745 & 0.766 & $-0.061$ \\
+ & EPMN & $+0.005$ & [$-0.003$, $+0.013$] & 0.179 & 0.230 & $+0.246$ \\
+ & xDAWN+RG & $-0.010$ & [$-0.019$, $+0.003$] & 0.118 & 0.180 & $-0.285$ \\
+\midrule
+MMN ($n{=}40$) & EEGNet & $-0.003$ & [$-0.006$, $+0.001$] & 0.112 & 0.180 & $-0.290$ \\
+ & EEG-Deformer & $-0.001$ & [$-0.005$, $+0.003$] & 0.476 & 0.519 & $-0.132$ \\
+ & EPMN & $+0.024$ & [$+0.017$, $+0.031$] & $<$0.001 & \textbf{$<$0.001} & $+0.929$ \\
+ & xDAWN+RG & $-0.006$ & [$-0.010$, $-0.003$] & $<$0.001 & \textbf{0.002} & $-0.620$ \\
+\midrule
+N400 ($n{=}40$) & EEGNet & $-0.022$ & [$-0.033$, $-0.010$] & $<$0.001 & \textbf{0.002} & $-0.612$ \\
+ & EEG-Deformer & $-0.014$ & [$-0.025$, $-0.003$] & 0.018 & \textbf{0.043} & $-0.427$ \\
+ & EPMN & $-0.010$ & [$-0.023$, $+0.004$] & 0.125 & 0.180 & $-0.280$ \\
+ & xDAWN+RG & $-0.015$ & [$-0.026$, $-0.003$] & 0.014 & \textbf{0.038} & $-0.444$ \\
+\bottomrule
+\end{tabular}
+\end{table}

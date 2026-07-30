@@ -1488,6 +1488,7 @@ def _paired_stats():
     n, m = len(order), len(_HM_BASELINES)
     HL = np.full((n, m), np.nan); LO = np.full((n, m), np.nan); HI = np.full((n, m), np.nan)
     praw = np.full((n, m), np.nan); N = np.zeros(n, int)
+    RRB = np.full((n, m), np.nan)
     for i, row in enumerate(order):
         xt = au[row[1]]['erpxttn_peak']
         for j, (_, bl) in enumerate(_HM_BASELINES):
@@ -1498,6 +1499,12 @@ def _paired_stats():
             diff = np.array([xt[s] for s in subs]) - np.array([b[s] for s in subs])
             N[i] = len(subs)
             HL[i, j], LO[i, j], HI[i, j] = _hl_ci(diff)
+            nz = diff[diff != 0]
+            if nz.size > 0:
+                ranks = np.argsort(np.argsort(np.abs(nz))) + 1
+                Wplus = float(np.sum(ranks[nz > 0]))
+                Ntot = nz.size * (nz.size + 1) / 2
+                RRB[i, j] = 2 * Wplus / Ntot - 1
             try:
                 praw[i, j] = wilcoxon(diff, alternative='two-sided').pvalue
             except ValueError:
@@ -1506,7 +1513,7 @@ def _paired_stats():
     # concentrates in one baseline column, unlike per-baseline families.
     Q = _bh_fdr(praw.ravel()).reshape(praw.shape)
     return dict(order=order, labels=labels, N=N, HL=HL, LO=LO, HI=HI,
-                praw=praw, Q=Q, mean_auroc=mean_auroc)
+                praw=praw, Q=Q, RRB=RRB, mean_auroc=mean_auroc)
 
 
 def fig_paired_heatmap(out_path):
@@ -2110,6 +2117,81 @@ def write_ablation_table(out_path):
     _tex(out_path, L)
 
 
+def write_wilcoxon_table(out_path):
+    st = _paired_stats()
+    labels, N = st['labels'], st['N']
+    HL, LO, HI = st['HL'], st['LO'], st['HI']
+    praw, Q, RRB = st['praw'], st['Q'], st['RRB']
+    n, m = HL.shape
+    bl_names = [h for h, _ in _HM_BASELINES]
+    L = [r'% Table S21 — Wilcoxon signed-rank test statistics',
+         r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{4pt}',
+         r'\caption{%',
+         r'Paired Wilcoxon signed-rank tests for ERP-XTTN versus each baseline '
+         r'at the three-channel montage (companion to main text Figure~3 and '
+         r'Table~3). Per-subject AUROCs are averaged over five training seeds '
+         r'before pairing (xDAWN+RG: single deterministic run). '
+         r'$\hat{\Delta}$: Hodges--Lehmann estimate of the paired difference '
+         r'(ERP-XTTN minus baseline; negative = ERP-XTTN lower). '
+         r'95\% CI: exact distribution-free signed-rank confidence interval. '
+         r'$p$: two-sided Wilcoxon signed-rank raw $p$-value. '
+         r'$q$: Benjamini--Hochberg adjusted $p$-value controlling the '
+         r'false-discovery rate across all 36 comparisons '
+         r'(9 datasets $\times$ 4 baselines). '
+         r'$r_{rb}$: rank-biserial correlation (matched-pairs), '
+         r'computed as $r_{rb} = 2W^{+} / [n(n+1)/2] - 1$ where $W^{+}$ is '
+         r'the sum of positive-difference ranks; values near $+1$/$-1$ '
+         r'indicate ERP-XTTN consistently higher/lower. '
+         r'Bold $q$ marks comparisons significant at $q < 0.05$. '
+         r'$^\dagger$BNCI ($n=6$): the exact signed-rank test floors at '
+         r'$p = 0.031$ and cannot survive FDR correction regardless of effect '
+         r'size; results are reported descriptively (CI omitted). '
+         r'Rows ordered by mean cross-method AUROC, descending. '
+         r'AUROC: area under the receiver operating characteristic curve; '
+         r'LOSO: leave-one-subject-out.%',
+         r'}',
+         r'\label{sup:tab-wilcoxon}',
+         r'\begin{tabular}{llccccc}', r'\toprule',
+         r'Dataset & Baseline & $\hat{\Delta}$ & 95\% CI & $p$ & $q$ & $r_{rb}$ \\',
+         r'\midrule']
+    for i in range(n):
+        dagger = r'$^\dagger$' if N[i] <= 6 else ''
+        ds_lab = f'{labels[i]} ($n{{=}}{N[i]}$){dagger}'
+        for j in range(m):
+            dcell = ds_lab if j == 0 else ''
+            hl_s = f'${HL[i, j]:+.3f}$'
+            if N[i] <= 6:
+                ci_s = '--'
+            else:
+                ci_s = f'[${LO[i, j]:+.3f}$, ${HI[i, j]:+.3f}$]'
+            if np.isfinite(praw[i, j]):
+                if praw[i, j] < 0.001:
+                    p_s = '$<$0.001'
+                else:
+                    p_s = f'{praw[i, j]:.3f}'
+            else:
+                p_s = '--'
+            if np.isfinite(Q[i, j]):
+                q_sig = Q[i, j] < 0.05
+                if Q[i, j] < 0.001:
+                    q_s = '$<$0.001'
+                else:
+                    q_s = f'{Q[i, j]:.3f}'
+                if q_sig:
+                    q_s = r'\textbf{' + q_s + '}'
+            else:
+                q_s = '--'
+            if np.isfinite(RRB[i, j]):
+                r_s = f'${RRB[i, j]:+.3f}$'
+            else:
+                r_s = '--'
+            L.append(f'{dcell} & {bl_names[j]} & {hl_s} & {ci_s} & {p_s} & {q_s} & {r_s} ' + r'\\')
+        if i < n - 1:
+            L.append(r'\midrule')
+    L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+    _tex(out_path, L)
+
+
 # --- S7 / S8: grounding interventions ---
 _GND_ROUTING_COLS = [
     ('two_factor', 'ERP-XTTN'),
@@ -2125,12 +2207,12 @@ _GND_ROUTING_COLS = [
 _GND_AMP_COLS = [
     ('two_factor', 'ERP-XTTN'),
     ('amp_channel_on', 'On-target'),
-    ('amp_channel_off', 'Off-target (early)'),
-    ('amp_channel_baseline', 'Off-target (late)'),
+    ('amp_channel_baseline', 'Off-target (early)'),
+    ('amp_channel_off', 'Off-target (late)'),
     ('amp_channel_permute', 'Permutation'),
     ('amp_contrast_on', 'On-target'),
-    ('amp_contrast_off', 'Off-target (early)'),
-    ('amp_contrast_baseline', 'Off-target (late)'),
+    ('amp_contrast_baseline', 'Off-target (early)'),
+    ('amp_contrast_off', 'Off-target (late)'),
     ('amp_contrast_permute', 'Permutation'),
 ]
 
@@ -2179,7 +2261,7 @@ def write_grounding_routing_table(out_path, montage, snum):
             r'to the noise null. Rows ordered by ERP-XTTN AUROC, descending. '
             r'Standard deviations are omitted for compactness; fold-level and '
             r'seed-level variability are available in the released code '
-            r'\cite{wyman2026zenodo}. AUROC: area under the receiver operating '
+            r'\cite{wyman2026erpxttn_code}. AUROC: area under the receiver operating '
             r'characteristic curve; LOSO: leave-one-subject-out.%',
             r'}']
     else:
@@ -2197,7 +2279,7 @@ def write_grounding_routing_table(out_path, montage, snum):
             r'the ladder degraded only to the null, consistent with routing '
             r'carrying minimal signal on those paradigms. Rows ordered by '
             r'ERP-XTTN AUROC, descending. Standard deviations omitted; '
-            r'available in the released code \cite{wyman2026zenodo}. '
+            r'available in the released code \cite{wyman2026erpxttn_code}. '
             r'Abbreviations as in Table~S3.%',
             r'}']
     L, col_accum, data_rows, _ = _grounding_body(
@@ -2248,7 +2330,7 @@ def write_grounding_amp_table(out_path, montage, snum):
             r'expanded feature set providing sufficient redundancy for the '
             r'combiner to recover signal from off-target windows. Rows ordered '
             r'by ERP-XTTN AUROC, descending. Standard deviations omitted; '
-            r'available in the released code \cite{wyman2026zenodo}. '
+            r'available in the released code \cite{wyman2026erpxttn_code}. '
             r'Abbreviations as in Table~S3.%',
             r'}']
     else:
@@ -2267,7 +2349,7 @@ def write_grounding_amp_table(out_path, montage, snum):
             r'permuting trial labels returned the factor to near chance '
             r'throughout. Rows ordered by ERP-XTTN AUROC, descending. Standard '
             r'deviations omitted; available in the released code '
-            r'\cite{wyman2026zenodo}. Abbreviations as in Table~S3.%',
+            r'\cite{wyman2026erpxttn_code}. Abbreviations as in Table~S3.%',
             r'}']
     L, col_accum, data_rows, _ = _grounding_body(
         _GND_AMP_COLS, montage, snum, 'amp',
@@ -2749,6 +2831,7 @@ def main():
     write_grounding_routing_table(OUT_DIR / 'tableS18_grounding_routing_3ch.tex', '3-channel', 'S18')
     write_grounding_amp_table(OUT_DIR / 'tableS19_grounding_amp_3ch.tex', '3-channel', 'S19')
     write_ablation_table(OUT_DIR / 'tableS20_ablation.tex')
+    write_wilcoxon_table(OUT_DIR / 'tableS21_wilcoxon.tex')
 
     print('HRI Cz-only morphology...')
     hri = next(r for r in DATASETS if r[1] == 'hri_errp_cursor')

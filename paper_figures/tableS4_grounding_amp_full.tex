@@ -3,7 +3,7 @@
 \centering
 \setlength{\tabcolsep}{5pt}
 \caption{%
-Amplitude grounding controls at the full available montage (mean AUROC, LOSO, seed-averaged across five seeds). The ERP-XTTN column reports the full two-factor model AUROC (from Table~S1) as a reference. Amplitude features are evaluated separately for the monopolar channel matched filter (Channel MF; Equation~5) and the bipolar contrast matched filter (Contrast MF; Equation~6). For each derivation: On-target = matched filter computed over the prototype's detected component window; Off-early = window displaced $-300$\,ms from the detected latency (clipped to epoch start); Off-late = window displaced $+150$\,ms; Permutation = trial-label correspondence shuffled. A grounded amplitude factor should lose discriminative value in both displaced windows and collapse to the permutation reference. At the full montage, the amplitude feature vector grows quadratically with channel count (Equation~7), and the window-displacement controls became uninformative (Section~3.3 of the main text), consistent with the expanded feature set providing sufficient redundancy for the combiner to recover signal from off-target windows. Rows ordered by ERP-XTTN AUROC, descending. Standard deviations omitted; available in the released code \cite{wyman2026zenodo}. Abbreviations as in Table~S3.%
+Amplitude grounding controls at the full available montage (mean AUROC, LOSO, seed-averaged across five seeds). The ERP-XTTN column reports the full two-factor model AUROC (from Table~S1) as a reference. Amplitude features are evaluated separately for the monopolar channel matched filter (Channel MF; Equation~5) and the bipolar contrast matched filter (Contrast MF; Equation~6). For each derivation: On-target = matched filter computed over the prototype's detected component window; Off-early = window displaced $-300$\,ms from the detected latency (clipped to epoch start); Off-late = window displaced $+150$\,ms; Permutation = trial-label correspondence shuffled. A grounded amplitude factor should lose discriminative value in both displaced windows and collapse to the permutation reference. At the full montage, the amplitude feature vector grows quadratically with channel count (Equation~7), and the window-displacement controls became uninformative (Section~3.3 of the main text), consistent with the expanded feature set providing sufficient redundancy for the combiner to recover signal from off-target windows. Rows ordered by ERP-XTTN AUROC, descending. Standard deviations omitted; available in the released code \cite{wyman2026erpxttn_code}. Abbreviations as in Table~S3.%
 }
 \label{sup:tab-grounding-full-amp}
 \begin{tabular}{l c cccc cccc}
@@ -12,17 +12,17 @@ Amplitude grounding controls at the full available montage (mean AUROC, LOSO, se
 \cmidrule(lr){3-6} \cmidrule(lr){7-10}
 Dataset & ERP-XTTN & On-target & Off-target (early) & Off-target (late) & Permutation & On-target & Off-target (early) & Off-target (late) & Permutation \\
 \midrule
-HRI & 0.85 & 0.77 & 0.76 & 0.59 & 0.56 & 0.83 & 0.81 & 0.65 & 0.59 \\
-ERN & 0.93 & 0.85 & 0.83 & 0.82 & 0.63 & 0.90 & 0.88 & 0.88 & 0.67 \\
-LRP & 0.85 & 0.70 & 0.65 & 0.67 & 0.57 & 0.78 & 0.68 & 0.75 & 0.59 \\
-BNCI & 0.78 & 0.74 & 0.72 & 0.60 & 0.56 & 0.78 & 0.76 & 0.65 & 0.58 \\
-N170 & 0.77 & 0.78 & 0.72 & 0.61 & 0.62 & 0.82 & 0.77 & 0.65 & 0.64 \\
-P300 & 0.70 & 0.69 & 0.72 & 0.62 & 0.64 & 0.72 & 0.75 & 0.66 & 0.67 \\
-N2pc & 0.68 & 0.66 & 0.63 & 0.60 & 0.59 & 0.70 & 0.68 & 0.64 & 0.61 \\
-MMN & 0.61 & 0.60 & 0.58 & 0.56 & 0.56 & 0.62 & 0.60 & 0.58 & 0.57 \\
-N400 & 0.72 & 0.73 & 0.70 & 0.67 & 0.64 & 0.75 & 0.74 & 0.70 & 0.67 \\
+HRI & 0.85 & 0.77 & 0.59 & 0.76 & 0.56 & 0.83 & 0.65 & 0.81 & 0.59 \\
+ERN & 0.93 & 0.85 & 0.82 & 0.83 & 0.63 & 0.90 & 0.88 & 0.88 & 0.67 \\
+LRP & 0.85 & 0.70 & 0.67 & 0.65 & 0.57 & 0.78 & 0.75 & 0.68 & 0.59 \\
+BNCI & 0.78 & 0.74 & 0.60 & 0.72 & 0.56 & 0.78 & 0.65 & 0.76 & 0.58 \\
+N170 & 0.77 & 0.78 & 0.61 & 0.72 & 0.62 & 0.82 & 0.65 & 0.77 & 0.64 \\
+P300 & 0.70 & 0.69 & 0.62 & 0.72 & 0.64 & 0.72 & 0.66 & 0.75 & 0.67 \\
+N2pc & 0.68 & 0.66 & 0.60 & 0.63 & 0.59 & 0.70 & 0.64 & 0.68 & 0.61 \\
+MMN & 0.61 & 0.60 & 0.56 & 0.58 & 0.56 & 0.62 & 0.58 & 0.60 & 0.57 \\
+N400 & 0.72 & 0.73 & 0.67 & 0.70 & 0.64 & 0.75 & 0.70 & 0.74 & 0.67 \\
 \midrule
-\textit{Mean} & 0.76 & 0.72 & 0.70 & 0.64 & 0.60 & 0.77 & 0.74 & 0.68 & 0.62 \\
+\textit{Mean} & 0.76 & 0.72 & 0.64 & 0.70 & 0.60 & 0.77 & 0.68 & 0.74 & 0.62 \\
 \bottomrule
 \end{tabular}
 \end{table}
