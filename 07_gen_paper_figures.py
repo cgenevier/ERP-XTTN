@@ -1752,7 +1752,7 @@ def write_fullmontage_auroc_table(out_path):
          r'Classification performance (area under the receiver operating '
          r'characteristic curve, AUROC; mean $\pm$ standard deviation across '
          r'subjects) at the full available montage under leave-one-subject-out '
-         r'(LOSO) cross-validation. Channel counts vary by dataset (Table~1 of '
+         r'(LOSO) cross-validation. Channel counts vary by dataset (Table~\ref{tab:datasets} of '
          r'the main text): 64 for BNCI, 27 for HRI, and 30 for all ERP CORE '
          r'datasets. Neural models (ERP-XTTN, EEGNet, EEG-Deformer, EPMN) '
          r'report seed-averaged means across five independent training seeds; '
@@ -1761,7 +1761,7 @@ def write_fullmontage_auroc_table(out_path):
          r'(interpretability cost, in AUROC); the best baseline is selected '
          r'post hoc per dataset and $\Delta$ is reported descriptively. Rows '
          r'ordered by best-method AUROC, descending. Three-channel results are '
-         r'in main text Table~2; per-subject values in Tables~\ref{sup:tab-persubj-hri}--\ref{sup:tab-persubj-n400}. '
+         r'in main text Table~\ref{tab:auroc}; per-subject values in Tables~\ref{sup:tab-persubj-hri}--\ref{sup:tab-persubj-n400}. '
          r'AUROC: area under the receiver operating characteristic curve; '
          r'LOSO: leave-one-subject-out; EEG-Deformer: dense convolutional '
          r'transformer \cite{ding2025}; EPMN: ERP Prototypical Matching Net '
@@ -1898,7 +1898,7 @@ def write_balacc_table(out_path):
          r'abbreviations as in Table~\ref{sup:tab-fullmontage-ba}. Bold marks the highest mean per '
          r'dataset. $\Delta$ = best baseline minus ERP-XTTN. Full-montage '
          r'balanced accuracy is in Table~\ref{sup:tab-fullmontage-ba}; AUROC values at the '
-         r'three-channel montage are in main text Table~2.%',
+         r'three-channel montage are in main text Table~\ref{tab:auroc}.%',
          r'}',
          r'\label{sup:tab-balacc}',
          r'\begin{tabular}{lcccccc}', r'\toprule',
@@ -1981,7 +1981,7 @@ def write_persubject_auroc_tables(out_path):
                 r'AUROC averaged across seeds (xDAWN+RG: single deterministic run, '
                 r'standard deviation omitted). Bold marks the highest mean per '
                 r'subject. $\Delta$ = best baseline minus ERP-XTTN. The mean row '
-                r'matches the ' + lab + r' entry of main text Table~2. AUROC: area under '
+                r'matches the ' + lab + r' entry of main text Table~\ref{tab:auroc}. AUROC: area under '
                 r'the receiver operating characteristic curve; LOSO: '
                 r'leave-one-subject-out.%' '\n'
                 r'}')
@@ -1992,7 +1992,7 @@ def write_persubject_auroc_tables(out_path):
                 r'training seeds, LOSO) at the three-channel montage for '
                 + full_name + r' ($n = ' + str(n_subj) + r'$ subjects). '
                 r'Conventions as in Table~\ref{sup:tab-persubj-hri}. The mean '
-                r'row matches the ' + lab + r' entry of main text Table~2.%' '\n'
+                r'row matches the ' + lab + r' entry of main text Table~\ref{tab:auroc}.%' '\n'
                 r'}')
         P = [f'% Table S{7 + ti} — Per-subject AUROC, {lab}',
              r'\begin{table}[t]', r'\centering',
@@ -2073,13 +2073,13 @@ def write_ablation_table(out_path):
          r'\caption{%',
          r'Two-factor ablation grid at the three-channel montage '
          r'(seed-averaged across five seeds). Each ablation is a single-knob '
-         r'deviation from the default ERP-XTTN configuration of Section~2.3, '
+         r'deviation from the default ERP-XTTN configuration of Section~\ref{sec:architecture}, '
          r'evaluated on four datasets spanning the difficulty range (HRI, '
          r'ERN, P300, N400) under the five-seed LOSO protocol. AUROC is the '
          r'per-subject mean $\pm$ standard deviation across subjects. The '
          r'base configuration uses both routing and amplitude factors '
          r'combined by $L_2$-penalized logistic regression on frozen '
-         r'per-trial outputs (Section~2.3.5). Ablation arms: routing only '
+         r'per-trial outputs (Section~\ref{sec:amplitude}). Ablation arms: routing only '
          r'and amplitude only remove one factor from the combiner; end-to-end '
          r'trains routing and the two-factor head jointly by '
          r'backpropagation rather than fitting the combiner on frozen '
@@ -2128,8 +2128,8 @@ def write_wilcoxon_table(out_path):
          r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{4pt}',
          r'\caption{%',
          r'Paired Wilcoxon signed-rank tests for ERP-XTTN versus each baseline '
-         r'at the three-channel montage (companion to main text Figure~3 and '
-         r'Table~3). Per-subject AUROCs are averaged over five training seeds '
+         r'at the three-channel montage (companion to main text Figure~\ref{fig:fig_paired_heatmap} and '
+         r'Table~\ref{tab:paired}). Per-subject AUROCs are averaged over five training seeds '
          r'before pairing (xDAWN+RG: single deterministic run). '
          r'$\hat{\Delta}$: Hodges--Lehmann estimate of the paired difference '
          r'(ERP-XTTN minus baseline; negative = ERP-XTTN lower). '
@@ -2272,7 +2272,7 @@ def write_grounding_routing_table(out_path, montage, snum):
             r'Routing grounding interventions at the three-channel montage '
             r'(mean AUROC, LOSO, seed-averaged across five seeds). The ERP-XTTN '
             r'column reports the full two-factor model AUROC (from main text '
-            r'Table~2) as a reference. Column definitions are identical to '
+            r'Table~\ref{tab:auroc}) as a reference. Column definitions are identical to '
             r'Table~\ref{sup:tab-grounding-full-routing}. At the three-channel montage, polarity inversion drove '
             r'routing below the noise null on every dataset where routing '
             r'carried discriminative signal (e.g.\ HRI $0.81 \to 0.19$, noise '
@@ -2344,7 +2344,7 @@ def write_grounding_amp_table(out_path, montage, snum):
             r'Amplitude grounding controls at the three-channel montage '
             r'(mean AUROC, LOSO, seed-averaged across five seeds). The ERP-XTTN '
             r'column reports the full two-factor model AUROC (from main text '
-            r'Table~2) as a reference. Column definitions are identical to '
+            r'Table~\ref{tab:auroc}) as a reference. Column definitions are identical to '
             r'Table~\ref{sup:tab-grounding-full-amp}. For each fold and feature '
             r'family, AUROC is the maximum orientation-invariant AUROC over '
             r'individual features. These values constitute a descriptive '
@@ -2406,7 +2406,7 @@ def write_epmn_native_table(out_path):
          r're-sampled each episode; majority-class down-sampling with '
          r'unweighted cross-entropy; no augmentation. The shared protocol '
          r'uses the AdamW optimizer, cosine-annealed learning rate, temporal '
-         r'jitter, and additive noise described in Section~2.5 of the main '
+         r'jitter, and additive noise described in Section~\ref{sec:training} of the main '
          r'text. Both protocols use the same two-phase subject-level '
          r'validation scaffolding and LOSO folds. Bold marks the higher mean '
          r'per dataset. $\Delta$ = shared-protocol minus native AUROC '
@@ -2462,7 +2462,7 @@ def write_corr_table(out_path):
          r'\caption{%',
          r'Outcome-conditioned waveform correlations at the detection channel '
          r'(three-channel montage, fused decision). For each subject, '
-         r'single-trial waveforms at the detection channel (Table~1) were '
+         r'single-trial waveforms at the detection channel (Table~\ref{tab:datasets}) were '
          r'averaged separately for the four prediction$\times$label outcomes: '
          r'true positive (TP), false positive (FP), true negative (TN), and '
          r'false negative (FN). TP$\leftrightarrow$FP and '
@@ -2473,8 +2473,8 @@ def write_corr_table(out_path):
          r'indicates that false positives morphologically resemble true '
          r'positives more than true negatives do, consistent with '
          r'classification operating through waveform--prototype '
-         r'correspondence (Section~3.2 of the main text). Det.\ ch: '
-         r'detection channel on which prototypes are defined (Table~1).%',
+         r'correspondence (Section~\ref{sec:physiological-structure} of the main text). Det.\ ch: '
+         r'detection channel on which prototypes are defined (Table~\ref{tab:datasets}).%',
          r'}',
          r'\label{sup:tab-corr}', r'\begin{tabular}{llcc}', r'\toprule',
          r'Dataset & Det.\ ch & TP$\leftrightarrow$FP & TP$\leftrightarrow$TN \\', r'\midrule']
