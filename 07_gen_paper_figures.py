@@ -77,6 +77,28 @@ def _persubj_auroc(ds_dir, var_dir, model):
                 acc[f['test_subject']].append(float(f['test_auroc']))
     return {s: float(np.mean(v)) for s, v in acc.items()}
 
+
+def _persubj_auroc_msd(ds_dir, var_dir, model):
+    """{subject: (mean, sd)} of LOSO AUROC across seeds."""
+    from collections import defaultdict
+    base = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / model
+    acc = defaultdict(list)
+    for sd in sorted(base.glob('seed-*')):
+        rj = sd / 'results.json'
+        if not rj.exists():
+            continue
+        r = json.load(open(rj))
+        tf = r.get('two_factor_auroc_per_subject')
+        if tf:
+            for s, a in tf.items():
+                acc[s].append(float(a))
+        else:
+            for f in r.get('folds', []):
+                acc[f['test_subject']].append(float(f['test_auroc']))
+    return {s: (float(np.mean(v)), float(np.std(v, ddof=1)) if len(v) > 1 else 0.0)
+            for s, v in acc.items()}
+
+
 # --------------------------------------------------------------
 # Style
 # --------------------------------------------------------------
@@ -1259,7 +1281,7 @@ def fig_prototypes_all_datasets():
 
         # Dataset row label on the left, outside the first panel
         axes[ri, 0].annotate(
-            ds['name'], xy=(-0.42, 0.5), xycoords='axes fraction',
+            ds['name'], xy=(-0.62, 0.5), xycoords='axes fraction',
             ha='center', va='center', fontsize=10, fontweight='bold',
             rotation=90,
         )
@@ -1269,7 +1291,7 @@ def fig_prototypes_all_datasets():
         '3-Channel, Detection Channel Only',
         fontsize=11, y=0.995,
     )
-    fig.tight_layout(rect=(0.04, 0, 1, 0.98))
+    fig.tight_layout(rect=(0.06, 0, 1, 0.98))
     out = OUT_DIR / 'fig_prototypes_all_datasets.png'
     fig.savefig(out, bbox_inches='tight', pad_inches=0.02)
     plt.close(fig)
@@ -1683,9 +1705,12 @@ def _msd(d):
 
 
 def _val_agg_sup(ds_dir, var_dir):
-    """Seed-averaged validation.json aggregate; (dict, n_seeds)."""
+    """Seed-averaged validation.json aggregate; (dict_mean, dict_sd, n_seeds).
+    dict_mean: {key: seed-averaged mean across subjects}.
+    dict_sd:   {key: seed-averaged SD across subjects}."""
     base = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / 'erpxttn_peak'
-    acc = {}
+    acc_mean = {}
+    acc_sd = {}
     ns = 0
     for s in range(1, 6):
         p = base / f'seed-{s}' / 'validation.json'
@@ -1697,8 +1722,14 @@ def _val_agg_sup(ds_dir, var_dir):
         ns += 1
         for k, v in agg.items():
             if isinstance(v, dict) and 'mean' in v:
-                acc.setdefault(k, []).append(v['mean'])
-    return ({k: float(np.mean(v)) for k, v in acc.items()}, ns) if acc else (None, 0)
+                acc_mean.setdefault(k, []).append(v['mean'])
+                if 'sd' in v:
+                    acc_sd.setdefault(k, []).append(v['sd'])
+    if not acc_mean:
+        return (None, None, 0)
+    return ({k: float(np.mean(v)) for k, v in acc_mean.items()},
+            {k: float(np.mean(v)) for k, v in acc_sd.items()},
+            ns)
 
 
 def _tex(out_path, lines):
@@ -1707,75 +1738,249 @@ def _tex(out_path, lines):
 
 # --- S3: full-montage AUROC ---
 def write_fullmontage_auroc_table(out_path):
-    L = [r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{5pt}',
-         r'\caption{Full-montage LOSO AUROC (seed-averaged per-subject mean). '
-         r'$\Delta$ = best baseline $-$ ERP-XTTN.}', r'\label{sup:tab-fullmontage-auroc}',
+    L = [r'% Table S1 — Full-montage AUROC',
+         r'\begin{table}[t]', r'\centering', r'\small',
+         r'\setlength{\tabcolsep}{5pt}',
+         r'\caption{AUROC (mean $\pm$ SD, LOSO) at the full montage. '
+         r'\textbf{Bold} marks the highest mean per dataset. '
+         r'$\Delta$ = best baseline minus ERP-XTTN (interpretability cost, in AUROC). '
+         r'Rows ordered by best-method AUROC, descending. '
+         r'Neural models report seed-averaged means across five training seeds; '
+         r'xDAWN+RG is deterministic.}',
+         r'\label{sup:tab-fullmontage-auroc}',
          r'\begin{tabular}{lcccccc}', r'\toprule',
          r'Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\', r'\midrule']
+    all_means = {n: [] for n, _ in _SUP_METHODS}
+    all_deltas = []
     for lab, d in _sup_rows():
         vf = d[3]
-        m = {}
+        vals = {}
         for name, mdl in _SUP_METHODS:
             pj = _persubj_fusion(d[1], vf, mdl) if mdl == 'erpxttn_peak' else _persubj_forward(d[1], vf, mdl)
-            m[name] = _msd(pj)[0]
-        cells = [f'{m[n]:.3f}' if m[n] is not None else '--' for n, _ in _SUP_METHODS]
-        bl = [m[n] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and m[n] is not None]
-        dlt = f'{max(bl) - m["ERP-XTTN"]:+.3f}' if (bl and m['ERP-XTTN'] is not None) else '--'
-        L.append(f'{lab} & ' + ' & '.join(cells) + f' & {dlt} ' + r'\\')
+            m, s, n = _msd(pj)
+            vals[name] = (m, s)
+        best = max((v[0] for v in vals.values() if v[0] is not None), default=None)
+        cells = []
+        for name, _ in _SUP_METHODS:
+            m, s = vals[name]
+            if m is None:
+                cells.append('--')
+            else:
+                all_means[name].append(m)
+                cell = f'{m:.3f} $\\pm$ {s:.3f}'
+                if best is not None and abs(m - best) < 1e-4:
+                    cell = r'\textbf{' + cell + '}'
+                cells.append(cell)
+        xt_m = vals['ERP-XTTN'][0]
+        bl = [vals[n][0] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and vals[n][0] is not None]
+        if bl and xt_m is not None:
+            delta = max(bl) - xt_m
+            all_deltas.append(delta)
+            L.append(f'{lab} & ' + ' & '.join(cells) + f' & \\textit{{{delta:.3f}}} \\\\')
+        else:
+            L.append(f'{lab} & ' + ' & '.join(cells) + r' & -- \\')
+    L.append(r'\midrule')
+    mean_cells = []
+    for name, _ in _SUP_METHODS:
+        v = all_means[name]
+        m = float(np.mean(v)) if v else None
+        if m is None:
+            mean_cells.append('--')
+        else:
+            mean_cells.append(f'{m:.3f}')
+    best_mean = max(float(np.mean(all_means[n])) for n, _ in _SUP_METHODS if all_means[n])
+    for i, (name, _) in enumerate(_SUP_METHODS):
+        v = all_means[name]
+        if v and abs(float(np.mean(v)) - best_mean) < 1e-4:
+            mean_cells[i] = r'\textbf{' + mean_cells[i] + '}'
+    mean_delta = float(np.mean(all_deltas)) if all_deltas else None
+    delta_cell = f'\\textbf{{{mean_delta:.3f}}}' if mean_delta is not None else '--'
+    L.append(r'\textit{Mean} & ' + ' & '.join(mean_cells) + f' & {delta_cell} \\\\')
     L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
     _tex(out_path, L)
 
 
 def write_fullmontage_ba_table(out_path):
-    L = [r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{5pt}',
-         r'\caption{Full-montage balanced accuracy at threshold 0.5 (seed-averaged per-subject mean; '
-         r'ERP-XTTN uses the fused decision). $\Delta$ = best baseline $-$ ERP-XTTN.}',
+    L = [r'% Table S2 — Full-montage balanced accuracy',
+         r'\begin{table}[t]', r'\centering', r'\small',
+         r'\setlength{\tabcolsep}{5pt}',
+         r'\caption{Balanced accuracy (mean $\pm$ SD, LOSO) at threshold 0.5, full montage. '
+         r'\textbf{Bold} marks the highest mean per dataset. '
+         r'$\Delta$ = best baseline minus ERP-XTTN. '
+         r'Rows ordered by best-method AUROC, descending. '
+         r'ERP-XTTN uses the fused decision; neural models report seed-averaged means '
+         r'across five training seeds; xDAWN+RG is deterministic.}',
          r'\label{sup:tab-fullmontage-ba}',
          r'\begin{tabular}{lcccccc}', r'\toprule',
          r'Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\', r'\midrule']
+    all_means = {n: [] for n, _ in _SUP_METHODS}
+    all_deltas = []
     for lab, d in _sup_rows():
         vf = d[3]
-        m = {name: _msd(_persubj_balacc(d[1], vf, mdl))[0] for name, mdl in _SUP_METHODS}
-        cells = [f'{m[n]:.3f}' if m[n] is not None else '--' for n, _ in _SUP_METHODS]
-        bl = [m[n] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and m[n] is not None]
-        dlt = f'{max(bl) - m["ERP-XTTN"]:+.3f}' if (bl and m['ERP-XTTN'] is not None) else '--'
-        L.append(f'{lab} & ' + ' & '.join(cells) + f' & {dlt} ' + r'\\')
+        vals = {}
+        for name, mdl in _SUP_METHODS:
+            pj = _persubj_balacc(d[1], vf, mdl)
+            m, s, n = _msd(pj)
+            vals[name] = (m, s)
+        best = max((v[0] for v in vals.values() if v[0] is not None), default=None)
+        cells = []
+        for name, _ in _SUP_METHODS:
+            m, s = vals[name]
+            if m is None:
+                cells.append('--')
+            else:
+                all_means[name].append(m)
+                cell = f'{m:.3f} $\\pm$ {s:.3f}'
+                if best is not None and abs(m - best) < 1e-4:
+                    cell = r'\textbf{' + cell + '}'
+                cells.append(cell)
+        xt_m = vals['ERP-XTTN'][0]
+        bl = [vals[n][0] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and vals[n][0] is not None]
+        if bl and xt_m is not None:
+            delta = max(bl) - xt_m
+            all_deltas.append(delta)
+            L.append(f'{lab} & ' + ' & '.join(cells) + f' & \\textit{{{delta:.3f}}} \\\\')
+        else:
+            L.append(f'{lab} & ' + ' & '.join(cells) + r' & -- \\')
+    L.append(r'\midrule')
+    mean_cells = []
+    for name, _ in _SUP_METHODS:
+        v = all_means[name]
+        m = float(np.mean(v)) if v else None
+        mean_cells.append(f'{m:.3f}' if m is not None else '--')
+    best_mean = max(float(np.mean(all_means[n])) for n, _ in _SUP_METHODS if all_means[n])
+    for i, (name, _) in enumerate(_SUP_METHODS):
+        v = all_means[name]
+        if v and abs(float(np.mean(v)) - best_mean) < 1e-4:
+            mean_cells[i] = r'\textbf{' + mean_cells[i] + '}'
+    mean_delta = float(np.mean(all_deltas)) if all_deltas else None
+    delta_cell = f'\\textbf{{{mean_delta:.3f}}}' if mean_delta is not None else '--'
+    L.append(r'\textit{Mean} & ' + ' & '.join(mean_cells) + f' & {delta_cell} \\\\')
     L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
     _tex(out_path, L)
 
 
 def write_balacc_table(out_path):
-    L = [r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{5pt}',
-         r'\caption{Balanced accuracy at threshold 0.5 (3-channel, seed-averaged per-subject mean; '
-         r'ERP-XTTN uses the fused decision). $\Delta$ = best baseline $-$ ERP-XTTN.}',
-         r'\label{sup:tab-balacc}', r'\begin{tabular}{lcccccc}', r'\toprule',
+    L = [r'% Table S5 — 3-channel balanced accuracy',
+         r'\begin{table}[t]', r'\centering', r'\small',
+         r'\setlength{\tabcolsep}{5pt}',
+         r'\caption{Balanced accuracy (mean $\pm$ SD, LOSO) at threshold 0.5, three-channel montage. '
+         r'\textbf{Bold} marks the highest mean per dataset. '
+         r'$\Delta$ = best baseline minus ERP-XTTN. '
+         r'Rows ordered by best-method AUROC, descending. '
+         r'ERP-XTTN uses the fused decision; neural models report seed-averaged means '
+         r'across five training seeds; xDAWN+RG is deterministic.}',
+         r'\label{sup:tab-balacc}',
+         r'\begin{tabular}{lcccccc}', r'\toprule',
          r'Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\', r'\midrule']
+    all_means = {n: [] for n, _ in _SUP_METHODS}
+    all_deltas = []
     for lab, d in _sup_rows():
         v3 = d[2]
-        m = {name: _msd(_persubj_balacc(d[1], v3, mdl))[0] for name, mdl in _SUP_METHODS}
-        cells = [f'{m[n]:.3f}' if m[n] is not None else '--' for n, _ in _SUP_METHODS]
-        bl = [m[n] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and m[n] is not None]
-        dlt = f'{max(bl) - m["ERP-XTTN"]:+.3f}' if (bl and m['ERP-XTTN'] is not None) else '--'
-        L.append(f'{lab} & ' + ' & '.join(cells) + f' & {dlt} ' + r'\\')
+        vals = {}
+        for name, mdl in _SUP_METHODS:
+            pj = _persubj_balacc(d[1], v3, mdl)
+            m, s, n = _msd(pj)
+            vals[name] = (m, s)
+        best = max((v[0] for v in vals.values() if v[0] is not None), default=None)
+        cells = []
+        for name, _ in _SUP_METHODS:
+            m, s = vals[name]
+            if m is None:
+                cells.append('--')
+            else:
+                all_means[name].append(m)
+                cell = f'{m:.3f} $\\pm$ {s:.3f}'
+                if best is not None and abs(m - best) < 1e-4:
+                    cell = r'\textbf{' + cell + '}'
+                cells.append(cell)
+        xt_m = vals['ERP-XTTN'][0]
+        bl = [vals[n][0] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and vals[n][0] is not None]
+        if bl and xt_m is not None:
+            delta = max(bl) - xt_m
+            all_deltas.append(delta)
+            L.append(f'{lab} & ' + ' & '.join(cells) + f' & \\textit{{{delta:.3f}}} \\\\')
+        else:
+            L.append(f'{lab} & ' + ' & '.join(cells) + r' & -- \\')
+    L.append(r'\midrule')
+    mean_cells = []
+    for name, _ in _SUP_METHODS:
+        v = all_means[name]
+        m = float(np.mean(v)) if v else None
+        mean_cells.append(f'{m:.3f}' if m is not None else '--')
+    best_mean = max(float(np.mean(all_means[n])) for n, _ in _SUP_METHODS if all_means[n])
+    for i, (name, _) in enumerate(_SUP_METHODS):
+        v = all_means[name]
+        if v and abs(float(np.mean(v)) - best_mean) < 1e-4:
+            mean_cells[i] = r'\textbf{' + mean_cells[i] + '}'
+    mean_delta = float(np.mean(all_deltas)) if all_deltas else None
+    delta_cell = f'\\textbf{{{mean_delta:.3f}}}' if mean_delta is not None else '--'
+    L.append(r'\textit{Mean} & ' + ' & '.join(mean_cells) + f' & {delta_cell} \\\\')
     L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
     _tex(out_path, L)
 
 
-# --- S5: per-subject AUROC, 3-channel — all 9 datasets in one file ---
 def write_persubject_auroc_tables(out_path):
     parts = []
-    for lab, d in _sup_rows():
+    for ti, (lab, d) in enumerate(_sup_rows()):
         v3 = d[2]
-        pm = {name: _persubj_auroc(d[1], v3, mdl) for name, mdl in _SUP_METHODS}
+        pm = {name: _persubj_auroc_msd(d[1], v3, mdl) for name, mdl in _SUP_METHODS}
         subs = sorted(set().union(*[set(x) for x in pm.values() if x])) if any(pm.values()) else []
-        P = [r'\begin{table}[t]', r'\centering', r'\scriptsize',
-             r'\caption{Per-subject LOSO AUROC (3-channel, seed-averaged), %s.}' % lab,
+        P = [f'% Table S{6 + ti} — Per-subject AUROC, {lab}',
+             r'\begin{table}[t]', r'\centering', r'\scriptsize',
+             r'\caption{Per-subject AUROC (mean $\pm$ SD across seeds, LOSO) at the three-channel '
+             r'montage, %s. \textbf{Bold} marks the highest mean per subject. '
+             r'$\Delta$ = best baseline minus ERP-XTTN. '
+             r'Neural models report means across five training seeds; '
+             r'xDAWN+RG is deterministic (SD omitted).}' % lab,
              r'\label{sup:tab-persubj-%s}' % lab.lower().replace(' ', ''),
-             r'\begin{tabular}{lccccc}', r'\toprule',
-             r'Subject & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG \\', r'\midrule']
+             r'\begin{tabular}{lcccccc}', r'\toprule',
+             r'Subject & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\', r'\midrule']
+        all_means = {n: [] for n, _ in _SUP_METHODS}
+        all_deltas = []
         for s in subs:
-            cells = [f'{pm[n][s]:.3f}' if pm[n] and s in pm[n] else '--' for n, _ in _SUP_METHODS]
-            P.append(f'{s} & ' + ' & '.join(cells) + r' \\')
+            row_vals = {}
+            for name, _ in _SUP_METHODS:
+                row_vals[name] = pm[name].get(s) if pm[name] else None
+            best = max((v[0] for v in row_vals.values() if v is not None), default=None)
+            cells = []
+            for name, _ in _SUP_METHODS:
+                v = row_vals[name]
+                if v is None:
+                    cells.append('--')
+                else:
+                    m, sd = v
+                    all_means[name].append(m)
+                    cell = f'{m:.3f} $\\pm$ {sd:.3f}' if sd > 0 else f'{m:.3f}'
+                    if best is not None and abs(m - best) < 1e-4:
+                        cell = r'\textbf{' + cell + '}'
+                    cells.append(cell)
+            xt = row_vals['ERP-XTTN']
+            bl = [row_vals[n][0] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and row_vals[n] is not None]
+            if bl and xt is not None:
+                delta = max(bl) - xt[0]
+                all_deltas.append(delta)
+                P.append(f'{s} & ' + ' & '.join(cells) + f' & \\textit{{{delta:.3f}}} \\\\')
+            else:
+                P.append(f'{s} & ' + ' & '.join(cells) + r' & -- \\')
+        P.append(r'\midrule')
+        mean_cells = []
+        for name, _ in _SUP_METHODS:
+            v = all_means[name]
+            if v:
+                m, s_val = float(np.mean(v)), float(np.std(v, ddof=1)) if len(v) > 1 else 0.0
+                mean_cells.append(f'{m:.3f} $\\pm$ {s_val:.3f}')
+            else:
+                mean_cells.append('--')
+        means = {n: float(np.mean(all_means[n])) for n, _ in _SUP_METHODS if all_means[n]}
+        if means:
+            best_mean = max(means.values())
+            for i, (name, _) in enumerate(_SUP_METHODS):
+                if name in means and abs(means[name] - best_mean) < 1e-4:
+                    mean_cells[i] = r'\textbf{' + mean_cells[i] + '}'
+        mean_delta = float(np.mean(all_deltas)) if all_deltas else None
+        delta_cell = f'\\textbf{{{mean_delta:.3f}}}' if mean_delta is not None else '--'
+        P.append(r'\textit{Mean} & ' + ' & '.join(mean_cells) + f' & {delta_cell} \\\\')
         P += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
         parts.append('\n'.join(P))
     _tex(out_path, ['% Per-subject AUROC tables, one per dataset (S6--S14).', ''] + ['\n\n'.join(parts)])
@@ -1799,7 +2004,8 @@ _ABL_DS = [('HRI', 'hri_errp_cursor'), ('ERN', 'erpcore_ern'),
 
 def write_ablation_table(out_path):
     by = {d[1]: d for d in DATASETS}
-    L = [r'\begin{table}[t]', r'\centering', r'\small', r'\setlength{\tabcolsep}{6pt}',
+    L = [r'% Table S18 — Two-factor ablation grid',
+         r'\begin{table}[t]', r'\centering', r'\small', r'\setlength{\tabcolsep}{6pt}',
          r'\caption{Two-factor ablation grid (3-channel, seed-averaged). AUROC is per-subject '
          r'mean $\pm$ SD across subjects (fusion, except routing-only / end-to-end / learned free '
          r'head, which report the forward AUROC). $\Delta$ = arm $-$ base.}',
@@ -1835,21 +2041,37 @@ _GND_COLS = [('routing_auroc', 'route'), ('ladder_intact', 'L:int'), ('ladder_po
 
 def write_grounding_table(out_path, montage):
     vi = 2 if montage == '3-channel' else 3
+    snum = 'S17' if montage == '3-channel' else 'S3'
     hdr = 'Dataset & ' + ' & '.join(h for _, h in _GND_COLS) + r' \\'
-    L = [r'% wide table — consider \usepackage{rotating} + sidewaystable, or a two-column table*.',
+    L = [f'% Table {snum} — Grounding interventions, {montage}',
          r'\begin{table}[t]', r'\centering', r'\scriptsize', r'\setlength{\tabcolsep}{3pt}',
-         r'\caption{Grounding interventions, %s montage (AUROC, seed-averaged). Template-swap ladder '
-         r'(intact/polarity/cross), permutation null, carrier scrambles, and amplitude window-'
-         r'localization for the channel and contrast matched filters.}' % montage,
+         r'\caption{Grounding interventions, %s montage (mean $\pm$ SD, LOSO, seed-averaged). '
+         r'Template-swap ladder (intact/polarity/cross), permutation null, carrier scrambles, '
+         r'and amplitude window-localization for the channel and contrast matched filters. '
+         r'Rows ordered by best-method AUROC, descending.}' % montage,
          r'\label{sup:tab-grounding-%s}' % montage.split('-')[0],
          r'\begin{tabular}{l' + 'c' * len(_GND_COLS) + '}', r'\toprule', hdr, r'\midrule']
+    col_accum = {k: [] for k, _ in _GND_COLS}
     for lab, d in _sup_rows():
-        agg, ns = _val_agg_sup(d[1], d[vi])
+        agg, agg_sd, ns = _val_agg_sup(d[1], d[vi])
         if not agg:
             L.append(f'{lab} & ' + ' & '.join(['--'] * len(_GND_COLS)) + r' \\')
             continue
-        cells = [f'{agg[k]:.2f}' if k in agg else '--' for k, _ in _GND_COLS]
+        row_vals = [(k, agg.get(k), agg_sd.get(k) if agg_sd else None) for k, _ in _GND_COLS]
+        cells = []
+        for k, m, s in row_vals:
+            if m is None:
+                cells.append('--')
+            else:
+                col_accum[k].append(m)
+                cells.append(f'{m:.2f} $\\pm$ {s:.2f}' if s is not None else f'{m:.2f}')
         L.append(f'{lab} & ' + ' & '.join(cells) + r' \\')
+    L.append(r'\midrule')
+    mean_cells = []
+    for k, _ in _GND_COLS:
+        v = col_accum[k]
+        mean_cells.append(f'{float(np.mean(v)):.2f}' if v else '--')
+    L.append(r'\textit{Mean} & ' + ' & '.join(mean_cells) + r' \\')
     L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
     _tex(out_path, L)
 
@@ -1858,17 +2080,47 @@ def write_grounding_table(out_path, montage):
 def write_epmn_native_table(out_path):
     by = {d[1]: d for d in DATASETS}
     rows = [('ERN', 'erpcore_ern'), ('P300', 'erpcore_p300'), ('N400', 'erpcore_n400')]
-    L = [r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{6pt}',
-         r'\caption{EPMN native recipe vs shared protocol (3-channel, seed-averaged per-subject AUROC), '
-         r'on the datasets for which the native EPMN implementation was available.}',
-         r'\label{sup:tab-epmn-native}', r'\begin{tabular}{llcc}', r'\toprule',
-         r'Dataset & Montage & Native AUROC & Shared-protocol AUROC \\', r'\midrule']
+    L = [r'% Table S4 — EPMN native vs shared protocol',
+         r'\begin{table}[t]', r'\centering', r'\small', r'\setlength{\tabcolsep}{6pt}',
+         r'\caption{EPMN native recipe vs shared protocol (mean $\pm$ SD, LOSO) at the '
+         r'three-channel montage, on the datasets for which the native EPMN implementation '
+         r'was available. \textbf{Bold} marks the higher mean per dataset. '
+         r'$\Delta$ = shared-protocol minus native AUROC. '
+         r'Both report seed-averaged per-subject means.}',
+         r'\label{sup:tab-epmn-native}',
+         r'\begin{tabular}{lccc}', r'\toprule',
+         r'Dataset & Native AUROC & Shared-protocol AUROC & $\Delta$ \\', r'\midrule']
+    all_nat, all_sh, all_deltas = [], [], []
     for lab, dsdir in rows:
         v3 = by[dsdir][2]
-        nat = _msd(_persubj_forward(dsdir, v3, 'epmn_native'))[0]
-        sh = _msd(_persubj_forward(dsdir, v3, 'epmn'))[0]
-        L.append(f'{lab} & 3-channel & ' + (f'{nat:.3f}' if nat is not None else '--')
-                 + ' & ' + (f'{sh:.3f}' if sh is not None else '--') + r' \\')
+        nat_m, nat_s, _ = _msd(_persubj_forward(dsdir, v3, 'epmn_native'))
+        sh_m, sh_s, _ = _msd(_persubj_forward(dsdir, v3, 'epmn'))
+        nat_cell = f'{nat_m:.3f} $\\pm$ {nat_s:.3f}' if nat_m is not None else '--'
+        sh_cell = f'{sh_m:.3f} $\\pm$ {sh_s:.3f}' if sh_m is not None else '--'
+        if nat_m is not None and sh_m is not None:
+            best = max(nat_m, sh_m)
+            if abs(nat_m - best) < 1e-4:
+                nat_cell = r'\textbf{' + nat_cell + '}'
+            if abs(sh_m - best) < 1e-4:
+                sh_cell = r'\textbf{' + sh_cell + '}'
+            delta = sh_m - nat_m
+            all_deltas.append(delta)
+            all_nat.append(nat_m)
+            all_sh.append(sh_m)
+            L.append(f'{lab} & {nat_cell} & {sh_cell} & \\textit{{{delta:+.3f}}} \\\\')
+        else:
+            L.append(f'{lab} & {nat_cell} & {sh_cell} & -- \\\\')
+    L.append(r'\midrule')
+    mn = f'{float(np.mean(all_nat)):.3f}' if all_nat else '--'
+    ms = f'{float(np.mean(all_sh)):.3f}' if all_sh else '--'
+    if all_nat and all_sh:
+        best_mean = max(float(np.mean(all_nat)), float(np.mean(all_sh)))
+        if abs(float(np.mean(all_nat)) - best_mean) < 1e-4:
+            mn = r'\textbf{' + mn + '}'
+        if abs(float(np.mean(all_sh)) - best_mean) < 1e-4:
+            ms = r'\textbf{' + ms + '}'
+    md = f'\\textbf{{{float(np.mean(all_deltas)):+.3f}}}' if all_deltas else '--'
+    L.append(f'\\textit{{Mean}} & {mn} & {ms} & {md} \\\\')
     L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
     _tex(out_path, L)
 
@@ -1876,7 +2128,8 @@ def write_epmn_native_table(out_path):
 # --- S10: TP<->FP / TP<->TN correlations ---
 def write_corr_table(out_path):
     from scipy.stats import pearsonr
-    L = [r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{6pt}',
+    L = [r'% Table S15 — TP/FP and TP/TN waveform correlations',
+         r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{6pt}',
          r'\caption{Outcome-conditioned waveform correlations at the detection channel '
          r'(3-channel, fused decision). Per-subject Pearson $r$ between mean true-positive and mean '
          r'false-positive (TP$\leftrightarrow$FP) / true-negative (TP$\leftrightarrow$TN) waveforms, '
@@ -2011,7 +2264,8 @@ def write_corr_perseed_table(out_path):
               f'TP-TN={rec["tp_tn_mean"]:+.3f}+/-{rec["tp_tn_sd"]:.3f}  '
               f'FP>TN {rec["seeds_fp_gt_tn"]}/{rec["n_seeds"]}  [{tag}]')
 
-    L = [r'\begin{table}[t]', r'\centering', r'\small',
+    L = [r'% Table S16 — Per-seed waveform correlation stability',
+         r'\begin{table}[t]', r'\centering', r'\small',
          r'\setlength{\tabcolsep}{6pt}',
          r'\caption{Per-seed stability of the outcome-conditioned waveform ordering '
          r'(3-channel, fused decision), companion to Table~\ref{sup:tab-corr}. For each '
