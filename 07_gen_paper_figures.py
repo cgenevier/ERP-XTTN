@@ -1709,7 +1709,7 @@ def _tex(out_path, lines):
 def write_fullmontage_auroc_table(out_path):
     L = [r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{5pt}',
          r'\caption{Full-montage LOSO AUROC (seed-averaged per-subject mean). '
-         r'$\Delta$ = best baseline $-$ ERP-XTTN.}', r'\label{tab:fullmontage}',
+         r'$\Delta$ = best baseline $-$ ERP-XTTN.}', r'\label{sup:tab-fullmontage-auroc}',
          r'\begin{tabular}{lcccccc}', r'\toprule',
          r'Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\', r'\midrule']
     for lab, d in _sup_rows():
@@ -1726,12 +1726,29 @@ def write_fullmontage_auroc_table(out_path):
     _tex(out_path, L)
 
 
-# --- S4: balanced accuracy, 3-channel ---
+def write_fullmontage_ba_table(out_path):
+    L = [r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{5pt}',
+         r'\caption{Full-montage balanced accuracy at threshold 0.5 (seed-averaged per-subject mean; '
+         r'ERP-XTTN uses the fused decision). $\Delta$ = best baseline $-$ ERP-XTTN.}',
+         r'\label{sup:tab-fullmontage-ba}',
+         r'\begin{tabular}{lcccccc}', r'\toprule',
+         r'Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\', r'\midrule']
+    for lab, d in _sup_rows():
+        vf = d[3]
+        m = {name: _msd(_persubj_balacc(d[1], vf, mdl))[0] for name, mdl in _SUP_METHODS}
+        cells = [f'{m[n]:.3f}' if m[n] is not None else '--' for n, _ in _SUP_METHODS]
+        bl = [m[n] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and m[n] is not None]
+        dlt = f'{max(bl) - m["ERP-XTTN"]:+.3f}' if (bl and m['ERP-XTTN'] is not None) else '--'
+        L.append(f'{lab} & ' + ' & '.join(cells) + f' & {dlt} ' + r'\\')
+    L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+    _tex(out_path, L)
+
+
 def write_balacc_table(out_path):
     L = [r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{5pt}',
          r'\caption{Balanced accuracy at threshold 0.5 (3-channel, seed-averaged per-subject mean; '
          r'ERP-XTTN uses the fused decision). $\Delta$ = best baseline $-$ ERP-XTTN.}',
-         r'\label{tab:balacc}', r'\begin{tabular}{lcccccc}', r'\toprule',
+         r'\label{sup:tab-balacc}', r'\begin{tabular}{lcccccc}', r'\toprule',
          r'Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\', r'\midrule']
     for lab, d in _sup_rows():
         v3 = d[2]
@@ -1753,7 +1770,7 @@ def write_persubject_auroc_tables(out_path):
         subs = sorted(set().union(*[set(x) for x in pm.values() if x])) if any(pm.values()) else []
         P = [r'\begin{table}[t]', r'\centering', r'\scriptsize',
              r'\caption{Per-subject LOSO AUROC (3-channel, seed-averaged), %s.}' % lab,
-             r'\label{tab:persubj-%s}' % lab.lower().replace(' ', ''),
+             r'\label{sup:tab-persubj-%s}' % lab.lower().replace(' ', ''),
              r'\begin{tabular}{lccccc}', r'\toprule',
              r'Subject & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG \\', r'\midrule']
         for s in subs:
@@ -1761,7 +1778,7 @@ def write_persubject_auroc_tables(out_path):
             P.append(f'{s} & ' + ' & '.join(cells) + r' \\')
         P += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
         parts.append('\n'.join(P))
-    _tex(out_path, ['% Per-subject AUROC tables, one per dataset (S5).', ''] + ['\n\n'.join(parts)])
+    _tex(out_path, ['% Per-subject AUROC tables, one per dataset (S6--S14).', ''] + ['\n\n'.join(parts)])
 
 
 # --- S6: ablation grid ---
@@ -1786,7 +1803,7 @@ def write_ablation_table(out_path):
          r'\caption{Two-factor ablation grid (3-channel, seed-averaged). AUROC is per-subject '
          r'mean $\pm$ SD across subjects (fusion, except routing-only / end-to-end / learned free '
          r'head, which report the forward AUROC). $\Delta$ = arm $-$ base.}',
-         r'\label{tab:ablation}', r'\begin{tabular}{llcc}', r'\toprule',
+         r'\label{sup:tab-ablation}', r'\begin{tabular}{llcc}', r'\toprule',
          r'Dataset & Ablation & AUROC (mean $\pm$ SD) & $\Delta$ vs base \\', r'\midrule']
     for di, (lab, dsdir) in enumerate(_ABL_DS):
         v3 = by[dsdir][2]
@@ -1824,7 +1841,7 @@ def write_grounding_table(out_path, montage):
          r'\caption{Grounding interventions, %s montage (AUROC, seed-averaged). Template-swap ladder '
          r'(intact/polarity/cross), permutation null, carrier scrambles, and amplitude window-'
          r'localization for the channel and contrast matched filters.}' % montage,
-         r'\label{tab:grounding-%s}' % montage.split('-')[0],
+         r'\label{sup:tab-grounding-%s}' % montage.split('-')[0],
          r'\begin{tabular}{l' + 'c' * len(_GND_COLS) + '}', r'\toprule', hdr, r'\midrule']
     for lab, d in _sup_rows():
         agg, ns = _val_agg_sup(d[1], d[vi])
@@ -1844,7 +1861,7 @@ def write_epmn_native_table(out_path):
     L = [r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{6pt}',
          r'\caption{EPMN native recipe vs shared protocol (3-channel, seed-averaged per-subject AUROC), '
          r'on the datasets for which the native EPMN implementation was available.}',
-         r'\label{tab:epmn-native}', r'\begin{tabular}{llcc}', r'\toprule',
+         r'\label{sup:tab-epmn-native}', r'\begin{tabular}{llcc}', r'\toprule',
          r'Dataset & Montage & Native AUROC & Shared-protocol AUROC \\', r'\midrule']
     for lab, dsdir in rows:
         v3 = by[dsdir][2]
@@ -1864,7 +1881,7 @@ def write_corr_table(out_path):
          r'(3-channel, fused decision). Per-subject Pearson $r$ between mean true-positive and mean '
          r'false-positive (TP$\leftrightarrow$FP) / true-negative (TP$\leftrightarrow$TN) waveforms, '
          r'reported as mean $\pm$ SD across subjects.}',
-         r'\label{tab:corr}', r'\begin{tabular}{llcc}', r'\toprule',
+         r'\label{sup:tab-corr}', r'\begin{tabular}{llcc}', r'\toprule',
          r'Dataset & Det.\ ch & TP$\leftrightarrow$FP & TP$\leftrightarrow$TN \\', r'\midrule']
 
     def _rs(A, B):
@@ -1997,7 +2014,7 @@ def write_corr_perseed_table(out_path):
     L = [r'\begin{table}[t]', r'\centering', r'\small',
          r'\setlength{\tabcolsep}{6pt}',
          r'\caption{Per-seed stability of the outcome-conditioned waveform ordering '
-         r'(3-channel, fused decision), companion to Table~\ref{tab:corr}. For each '
+         r'(3-channel, fused decision), companion to Table~\ref{sup:tab-corr}. For each '
          r'dataset and seed, TP$\leftrightarrow$FP and TP$\leftrightarrow$TN are the '
          r'cross-subject mean of the per-subject Pearson $r$ between the '
          r'detection-channel grand-mean true-positive and false-positive '
@@ -2006,7 +2023,7 @@ def write_corr_perseed_table(out_path):
          r'seeds (of five) in which TP$\leftrightarrow$FP exceeded TP$\leftrightarrow$TN, '
          r'and ``Min.\ margin\'\' is the smallest per-seed difference '
          r'(TP$\leftrightarrow$FP $-$ TP$\leftrightarrow$TN).}',
-         r'\label{tab:corr-perseed}',
+         r'\label{sup:tab-corr-perseed}',
          r'\begin{tabular}{llcccc}', r'\toprule',
          r'Dataset & Det.\ ch & TP$\leftrightarrow$FP & TP$\leftrightarrow$TN & '
          r'FP$>$TN seeds & Min.\ margin \\',
@@ -2119,9 +2136,9 @@ def write_main_auroc_table(out_path):
          r'\textbf{Bold} marks the highest mean per dataset. '
          r'$\Delta$ = best baseline minus ERP-XTTN (interpretability cost, in AUROC). '
          r'Rows ordered by best-method AUROC, descending. '
-         r'Full-montage results are in Supplementary Table~\ref{S-sup:tab-fullmontage}; '
+         r'Full-montage results are in Supplementary Table~\ref{sup:tab-fullmontage-auroc}; '
          r'per-subject AUROC values in Supplementary '
-         r'Tables~\ref{sup-tab:per-subject-ERN}--\ref{sup-tab:per-subject-N400}.}',
+         r'Tables~\ref{sup:tab-persubj-hri}--\ref{sup:tab-persubj-n400}.}',
          r'\label{tab:auroc}',
          r'\begin{tabular}{lcccccc}', r'\toprule',
          r'Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\',
@@ -2210,17 +2227,16 @@ def main():
     write_paired_table(OUT_DIR / 'table_paired.tex')
 
     print('Supplementary tables (LaTeX)...')
-    write_fullmontage_auroc_table(OUT_DIR / 'tableS3_fullmontage_auroc.tex')
-    write_balacc_table(OUT_DIR / 'tableS4_balanced_accuracy.tex')
-    write_persubject_auroc_tables(OUT_DIR / 'tableS5_persubject_auroc.tex')
-    write_ablation_table(OUT_DIR / 'tableS6_ablation.tex')
-    write_grounding_table(OUT_DIR / 'tableS7_grounding_3ch.tex', '3-channel')
-    write_grounding_table(OUT_DIR / 'tableS8_grounding_full.tex', 'full-montage')
-    write_epmn_native_table(OUT_DIR / 'tableS9_epmn_native.tex')
-    write_corr_table(OUT_DIR / 'tableS10_tpfp_tptn_corr.tex')
-
-    print('Per-seed correlation stability (Table S11)...')
-    write_corr_perseed_table(OUT_DIR / 'tableS11_perseed_corr.tex')
+    write_fullmontage_auroc_table(OUT_DIR / 'tableS1_fullmontage_auroc.tex')
+    write_fullmontage_ba_table(OUT_DIR / 'tableS2_fullmontage_ba.tex')
+    write_grounding_table(OUT_DIR / 'tableS3_grounding_full.tex', 'full-montage')
+    write_epmn_native_table(OUT_DIR / 'tableS4_epmn_native.tex')
+    write_balacc_table(OUT_DIR / 'tableS5_balanced_accuracy.tex')
+    write_persubject_auroc_tables(OUT_DIR / 'tableS6-S14_persubject_auroc.tex')
+    write_corr_table(OUT_DIR / 'tableS15_tpfp_tptn_corr.tex')
+    write_corr_perseed_table(OUT_DIR / 'tableS16_perseed_corr.tex')
+    write_grounding_table(OUT_DIR / 'tableS17_grounding_3ch.tex', '3-channel')
+    write_ablation_table(OUT_DIR / 'tableS18_ablation.tex')
 
     print('HRI Cz-only morphology...')
     hri = next(r for r in DATASETS if r[1] == 'hri_errp_cursor')
