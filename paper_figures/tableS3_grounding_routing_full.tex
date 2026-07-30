@@ -1,0 +1,26 @@
+% Table S3 — Routing grounding, full-montage
+\begin{table}[t]
+\centering
+\setlength{\tabcolsep}{5pt}
+\caption{%
+Routing grounding interventions at the full available montage (mean AUROC, LOSO, seed-averaged across five seeds). The ERP-XTTN column reports the full two-factor model AUROC (from Table~S1) as a reference. All remaining columns report the routing-factor AUROC under the indicated intervention, applied to each fold\textquotesingle s frozen trained model without retraining. Intact: unmodified prototypes (routing-only upper reference). Noise null: prototypes replaced by variance-matched Gaussian noise, establishing the baseline discriminability recoverable from routing-pattern geometry alone. Polarity-inv: prototypes negated; a grounded model should drive AUROC below the noise null, not merely toward it. Cross-comp: each prototype replaced by one from a different ERP component. Proto-perm: which detected peak is matched to which prototype is permuted. Trial-perm: which trial supplies each match value is permuted. Both permutations should collapse a grounded decision to the noise null. Rows ordered by ERP-XTTN AUROC, descending. Standard deviations are omitted for compactness; fold-level and seed-level variability are available in the released code \cite{wyman2026zenodo}. AUROC: area under the receiver operating characteristic curve; LOSO: leave-one-subject-out.%
+}
+\label{sup:tab-grounding-full-routing}
+\begin{tabular}{lcccccccc}
+\toprule
+Dataset & ERP-XTTN & Routing-only & Intact & Noise null & Polarity-inv. & Cross-comp. & Proto-perm & Trial-perm \\
+\midrule
+HRI & 0.85 & 0.78 & 0.78 & 0.51 & 0.22 & 0.24 & 0.50 & 0.52 \\
+ERN & 0.93 & 0.90 & 0.90 & 0.49 & 0.10 & 0.14 & 0.49 & 0.55 \\
+LRP & 0.85 & 0.80 & 0.80 & 0.49 & 0.20 & 0.20 & 0.51 & 0.51 \\
+BNCI & 0.78 & 0.74 & 0.74 & 0.48 & 0.26 & 0.30 & 0.49 & 0.50 \\
+N170 & 0.77 & 0.66 & 0.66 & 0.50 & 0.34 & 0.38 & 0.49 & 0.50 \\
+P300 & 0.70 & 0.66 & 0.66 & 0.49 & 0.34 & 0.37 & 0.49 & 0.50 \\
+N2pc & 0.68 & 0.65 & 0.65 & 0.49 & 0.35 & 0.43 & 0.50 & 0.50 \\
+MMN & 0.61 & 0.57 & 0.57 & 0.50 & 0.43 & 0.45 & 0.50 & 0.50 \\
+N400 & 0.72 & 0.70 & 0.70 & 0.51 & 0.30 & 0.35 & 0.48 & 0.51 \\
+\midrule
+\textit{Mean} & 0.76 & 0.72 & 0.72 & 0.50 & 0.28 & 0.32 & 0.49 & 0.51 \\
+\bottomrule
+\end{tabular}
+\end{table}
