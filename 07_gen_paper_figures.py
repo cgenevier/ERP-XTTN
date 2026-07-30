@@ -1589,7 +1589,7 @@ def write_paired_table(out_path):
           r'all 36 comparisons (9 datasets $\times$ 4 baselines). $^\dagger$ On BNCI ($n=6$) the exact test floors '
           r'at $p=0.031$ and cannot survive FDR correction regardless of effect size; BNCI is therefore reported '
           r'descriptively, as the Hodges--Lehmann point estimate with the CI omitted.}'),
-         r'\label{tab:paired}', r'\small', r'\setlength{\tabcolsep}{5pt}',
+         r'\label{tab:paired}', r'\setlength{\tabcolsep}{5pt}',
          r'\renewcommand{\arraystretch}{1.1}', r'\begin{tabular}{lcccc}', r'\toprule',
          r'Dataset & vs EEGNet & vs EEG-Deformer & vs EPMN & vs xDAWN+RG \\',
          r'        & \multicolumn{4}{c}{\footnotesize Hodges--Lehmann paired difference (95\% CI)} \\',
@@ -1739,7 +1739,7 @@ def _tex(out_path, lines):
 # --- S3: full-montage AUROC ---
 def write_fullmontage_auroc_table(out_path):
     L = [r'% Table S1 — Full-montage AUROC',
-         r'\begin{table}[t]', r'\centering', r'\small',
+         r'\begin{table}[t]', r'\centering',
          r'\setlength{\tabcolsep}{5pt}',
          r'\caption{AUROC (mean $\pm$ SD, LOSO) at the full montage. '
          r'\textbf{Bold} marks the highest mean per dataset. '
@@ -1802,7 +1802,7 @@ def write_fullmontage_auroc_table(out_path):
 
 def write_fullmontage_ba_table(out_path):
     L = [r'% Table S2 — Full-montage balanced accuracy',
-         r'\begin{table}[t]', r'\centering', r'\small',
+         r'\begin{table}[t]', r'\centering',
          r'\setlength{\tabcolsep}{5pt}',
          r'\caption{Balanced accuracy (mean $\pm$ SD, LOSO) at threshold 0.5, full montage. '
          r'\textbf{Bold} marks the highest mean per dataset. '
@@ -1862,7 +1862,7 @@ def write_fullmontage_ba_table(out_path):
 
 def write_balacc_table(out_path):
     L = [r'% Table S5 — 3-channel balanced accuracy',
-         r'\begin{table}[t]', r'\centering', r'\small',
+         r'\begin{table}[t]', r'\centering',
          r'\setlength{\tabcolsep}{5pt}',
          r'\caption{Balanced accuracy (mean $\pm$ SD, LOSO) at threshold 0.5, three-channel montage. '
          r'\textbf{Bold} marks the highest mean per dataset. '
@@ -1927,7 +1927,7 @@ def write_persubject_auroc_tables(out_path):
         pm = {name: _persubj_auroc_msd(d[1], v3, mdl) for name, mdl in _SUP_METHODS}
         subs = sorted(set().union(*[set(x) for x in pm.values() if x])) if any(pm.values()) else []
         P = [f'% Table S{6 + ti} — Per-subject AUROC, {lab}',
-             r'\begin{table}[t]', r'\centering', r'\scriptsize',
+             r'\begin{table}[t]', r'\centering',
              r'\caption{Per-subject AUROC (mean $\pm$ SD across seeds, LOSO) at the three-channel '
              r'montage, %s. \textbf{Bold} marks the highest mean per subject. '
              r'$\Delta$ = best baseline minus ERP-XTTN. '
@@ -2005,7 +2005,7 @@ _ABL_DS = [('HRI', 'hri_errp_cursor'), ('ERN', 'erpcore_ern'),
 def write_ablation_table(out_path):
     by = {d[1]: d for d in DATASETS}
     L = [r'% Table S18 — Two-factor ablation grid',
-         r'\begin{table}[t]', r'\centering', r'\small', r'\setlength{\tabcolsep}{6pt}',
+         r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{6pt}',
          r'\caption{Two-factor ablation grid (3-channel, seed-averaged). AUROC is per-subject '
          r'mean $\pm$ SD across subjects (fusion, except routing-only / end-to-end / learned free '
          r'head, which report the forward AUROC). $\Delta$ = arm $-$ base.}',
@@ -2044,7 +2044,7 @@ def write_grounding_table(out_path, montage):
     snum = 'S17' if montage == '3-channel' else 'S3'
     hdr = 'Dataset & ' + ' & '.join(h for _, h in _GND_COLS) + r' \\'
     L = [f'% Table {snum} — Grounding interventions, {montage}',
-         r'\begin{table}[t]', r'\centering', r'\scriptsize', r'\setlength{\tabcolsep}{3pt}',
+         r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{3pt}',
          r'\caption{Grounding interventions, %s montage (mean $\pm$ SD, LOSO, seed-averaged). '
          r'Template-swap ladder (intact/polarity/cross), permutation null, carrier scrambles, '
          r'and amplitude window-localization for the channel and contrast matched filters. '
@@ -2081,7 +2081,7 @@ def write_epmn_native_table(out_path):
     by = {d[1]: d for d in DATASETS}
     rows = [('ERN', 'erpcore_ern'), ('P300', 'erpcore_p300'), ('N400', 'erpcore_n400')]
     L = [r'% Table S4 — EPMN native vs shared protocol',
-         r'\begin{table}[t]', r'\centering', r'\small', r'\setlength{\tabcolsep}{6pt}',
+         r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{6pt}',
          r'\caption{EPMN native recipe vs shared protocol (mean $\pm$ SD, LOSO) at the '
          r'three-channel montage, on the datasets for which the native EPMN implementation '
          r'was available. \textbf{Bold} marks the higher mean per dataset. '
@@ -2265,7 +2265,7 @@ def write_corr_perseed_table(out_path):
               f'FP>TN {rec["seeds_fp_gt_tn"]}/{rec["n_seeds"]}  [{tag}]')
 
     L = [r'% Table S16 — Per-seed waveform correlation stability',
-         r'\begin{table}[t]', r'\centering', r'\small',
+         r'\begin{table}[t]', r'\centering',
          r'\setlength{\tabcolsep}{6pt}',
          r'\caption{Per-seed stability of the outcome-conditioned waveform ordering '
          r'(3-channel, fused decision), companion to Table~\ref{sup:tab-corr}. For each '
@@ -2384,7 +2384,7 @@ def write_dataset_table(out_path):
 
 # --- Table 2: main 3-channel AUROC comparison ---
 def write_main_auroc_table(out_path):
-    L = [r'\begin{table}[t]', r'\centering', r'\small',
+    L = [r'\begin{table}[t]', r'\centering',
          r'\setlength{\tabcolsep}{5pt}',
          r'\caption{AUROC (mean $\pm$ SD, LOSO) at the three-channel montage. '
          r'\textbf{Bold} marks the highest mean per dataset. '
