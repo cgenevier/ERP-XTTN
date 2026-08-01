@@ -1758,7 +1758,7 @@ def write_fullmontage_auroc_table(out_path):
          r'report seed-averaged means across five independent training seeds; '
          r'xDAWN+RG is deterministic (single run). Bold marks the highest mean '
          r'per dataset. $\Delta$ = best baseline minus ERP-XTTN '
-         r'(interpretability cost, in AUROC); the best baseline is selected '
+         r'(performance gap, in AUROC); the best baseline is selected '
          r'post hoc per dataset and $\Delta$ is reported descriptively. Rows '
          r'ordered by best-method AUROC, descending. Three-channel results are '
          r'in main text Table~\ref{tab:auroc}; per-subject values in Tables~\ref{sup:tab-persubj-hri}--\ref{sup:tab-persubj-n400}. '
@@ -1981,7 +1981,12 @@ def write_persubject_auroc_tables(out_path):
                 r'AUROC averaged across seeds (xDAWN+RG: single deterministic run, '
                 r'standard deviation omitted). Bold marks the highest mean per '
                 r'subject. $\Delta$ = best baseline minus ERP-XTTN. The mean row '
-                r'matches the ' + lab + r' entry of main text Table~\ref{tab:auroc}. AUROC: area under '
+                r'matches the ' + lab + r' entry of main text Table~\ref{tab:auroc}. '
+                r'$\Delta$ is computed per subject as that subject\textquotesingle s best-baseline '
+                r'AUROC minus ERP-XTTN AUROC, then averaged; because the identity of '
+                r'the best baseline varies across subjects, the mean $\Delta$ here is '
+                r'generally larger than the fixed-best-baseline $\Delta$ reported in '
+                r'Table~\ref{tab:auroc}. AUROC: area under '
                 r'the receiver operating characteristic curve; LOSO: '
                 r'leave-one-subject-out.%' '\n'
                 r'}')
@@ -1992,7 +1997,12 @@ def write_persubject_auroc_tables(out_path):
                 r'training seeds, LOSO) at the three-channel montage for '
                 + full_name + r' ($n = ' + str(n_subj) + r'$ subjects). '
                 r'Conventions as in Table~\ref{sup:tab-persubj-hri}. The mean '
-                r'row matches the ' + lab + r' entry of main text Table~\ref{tab:auroc}.%' '\n'
+                r'row matches the ' + lab + r' entry of main text Table~\ref{tab:auroc}. '
+                r'$\Delta$ is computed per subject as that subject\textquotesingle s best-baseline '
+                r'AUROC minus ERP-XTTN AUROC, then averaged; because the identity of '
+                r'the best baseline varies across subjects, the mean $\Delta$ here is '
+                r'generally larger than the fixed-best-baseline $\Delta$ reported in '
+                r'Table~\ref{tab:auroc}.%' '\n'
                 r'}')
         P = [f'% Table S{7 + ti} — Per-subject AUROC, {lab}',
              r'\begin{table}[t]', r'\centering',
@@ -2736,7 +2746,7 @@ def write_main_auroc_table(out_path):
          r'\setlength{\tabcolsep}{5pt}',
          r'\caption{AUROC (mean $\pm$ SD, LOSO) at the three-channel montage. '
          r'\textbf{Bold} marks the highest mean per dataset. '
-         r'$\Delta$ = best baseline minus ERP-XTTN (interpretability cost, in AUROC). '
+         r'$\Delta$ = best baseline minus ERP-XTTN (performance gap, in AUROC). '
          r'Rows ordered by best-method AUROC, descending. '
          r'Full-montage results are in Supplementary Table~\ref{sup:tab-fullmontage-auroc}; '
          r'per-subject AUROC values in Supplementary '
