@@ -1759,8 +1759,8 @@ def write_fullmontage_auroc_table(out_path):
          r'xDAWN+RG is deterministic (single run). Bold marks the highest mean '
          r'per dataset. $\Delta$ = best baseline minus ERP-XTTN '
          r'(performance gap, in AUROC); the best baseline is selected '
-         r'post hoc per dataset and $\Delta$ is reported descriptively. Rows '
-         r'ordered by best-method AUROC, descending. Three-channel results are '
+         r'post hoc per dataset and $\Delta$ is reported descriptively. '
+         r'Datasets ordered by mean AUROC across all five methods, descending. Three-channel results are '
          r'in main text Table~\ref{tab:auroc}; per-subject values in Tables~\ref{sup:tab-persubj-hri}--\ref{sup:tab-persubj-n400}. '
          r'AUROC: area under the receiver operating characteristic curve; '
          r'LOSO: leave-one-subject-out; EEG-Deformer: dense convolutional '
@@ -2156,7 +2156,7 @@ def write_wilcoxon_table(out_path):
          r'$^\dagger$BNCI ($n=6$): the exact signed-rank test floors at '
          r'$p = 0.031$ and cannot survive FDR correction regardless of effect '
          r'size; results are reported descriptively (CI omitted). '
-         r'Rows ordered by mean cross-method AUROC, descending. '
+         r'Datasets ordered by mean AUROC across all five methods, descending. '
          r'AUROC: area under the receiver operating characteristic curve; '
          r'LOSO: leave-one-subject-out.%',
          r'}',
@@ -2270,7 +2270,7 @@ def write_grounding_routing_table(out_path, montage, snum):
             r'Proto-perm: prototype columns of the match matrix are permuted '
             r'independently within each trial. Trial-perm: which trial supplies each match value is '
             r'permuted. Both permutations should collapse a grounded decision '
-            r'to the noise null. Rows ordered by ERP-XTTN AUROC, descending. '
+            r'to the noise null. Datasets ordered by mean AUROC across all five methods, descending. '
             r'Standard deviations are omitted for compactness; fold-level and '
             r'seed-level variability are available in the released code '
             r'\cite{wyman2026erpxttn_code}. AUROC: area under the receiver operating '
@@ -2289,8 +2289,8 @@ def write_grounding_routing_table(out_path, montage, snum):
             r'null $0.50$), and both trial-to-prototype permutations returned '
             r'routing to chance throughout. On the floor datasets (MMN, N400), '
             r'the ladder degraded only to the null, consistent with routing '
-            r'carrying minimal signal on those paradigms. Rows ordered by '
-            r'ERP-XTTN AUROC, descending. Standard deviations omitted; '
+            r'carrying minimal signal on those paradigms. Datasets ordered by '
+            r'mean AUROC across all five methods, descending. Standard deviations omitted; '
             r'available in the released code \cite{wyman2026erpxttn_code}. '
             r'Abbreviations as in Table~\ref{sup:tab-grounding-full-routing}.%',
             r'}']
@@ -2343,8 +2343,8 @@ def write_grounding_amp_table(out_path, montage, snum):
             r'collapse to the permutation reference. At the full montage, the '
             r'window-displacement controls were less informative, consistent '
             r'with reduced specificity of the best-feature diagnostic as the '
-            r'number of channel and contrast features increases. Rows ordered '
-            r'by ERP-XTTN AUROC, descending. Standard deviations omitted; '
+            r'number of channel and contrast features increases. Datasets ordered '
+            r'by mean AUROC across all five methods, descending. Standard deviations omitted; '
             r'available in the released code \cite{wyman2026erpxttn_code}. '
             r'Abbreviations as in Table~\ref{sup:tab-grounding-full-routing}.%',
             r'}']
@@ -2366,8 +2366,8 @@ def write_grounding_amp_table(out_path, montage, snum):
             r'from the component latency reduced discriminative value on all '
             r'non-floor datasets except ERN (e.g.\ HRI channel MF on-target '
             r'$0.74 \to 0.58$ off-early), and permuting trial labels returned '
-            r'the factor to near chance throughout. Rows ordered by ERP-XTTN '
-            r'AUROC, descending. Standard deviations omitted; available in the '
+            r'the factor to near chance throughout. Datasets ordered by '
+            r'mean AUROC across all five methods, descending. Standard deviations omitted; available in the '
             r'released code \cite{wyman2026erpxttn_code}. Abbreviations as in '
             r'Table~\ref{sup:tab-grounding-full-routing}.%',
             r'}']
@@ -2747,7 +2747,7 @@ def write_main_auroc_table(out_path):
          r'\caption{AUROC (mean $\pm$ SD, LOSO) at the three-channel montage. '
          r'\textbf{Bold} marks the highest mean per dataset. '
          r'$\Delta$ = best baseline minus ERP-XTTN (performance gap, in AUROC). '
-         r'Rows ordered by best-method AUROC, descending. '
+         r'Datasets ordered by mean AUROC across all five methods, descending. '
          r'Full-montage results are in Supplementary Table~\ref{sup:tab-fullmontage-auroc}; '
          r'per-subject AUROC values in Supplementary '
          r'Tables~\ref{sup:tab-persubj-hri}--\ref{sup:tab-persubj-n400}.}',
