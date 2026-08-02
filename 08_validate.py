@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""08_certify.py — faithfulness certificate battery for the two-factor ERP-XTTN.
+"""08_validate.py — faithfulness validation battery for the two-factor ERP-XTTN.
 
 Loads the FROZEN per-fold routing checkpoints emitted by 04_train.py and runs the
 §1 faithfulness interventions on them at INFERENCE TIME — no retraining. The
@@ -31,8 +31,8 @@ Fold-level variance is reported per check; run once per seed and combine across
 seeds for the seed-level variance (a checkpoint exists per seed × dataset).
 
 Usage:
-    python 08_certify.py --dataset erpcore_p300 --channels midline3 --seed 1
-    python 08_certify.py --self-test          # synthetic model+data, no fif needed
+    python 08_validate.py --dataset erpcore_p300 --channels midline3 --seed 1
+    python 08_validate.py --self-test          # synthetic model+data, no fif needed
 """
 
 import argparse
@@ -56,7 +56,7 @@ RNG_SEED = 20260722
 # ──────────────────────────────────────────────────────────────────────
 
 # load_frozen_model is defined in erpxttn.py (shared with the Stage-2 fusion) and
-# imported above; the certificate reloads each fold's frozen checkpoint with it.
+# imported above; validation reloads each fold's frozen checkpoint with it.
 
 
 @torch.no_grad()
@@ -194,7 +194,7 @@ def swap_cross_component(model):
 
 
 # ──────────────────────────────────────────────────────────────────────
-# §1a routing certificate
+# §1a routing validation
 # ──────────────────────────────────────────────────────────────────────
 
 def _concentration(value, mask):
@@ -388,7 +388,7 @@ def check_combined_sufficiency(scale, a, m, mask, legacy_mf, y, combiner=None,
     04_train.combine_two_factor (a cross-subject LOSO logistic combiner) and is
     NOT re-derivable per fold — so here:
       * `legacy_scalar_mf_proxy_auroc` is an old unweighted routing_logit + Σ MF
-        diagnostic, kept only for continuity with earlier certificates;
+        diagnostic, kept only for continuity with earlier validation runs;
       * `two_factor_auroc` is the TRUE combined logit, present only when this
         fold's fitted combiner weights (coef, intercept) are passed in.
     """
@@ -437,7 +437,7 @@ def check_combined_sufficiency(scale, a, m, mask, legacy_mf, y, combiner=None,
 # Orchestration
 # ──────────────────────────────────────────────────────────────────────
 
-def certify_fold(model, X, y, device, rng, combiner=None):
+def validate_fold(model, X, y, device, rng, combiner=None):
     """Run the full battery on one frozen fold; return a nested dict."""
     logits, a, m, mask = grounded_forward(model, X, device)
     scale = float(model.match_scale.item())
@@ -539,7 +539,7 @@ def run_real(args, device):
         if tf_path.exists():
             d = np.load(tf_path)
             combiner = (d["coef"], float(d["intercept"]))
-        fr = certify_fold(model, Xn, y, device, rng, combiner)
+        fr = validate_fold(model, Xn, y, device, rng, combiner)
         fold_results.append(fr)
         print(f"  {subj}: routing_auroc={fr['routing_auroc']:.3f} "
               f"G_c={fr['grounding']['G_c']:.3f} "
@@ -565,12 +565,12 @@ def run_self_test(device):
         model.train(); opt.zero_grad()
         logit, _ = model(Xt); crit(logit.squeeze(-1), yt).backward(); opt.step()
     model.eval()
-    fr = certify_fold(model, X, y, device, np.random.default_rng(RNG_SEED))
+    fr = validate_fold(model, X, y, device, np.random.default_rng(RNG_SEED))
     return [fr]
 
 
 def main():
-    ap = argparse.ArgumentParser(description="ERP-XTTN faithfulness certificate")
+    ap = argparse.ArgumentParser(description="ERP-XTTN faithfulness validation")
     ap.add_argument("--dataset")
     ap.add_argument("--channels")
     ap.add_argument("--seed", type=int, default=1)
@@ -588,12 +588,12 @@ def main():
         fold_results = run_real(args, device)
 
     if not fold_results:
-        print("No folds certified (no checkpoints found).")
+        print("No folds validated (no checkpoints found).")
         return
 
     summary = {"n_folds": len(fold_results), "aggregate": aggregate(fold_results),
                "folds": fold_results}
-    out = args.out or (REPO / f"certificate_{args.dataset or 'selftest'}_"
+    out = args.out or (REPO / f"validation_{args.dataset or 'selftest'}_"
                        f"{args.channels or 'x'}_seed{args.seed}.json")
     Path(out).write_text(json.dumps(summary, indent=2))
 

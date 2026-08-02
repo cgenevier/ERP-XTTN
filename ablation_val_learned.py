@@ -21,8 +21,8 @@ from sklearn.metrics import roc_auc_score
 from ablation_erpxttn import load_frozen_ablation
 
 REPO = Path(__file__).resolve().parent
-_spec = importlib.util.spec_from_file_location("cert08", REPO / "08_certify.py")
-cert = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(cert)
+_spec = importlib.util.spec_from_file_location("val08", REPO / "08_validate.py")
+val08 = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(val08)
 _tr = importlib.util.spec_from_file_location("t4", REPO / "04_train.py")
 train = importlib.util.module_from_spec(_tr); _tr.loader.exec_module(train)
 
@@ -33,7 +33,7 @@ DATASETS = {"hri_errp_cursor": "midline3", "erpcore_ern": "midline3_ern",
 @torch.no_grad()
 def _fwd_auroc(model, Xn, y, device):
     lg = model(torch.from_numpy(Xn).float().to(device))[0].squeeze(-1).cpu().numpy()
-    return cert._auroc(y, lg)
+    return val08._auroc(y, lg)
 
 
 def run(dataset, seed, device):
@@ -44,7 +44,7 @@ def run(dataset, seed, device):
     if not rd.exists() or not list(rd.glob("checkpoint_*.pt")):
         print(f"  {dataset} seed-{seed}: no learned_readout checkpoints yet, skip"); return None
     all_data, _ = train.load_all_subjects(cfg, key)
-    rng = np.random.default_rng(cert.RNG_SEED)
+    rng = np.random.default_rng(val08.RNG_SEED)
     rows = {"intact": [], "noise": [], "polarity": [], "cross_component": []}
     for s in all_data:
         ck = rd / f"checkpoint_{s}.pt"
@@ -57,9 +57,9 @@ def run(dataset, seed, device):
         if len(np.unique(y)) < 2:
             continue
         rows["intact"].append(_fwd_auroc(model, Xn, y, device))
-        rows["noise"].append(_fwd_auroc(cert.swap_same_window(model, "noise", rng), Xn, y, device))
-        rows["polarity"].append(_fwd_auroc(cert.swap_same_window(model, "polarity", rng), Xn, y, device))
-        rows["cross_component"].append(_fwd_auroc(cert.swap_cross_component(model), Xn, y, device))
+        rows["noise"].append(_fwd_auroc(val08.swap_same_window(model, "noise", rng), Xn, y, device))
+        rows["polarity"].append(_fwd_auroc(val08.swap_same_window(model, "polarity", rng), Xn, y, device))
+        rows["cross_component"].append(_fwd_auroc(val08.swap_cross_component(model), Xn, y, device))
     if not rows["intact"]:
         return None
     agg = {k: {"mean": float(np.mean(v)), "sd": float(np.std(v, ddof=1)) if len(v) > 1 else 0.0,

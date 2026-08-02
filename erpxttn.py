@@ -775,7 +775,7 @@ class ERPXTTN(nn.Module):
 
         Derived from mf_window (a restored buffer), NOT detected_windows_ms (a
         Python attr set only in set_prototypes) — so it survives a checkpoint
-        reload without re-running set_prototypes (e.g. the certificate)."""
+        reload without re-running set_prototypes (e.g. validation)."""
         idx = []
         for k in range(self.K):
             s = int(self.mf_window[k, 0]); e = int(self.mf_window[k, 1])
@@ -956,7 +956,7 @@ def _fold_features(model: "ERPXTTN", Xn: np.ndarray, device, bs: int = 256):
     The scalar matched filter MF_k is DELIBERATELY excluded: Σ_c MF_kc = MF_k
     exactly (same template norm), so including MF_k alongside MF_kc adds an exact
     linear dependency (rank-deficient design, zero marginal AUROC — verified via
-    leave-one-group-out). compute_mf() is retained for the amplitude certificate
+    leave-one-group-out). compute_mf() is retained for the amplitude validation
     and as a reported interpretability scalar, but is not a decision feature.
     All from the frozen model over normalized epochs."""
     feats = []

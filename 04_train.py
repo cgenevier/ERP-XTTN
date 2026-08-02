@@ -976,7 +976,7 @@ def run_fold(fold_idx: int, test_subj: str,
     if aux is not None:
         # Grounded routing intermediates: attention a[p,k] and match m[p,k] per
         # detected peak, the valid-peak mask, peak centres and window bounds —
-        # the substrate for the faithfulness certificate and the per-trial
+        # the substrate for the faithfulness validation and the per-trial
         # routing figures. Self-contained (bundles the test signals, prototype
         # templates and windows) so the figure code needs only this one file.
         routing_path = results_dir / f"routing_{test_subj}.npz"

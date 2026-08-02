@@ -23,7 +23,7 @@ Modes (exactly one per run, selected by `ablation_mode`):
                   linear head over the flattened attention tensor a[p,k]. The
                   grounded match m and the amplitude features do NOT enter the
                   decision → the "grounded costs ~0 AUROC but the free head fails
-                  the certificate" contrast. 04_train reports its forward AUROC
+                  the validation" contrast. 04_train reports its forward AUROC
                   and skips the Stage-2 combiner.
 
 The aux dict (a, m, mask, center, bounds) is still returned in every mode, so the
