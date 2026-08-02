@@ -3,24 +3,24 @@
 \centering
 \setlength{\tabcolsep}{5pt}
 \caption{%
-Routing grounding interventions at the full available montage (mean AUROC, LOSO, seed-averaged across five seeds). The ERP-XTTN column reports the full two-factor model AUROC (from Table~\ref{sup:tab-fullmontage-auroc}) as a reference. All remaining columns report the routing-factor AUROC under the indicated intervention, applied to each fold\textquotesingle s frozen trained model without retraining. Intact: unmodified prototypes (routing-only upper reference). Noise null: prototypes replaced by variance-matched Gaussian noise, establishing the baseline discriminability recoverable from routing-pattern geometry alone. Polarity-inv: prototypes negated; a grounded model should drive AUROC below the noise null, not merely toward it. Cross-comp: match-pathway states are cyclically shifted across prototype slots while routing keys remain fixed. Proto-perm: prototype columns of the match matrix are permuted independently within each trial. Trial-perm: which trial supplies each match value is permuted. Both permutations should collapse a grounded decision to the noise null. Datasets ordered by mean AUROC across all five methods, descending. Standard deviations are omitted for compactness; fold-level and seed-level variability are available in the released code \cite{wyman2026erpxttn_code}. AUROC: area under the receiver operating characteristic curve; LOSO: leave-one-subject-out.%
+Routing grounding interventions at the full available montage (mean AUROC, LOSO, seed-averaged across five seeds). The ERP-XTTN column reports the full two-factor model AUROC (from Table~\ref{sup:tab-fullmontage-auroc}) as a reference. All remaining columns report the routing-factor AUROC under the indicated intervention, applied to each fold\textquotesingle s frozen trained model without retraining. Routing-only: unmodified prototypes (upper reference). Time-rev: prototype waveforms time-reversed. Noise null: prototypes replaced by variance-matched Gaussian noise, establishing the baseline discriminability recoverable from routing-pattern geometry alone. Phase-rand: prototype waveforms phase-randomized (amplitude spectrum preserved, phase shuffled). Polarity-inv: prototypes negated; a grounded model should drive AUROC below the noise null, not merely toward it. Cross-comp: match-pathway states are cyclically shifted across prototype slots while routing keys remain fixed. Proto-perm: prototype columns of the match matrix are permuted independently within each trial. Trial-perm: which trial supplies each match value is permuted. Both permutations should collapse a grounded decision to the noise null. Datasets ordered by mean AUROC across all five methods, descending. Standard deviations are omitted for compactness; fold-level and seed-level variability are available in the released code \cite{wyman2026erpxttn_code}. AUROC: area under the receiver operating characteristic curve; LOSO: leave-one-subject-out.%
 }
 \label{sup:tab-grounding-full-routing}
-\begin{tabular}{lcccccccc}
+\begin{tabular}{lccccccccc}
 \toprule
-Dataset & ERP-XTTN & Routing-only & Intact & Noise null & Polarity-inv. & Cross-comp. & Proto-perm & Trial-perm \\
+Dataset & ERP-XTTN & Routing-only & Time-rev. & Noise null & Phase-rand. & Polarity-inv. & Cross-comp. & Proto-perm & Trial-perm \\
 \midrule
-HRI & 0.85 & 0.78 & 0.78 & 0.51 & 0.22 & 0.24 & 0.50 & 0.52 \\
-ERN & 0.93 & 0.90 & 0.90 & 0.49 & 0.10 & 0.14 & 0.49 & 0.55 \\
-LRP & 0.85 & 0.80 & 0.80 & 0.49 & 0.20 & 0.20 & 0.51 & 0.51 \\
-BNCI & 0.78 & 0.74 & 0.74 & 0.48 & 0.26 & 0.30 & 0.49 & 0.50 \\
-N170 & 0.77 & 0.66 & 0.66 & 0.50 & 0.34 & 0.38 & 0.49 & 0.50 \\
-P300 & 0.70 & 0.66 & 0.66 & 0.49 & 0.34 & 0.37 & 0.49 & 0.50 \\
-N2pc & 0.68 & 0.65 & 0.65 & 0.49 & 0.35 & 0.43 & 0.50 & 0.50 \\
-MMN & 0.61 & 0.57 & 0.57 & 0.50 & 0.43 & 0.45 & 0.50 & 0.50 \\
-N400 & 0.72 & 0.70 & 0.70 & 0.51 & 0.30 & 0.35 & 0.48 & 0.51 \\
+HRI & 0.85 & 0.78 & 0.75 & 0.51 & 0.53 & 0.22 & 0.24 & 0.50 & 0.52 \\
+ERN & 0.93 & 0.90 & 0.88 & 0.49 & 0.50 & 0.10 & 0.14 & 0.49 & 0.55 \\
+LRP & 0.85 & 0.80 & 0.75 & 0.49 & 0.31 & 0.20 & 0.20 & 0.51 & 0.51 \\
+BNCI & 0.78 & 0.74 & 0.72 & 0.48 & 0.55 & 0.26 & 0.30 & 0.49 & 0.50 \\
+N170 & 0.77 & 0.66 & 0.59 & 0.50 & 0.49 & 0.34 & 0.38 & 0.49 & 0.50 \\
+P300 & 0.70 & 0.66 & 0.64 & 0.49 & 0.50 & 0.34 & 0.37 & 0.49 & 0.50 \\
+N2pc & 0.68 & 0.65 & 0.63 & 0.49 & 0.46 & 0.35 & 0.43 & 0.50 & 0.50 \\
+MMN & 0.61 & 0.57 & 0.56 & 0.50 & 0.50 & 0.43 & 0.45 & 0.50 & 0.50 \\
+N400 & 0.72 & 0.70 & 0.66 & 0.51 & 0.59 & 0.30 & 0.35 & 0.48 & 0.51 \\
 \midrule
-\textit{Mean} & 0.76 & 0.72 & 0.72 & 0.50 & 0.28 & 0.32 & 0.49 & 0.51 \\
+\textit{Mean} & 0.76 & 0.72 & 0.68 & 0.50 & 0.49 & 0.28 & 0.32 & 0.49 & 0.51 \\
 \bottomrule
 \end{tabular}
 \end{table}

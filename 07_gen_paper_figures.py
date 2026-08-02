@@ -1711,6 +1711,32 @@ def _msd(d):
     return (float(np.mean(v)), float(np.std(v, ddof=1)) if len(v) > 1 else 0.0, len(v))
 
 
+def _backfill_from_folds(vj, agg):
+    """Add aggregate keys that were computed per-fold but never aggregated."""
+    _BACKFILL = {
+        'ladder_phase': 'swap_ladder.phase',
+        'ladder_reversed': 'swap_ladder.reversed',
+    }
+    folds = vj.get('folds', [])
+    if not folds:
+        return
+    for agg_key, fold_path in _BACKFILL.items():
+        if agg_key in agg:
+            continue
+        parts = fold_path.split('.')
+        vals = []
+        for f in folds:
+            v = f
+            for p in parts:
+                v = v.get(p, {}) if isinstance(v, dict) else {}
+            if isinstance(v, (int, float)):
+                vals.append(v)
+        if vals:
+            agg[agg_key] = {'mean': float(np.mean(vals)),
+                            'sd': float(np.std(vals, ddof=1)) if len(vals) > 1 else 0.0,
+                            'n_folds': len(vals)}
+
+
 def _val_agg_sup(ds_dir, var_dir):
     """Seed-averaged validation.json aggregate; (dict_mean, dict_sd, n_seeds).
     dict_mean: {key: seed-averaged mean across subjects}.
@@ -1723,9 +1749,11 @@ def _val_agg_sup(ds_dir, var_dir):
         p = base / f'seed-{s}' / 'validation.json'
         if not p.exists():
             continue
-        agg = json.load(open(p)).get('aggregate', {})
+        vj = json.load(open(p))
+        agg = vj.get('aggregate', {})
         if not agg:
             continue
+        _backfill_from_folds(vj, agg)
         ns += 1
         for k, v in agg.items():
             if isinstance(v, dict) and 'mean' in v:
@@ -2206,8 +2234,9 @@ def write_wilcoxon_table(out_path):
 _GND_ROUTING_COLS = [
     ('two_factor', 'ERP-XTTN'),
     ('routing_auroc', 'Routing-only'),
-    ('ladder_intact', 'Intact'),
+    ('ladder_reversed', 'Time-rev.'),
     ('ladder_null', 'Noise null'),
+    ('ladder_phase', 'Phase-rand.'),
     ('ladder_polarity', 'Polarity-inv.'),
     ('ladder_cross', 'Cross-comp.'),
     ('carrier_peak_proto', 'Proto-perm'),
@@ -2259,10 +2288,13 @@ def write_grounding_routing_table(out_path, montage, snum):
             r'Table~\ref{sup:tab-fullmontage-auroc}) as '
             r'a reference. All remaining columns report the routing-factor AUROC '
             r'under the indicated intervention, applied to each fold\textquotesingle s frozen '
-            r'trained model without retraining. Intact: unmodified prototypes '
-            r'(routing-only upper reference). Noise null: prototypes replaced '
+            r'trained model without retraining. Routing-only: unmodified prototypes '
+            r'(upper reference). Time-rev: prototype waveforms time-reversed. '
+            r'Noise null: prototypes replaced '
             r'by variance-matched Gaussian noise, establishing the baseline '
             r'discriminability recoverable from routing-pattern geometry alone. '
+            r'Phase-rand: prototype waveforms phase-randomized (amplitude spectrum '
+            r'preserved, phase shuffled). '
             r'Polarity-inv: prototypes negated; a grounded model should drive '
             r'AUROC below the noise null, not merely toward it. Cross-comp: '
             r'match-pathway states are cyclically shifted across prototype slots '

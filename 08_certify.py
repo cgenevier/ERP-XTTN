@@ -475,6 +475,8 @@ def aggregate(fold_results):
         "G_c_null_mean": _agg(g("grounding.G_c_null_mean")),
         "G_m": _agg(g("grounding.G_m")),
         "ladder_intact": _agg(g("swap_ladder.intact")),
+        "ladder_phase": _agg(g("swap_ladder.phase")),
+        "ladder_reversed": _agg(g("swap_ladder.reversed")),
         "ladder_polarity": _agg(g("swap_ladder.polarity")),
         "ladder_cross": _agg(g("swap_ladder.cross_component")),
         "ladder_null": _agg(g("swap_ladder.null_reference")),
@@ -598,6 +600,7 @@ def main():
     agg = summary["aggregate"]
     print("\n=== Certificate (fold-level mean) ===")
     for key in ("routing_auroc", "G_c", "G_c_null_mean", "G_m", "ladder_intact",
+                "ladder_phase", "ladder_reversed",
                 "ladder_polarity", "ladder_cross", "carrier_peak_proto",
                 "carrier_trial", "amp_on", "amp_off", "amp_baseline",
                 "amp_permute", "amp_channel_on", "amp_channel_off",
