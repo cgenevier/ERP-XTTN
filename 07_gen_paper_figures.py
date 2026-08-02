@@ -847,12 +847,7 @@ def fig_morphology_grid_supp(out_path):
     outer = fig.add_gridspec(n_rows, n_cols, hspace=0.55, wspace=0.38,
                              left=0.07, right=0.99, top=0.93, bottom=0.04)
 
-    # Local row order: ERN, HRI ErrP, BNCI ErrP, LRP, then DATASETS order —
-    # matching fig_prototypes_all_datasets so the two supp figures align.
-    row_order = ['ERN', 'HRI ErrP', 'BNCI ErrP', 'LRP',
-                 'N170', 'P300', 'N2pc', 'MMN', 'N400']
-    by_name = {row[0]: row for row in DATASETS}
-    datasets_ordered = [by_name[n] for n in row_order]
+    datasets_ordered = _difficulty_order()
 
     for idx, (ds_label, ds_dir, c3, _cf, _k3, _kf, det_idx) in enumerate(datasets_ordered):
         r, c = idx // n_cols, idx % n_cols
