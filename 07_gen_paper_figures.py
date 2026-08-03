@@ -2151,9 +2151,11 @@ def write_ablation_table(out_path):
 
 
 def _learned_head_agg(ds_dir, var_dir):
-    """Seed-averaged learned-head ladder_forward from validation_learned.json."""
+    """Seed-averaged learned-head ladder_forward from validation_learned.json.
+    Returns (dict_mean, dict_sd) or (None, None)."""
     base = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / 'ablation_erpxttn_learned_readout'
-    acc = {}
+    acc_mean = {}
+    acc_sd = {}
     ns = 0
     for s in range(1, 6):
         p = base / f'seed-{s}' / 'validation_learned.json'
@@ -2165,10 +2167,13 @@ def _learned_head_agg(ds_dir, var_dir):
         ns += 1
         for k, v in lf.items():
             if isinstance(v, dict) and 'mean' in v:
-                acc.setdefault(k, []).append(v['mean'])
-    if not acc:
-        return None
-    return {k: float(np.mean(v)) for k, v in acc.items()}
+                acc_mean.setdefault(k, []).append(v['mean'])
+                if 'sd' in v:
+                    acc_sd.setdefault(k, []).append(v['sd'])
+    if not acc_mean:
+        return None, None
+    return ({k: float(np.mean(v)) for k, v in acc_mean.items()},
+            {k: float(np.mean(v)) for k, v in acc_sd.items()})
 
 
 def write_polarity_contrast_table(out_path):
@@ -2193,15 +2198,23 @@ def write_polarity_contrast_table(out_path):
          r'Dataset & Grounded intact & Grounded polarity-inv. '
          r'& Learned head intact & Learned head polarity-inv. \\',
          r'\midrule']
+    def _msd(m, sd):
+        if m is None:
+            return '--'
+        return f'{m:.2f} $\\pm$ {sd:.2f}' if sd is not None else f'{m:.2f}'
     for lab, dsdir in _ABL_DS:
         v3 = by[dsdir][2]
-        gagg, _, _ = _val_agg_sup(dsdir, v3)
+        gagg, gagg_sd, _ = _val_agg_sup(dsdir, v3)
         gi = gagg.get('routing_auroc') if gagg else None
+        gi_sd = gagg_sd.get('routing_auroc') if gagg_sd else None
         gp = gagg.get('ladder_polarity') if gagg else None
-        lagg = _learned_head_agg(dsdir, v3)
+        gp_sd = gagg_sd.get('ladder_polarity') if gagg_sd else None
+        lagg, lagg_sd = _learned_head_agg(dsdir, v3)
         li = lagg.get('intact') if lagg else None
+        li_sd = lagg_sd.get('intact') if lagg_sd else None
         lp = lagg.get('polarity') if lagg else None
-        cells = [f'{v:.2f}' if v is not None else '--' for v in (gi, gp, li, lp)]
+        lp_sd = lagg_sd.get('polarity') if lagg_sd else None
+        cells = [_msd(gi, gi_sd), _msd(gp, gp_sd), _msd(li, li_sd), _msd(lp, lp_sd)]
         L.append(f'{lab} & ' + ' & '.join(cells) + r' \\')
     L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
     _tex(out_path, L)
