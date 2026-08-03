@@ -594,14 +594,14 @@ def _component_names(proto_det, windows_ms, sfreq):
     return names
 
 
-def _select_routing(labels, probs, mode):
+def _select_routing(labels, probs, mode, prob_label="p(err)"):
     """(left, right) trial indices + captions for a confidence/error mode."""
     err, cor = np.where(labels == 1)[0], np.where(labels == 0)[0]
 
     def cap(i):
         truth = 'Error' if labels[i] == 1 else 'Correct'
         ok = (labels[i] == 1) == (probs[i] >= 0.5)
-        return f"{truth} Trial — p(err)={probs[i]:.2f}"
+        return f"{truth} Trial — {prob_label}={probs[i]:.2f}"
 
     if mode in ('high', 'median', 'low'):
         tp = err[probs[err] >= 0.5]; tn = cor[probs[cor] < 0.5]
@@ -641,34 +641,94 @@ def _legacy_fusion_metadata(K):
     }
 
 
+def _fusion_probabilities(npz_path, n_trials):
+    """Return final Stage-2 probabilities/AUROC when the fusion dump exists."""
+    rpath = Path(npz_path)
+    subject = rpath.stem.replace("routing_", "")
+    tf_path = rpath.parent / f"two_factor_{subject}.npz"
+    if not tf_path.exists():
+        return None, None
+    try:
+        tf = np.load(tf_path, allow_pickle=True)
+        probs = np.asarray(tf["probs"], dtype=float)
+        if probs.shape != (n_trials,):
+            return None, None
+        auroc = float(tf["auroc"]) if "auroc" in tf.files else None
+        return probs, auroc
+    except Exception:
+        return None, None
+
+
+def _fusion_features_from_saved_dumps(rpath, Xn, trial_ids):
+    """Rebuild Stage-2 features without a checkpoint.
+
+    Routing logits are stored in predictions_<subject>.npz; the routing dump
+    contains the normalized test epochs and exact windowed MF templates needed
+    to reconstruct the monopolar and bipolar amplitude features.
+    """
+    subject = rpath.stem.replace("routing_", "")
+    pred_path = rpath.parent / f"predictions_{subject}.npz"
+    if not pred_path.exists():
+        return None
+
+    pred = np.load(pred_path, allow_pickle=True)
+    if "routing_logits" not in pred.files:
+        return None
+    routing_logits = np.asarray(pred["routing_logits"], dtype=float)
+
+    routing = np.load(rpath, allow_pickle=True)
+    templates = np.asarray(routing["proto_raw"], dtype=float)
+    trial_ids = np.asarray(trial_ids, dtype=int)
+    x = np.asarray(Xn[trial_ids], dtype=float)
+    B, C = x.shape[:2]
+    K = templates.shape[0]
+    pairs = [(i, j) for i in range(C) for j in range(i + 1, C)]
+    mfc = np.zeros((B, K, C), dtype=float)
+    ctr = np.zeros((B, K, len(pairs)), dtype=float)
+
+    for k, tmpl_full in enumerate(templates):
+        active = np.flatnonzero(np.any(np.abs(tmpl_full) > 0, axis=0))
+        if not len(active):
+            continue
+        s, e = int(active[0]), int(active[-1]) + 1
+        tmpl = tmpl_full[:, s:e]
+        norm = float(np.linalg.norm(tmpl))
+        if norm <= 0:
+            continue
+        seg = x[:, :, s:e]
+        mfc[:, k, :] = (seg * tmpl[None, :, :]).sum(axis=2) / norm
+        for pi, (i, j) in enumerate(pairs):
+            ctr[:, k, pi] = (
+                (seg[:, i] - seg[:, j]) * (tmpl[i] - tmpl[j])[None, :]
+            ).sum(axis=1) / norm
+
+    return np.column_stack([
+        routing_logits[trial_ids],
+        mfc.reshape(B, -1),
+        ctr.reshape(B, -1),
+    ])
+
+
 def _fusion_evidence_for_trials(npz_path, Xn, trial_ids):
     """Return per-trial fusion accounting, or None if artifacts are absent.
 
     Evidence is LR-logit contribution = feature_value * fitted coefficient. The
-    feature vector is recomputed from the held-out subject's own frozen
-    checkpoint, matching the zero-calibration Stage-2 combiner.
+    feature vector is recomputed from the held-out subject's frozen checkpoint
+    when available. Otherwise it is reconstructed exactly from the saved
+    routing, prediction, and two-factor dumps.
     """
     rpath = Path(npz_path)
     results_dir = rpath.parent
     subject = rpath.stem.replace("routing_", "")
     ckpt_path = results_dir / f"checkpoint_{subject}.pt"
     tf_path = results_dir / f"two_factor_{subject}.npz"
-    if not (ckpt_path.exists() and tf_path.exists()):
+    if not tf_path.exists():
         return None
 
     try:
-        import torch
-        from erpxttn import _fold_features, fusion_feature_metadata, load_frozen_model
-
-        device = torch.device("cpu")
-        ckpt = torch.load(str(ckpt_path), map_location=device, weights_only=False)
-        model = load_frozen_model(ckpt, device)
-        full_feats = _fold_features(model, Xn[np.asarray(trial_ids)].astype(np.float32),
-                                    device, bs=max(1, len(trial_ids)))
-
         tf = np.load(tf_path, allow_pickle=True)
         coef = np.asarray(tf["coef"], dtype=float).reshape(-1)
-        intercept = float(tf["intercept"])
+        intercept = float(np.asarray(tf["intercept"]).reshape(-1)[0])
 
         meta = None
         if "feature_metadata_json" in tf.files:
@@ -676,25 +736,45 @@ def _fusion_evidence_for_trials(npz_path, Xn, trial_ids):
                 meta = json.loads(_as_scalar_str(tf["feature_metadata_json"]))
             except Exception:
                 meta = None
-        if meta is None:
-            meta = fusion_feature_metadata(model)
+        if ckpt_path.exists():
+            import torch
+            from erpxttn import _fold_features, fusion_feature_metadata, load_frozen_model
+
+            device = torch.device("cpu")
+            ckpt = torch.load(str(ckpt_path), map_location=device, weights_only=False)
+            model = load_frozen_model(ckpt, device)
+            full_feats = _fold_features(
+                model, Xn[np.asarray(trial_ids)].astype(np.float32), device,
+                bs=max(1, len(trial_ids)))
+            if meta is None:
+                meta = fusion_feature_metadata(model)
+        else:
+            model = None
+            full_feats = _fusion_features_from_saved_dumps(rpath, Xn, trial_ids)
+
+        if full_feats is None:
+            return None
 
         if full_feats.shape[1] == coef.shape[0]:
             feats = full_feats
-            feature_names = list(meta.get("feature_names", []))
-            slices = dict(meta.get("feature_slices", {}))
+            feature_names = list((meta or {}).get("feature_names", []))
+            slices = dict((meta or {}).get("feature_slices", {}))
             combiner_features = _as_scalar_str(
                 tf["combiner_features"]) if "combiner_features" in tf.files else \
                 "routing_channel_contrast_v2"
         else:
-            xb = torch.from_numpy(
-                Xn[np.asarray(trial_ids)].astype(np.float32)).to(device)
-            legacy_mf = model.compute_mf(xb).cpu().numpy()
+            pred_path = results_dir / f"predictions_{subject}.npz"
+            if not pred_path.exists():
+                return None
+            pred = np.load(pred_path, allow_pickle=True)
+            if "mf" not in pred.files:
+                return None
+            legacy_mf = np.asarray(pred["mf"])[np.asarray(trial_ids)]
             legacy = np.column_stack([full_feats[:, 0], legacy_mf])
             if legacy.shape[1] != coef.shape[0]:
                 return None
             feats = legacy
-            meta = _legacy_fusion_metadata(model.K)
+            meta = _legacy_fusion_metadata(legacy_mf.shape[1])
             feature_names = meta["feature_names"]
             slices = meta["feature_slices"]
             combiner_features = "legacy_routing_mf"
@@ -750,8 +830,8 @@ def _plot_fusion_evidence(ax, evidence, proto_names, xlim=None):
         ("intercept", "Bias"),
         ("routing_logit", "Routing"),
         ("mf", "Scalar MF (Legacy)"),
-        ("mf_channel", "Channel MF"),
-        ("mf_contrast", "Contrast MF"),
+        ("mf_channel", "Monopolar MF"),
+        ("mf_contrast", "Bipolar MF"),
     ]
     labels, vals = [], []
     for key, label in group_specs:
@@ -762,15 +842,23 @@ def _plot_fusion_evidence(ax, evidence, proto_names, xlim=None):
     colors = ["#2e7d32" if v >= 0 else "#b23b3b" for v in vals]
     lim = xlim if xlim is not None else \
         max(0.25, max(abs(v) for v in vals) * 1.25 if vals else 1.0)
-    ax.barh(y, vals, color=colors, alpha=0.78, height=0.55)
+    bars = ax.barh(y, vals, color=colors, alpha=0.78, height=0.55)
     ax.axvline(0, color="0.45", lw=0.7)
     ax.set_yticks(y)
     ax.set_yticklabels(labels, fontsize=8.5)
     ax.set_xlim(-lim, lim)
     ax.invert_yaxis()
-    ax.set_xlabel("Logistic Regression Logit Contribution", fontsize=10)
-    ax.set_title("", fontsize=0)
+    ax.set_xlabel("Contribution to final logit (positive = error)", fontsize=10)
+    ax.set_title(
+        f"sum = {evidence['logit']:+.2f}  →  p(err) = {evidence['prob']:.2f}",
+        fontsize=10.5, fontweight="bold")
     ax.grid(axis="x", color="0.88", lw=0.6)
+    pad = lim * 0.025
+    for bar, value in zip(bars, vals):
+        ax.text(value + (pad if value >= 0 else -pad),
+                bar.get_y() + bar.get_height() / 2,
+                f"{value:+.2f}", va="center",
+                ha="left" if value >= 0 else "right", fontsize=8.5)
     for spine in ("top", "right"):
         ax.spines[spine].set_visible(False)
 
@@ -790,8 +878,8 @@ def plot_peak_routing(npz_path, out_png, dataset_label='ERP',
     z = np.load(npz_path, allow_pickle=True)
     A, M = z['a'], z['m']
     mask, center, bounds = z['mask'], z['center'], z['bounds']
-    X, labels, probs = z['X'], z['labels'], z['probs']
-    auroc = float(z['auroc']) if 'auroc' in z.files else None
+    X, labels, routing_probs = z['X'], z['labels'], z['probs']
+    routing_auroc = float(z['auroc']) if 'auroc' in z.files else None
     proto_raw, windows = z['proto_raw'], z['proto_windows_ms']
     sfreq = float(z['sfreq'])
     chans = [str(c) for c in z['channel_names']] if len(z['channel_names']) else ['ch0']
@@ -807,7 +895,12 @@ def plot_peak_routing(npz_path, out_png, dataset_label='ERP',
     contrib = A * M
     names = _component_names(proto_det, windows, sfreq)
 
-    sel = _select_routing(labels, probs, mode)
+    fusion_probs, fusion_auroc = _fusion_probabilities(npz_path, Ntr)
+    # Select examples by routing confidence because the detailed upper panels
+    # explain the routing pathway. The lower panels separately report the final
+    # fused probability, so routing and final confidence remain distinguishable.
+    sel = _select_routing(labels, routing_probs, mode,
+                          prob_label=r"$p_{\mathrm{route}}(\mathrm{err})$")
     if sel is None:
         print(f"  {subject} [{mode}]: no TP/TN pair, skipping")
         return
@@ -929,9 +1022,14 @@ def plot_peak_routing(npz_path, out_png, dataset_label='ERP',
     ds_key = dataset_label.split(' — ')[0].lower().replace(' ', '_') \
         if ' — ' in dataset_label else dataset_label.lower().replace(' ', '_')
     ds_nice = _DISPLAY_NAMES.get(ds_key, dataset_label.split(' — ')[0])
-    auroc_str = f' — {auroc:.3f} AUROC' if auroc is not None else ''
+    if fusion_auroc is not None:
+        auroc_str = f' — {fusion_auroc:.3f} fused AUROC'
+    elif routing_auroc is not None:
+        auroc_str = f' — {routing_auroc:.3f} routing AUROC'
+    else:
+        auroc_str = ''
     fig.suptitle(
-        f'{_mode_prefix} Single-Trial ERP-XTTN Peak Routing — '
+        f'{_mode_prefix} Single-Trial ERP-XTTN Decision — '
         f'{ds_nice} {subject}{auroc_str}',
         fontsize=16, fontweight='bold', y=1.025)
     fig.text(0.5, 0.995,
