@@ -1331,7 +1331,7 @@ def fig_persubject_auroc(montage, out_name):
     axes = axes.ravel()
     any_data = False
 
-    for di, row in enumerate(DATASETS):
+    for di, row in enumerate(_difficulty_order()):
         ax = axes[di]
         var_dir = row[var_pick]
         n_subj = 0
@@ -2150,6 +2150,63 @@ def write_ablation_table(out_path):
     _tex(out_path, L)
 
 
+def _learned_head_agg(ds_dir, var_dir):
+    """Seed-averaged learned-head ladder_forward from validation_learned.json."""
+    base = DATASETS_DIR / ds_dir / 'results' / 'tmin0ms_tmax800ms' / var_dir / 'ablation_erpxttn_learned_readout'
+    acc = {}
+    ns = 0
+    for s in range(1, 6):
+        p = base / f'seed-{s}' / 'validation_learned.json'
+        if not p.exists():
+            continue
+        lf = json.load(open(p)).get('ladder_forward', {})
+        if not lf:
+            continue
+        ns += 1
+        for k, v in lf.items():
+            if isinstance(v, dict) and 'mean' in v:
+                acc.setdefault(k, []).append(v['mean'])
+    if not acc:
+        return None
+    return {k: float(np.mean(v)) for k, v in acc.items()}
+
+
+def write_polarity_contrast_table(out_path):
+    by = {d[1]: d for d in DATASETS}
+    L = [r'% Table S22 — Polarity-inversion contrast: grounded vs learned readout',
+         r'\begin{table}[t]', r'\centering', r'\setlength{\tabcolsep}{6pt}',
+         r'\caption{%',
+         r'Effect of prototype polarity inversion on the grounded routing readout '
+         r'versus the unconstrained learned classification head of the original '
+         r'ERP-XTTN \cite{wyman2024}, at the three-channel montage '
+         r'(mean AUROC, LOSO, seed-averaged across five seeds). '
+         r'Both readouts operate over the identical attention tensor and identical '
+         r'frozen prototypes; only the readout differs. Inversion is applied at '
+         r'inference on the frozen model. A readout that depends on prototype content '
+         r'should reverse under inversion; one that classifies from attention-pattern '
+         r'geometry should be unaffected. Noise-null values for the grounded arm are '
+         r'in Table~\ref{sup:tab-grounding-3-routing}. '
+         r'Datasets ordered by mean AUROC across all five methods, descending.%',
+         r'}',
+         r'\label{sup:tab-polarity-contrast}',
+         r'\begin{tabular}{lcccc}', r'\toprule',
+         r'Dataset & Grounded intact & Grounded polarity-inv. '
+         r'& Learned head intact & Learned head polarity-inv. \\',
+         r'\midrule']
+    for lab, dsdir in _ABL_DS:
+        v3 = by[dsdir][2]
+        gagg, _, _ = _val_agg_sup(dsdir, v3)
+        gi = gagg.get('routing_auroc') if gagg else None
+        gp = gagg.get('ladder_polarity') if gagg else None
+        lagg = _learned_head_agg(dsdir, v3)
+        li = lagg.get('intact') if lagg else None
+        lp = lagg.get('polarity') if lagg else None
+        cells = [f'{v:.2f}' if v is not None else '--' for v in (gi, gp, li, lp)]
+        L.append(f'{lab} & ' + ' & '.join(cells) + r' \\')
+    L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
+    _tex(out_path, L)
+
+
 def write_wilcoxon_table(out_path):
     st = _paired_stats()
     labels, N = st['labels'], st['N']
@@ -2879,6 +2936,7 @@ def main():
     write_grounding_routing_table(OUT_DIR / 'tableS19_grounding_routing_3ch.tex', '3-channel', 'S19')
     write_grounding_amp_table(OUT_DIR / 'tableS20_grounding_amp_3ch.tex', '3-channel', 'S20')
     write_ablation_table(OUT_DIR / 'tableS21_ablation.tex')
+    write_polarity_contrast_table(OUT_DIR / 'tableS22_polarity_contrast.tex')
 
     print('HRI Cz-only morphology...')
     hri = next(r for r in DATASETS if r[1] == 'hri_errp_cursor')
