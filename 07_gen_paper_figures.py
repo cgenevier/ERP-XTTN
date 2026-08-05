@@ -944,16 +944,9 @@ def _proto_names_for(ds_dir, K):
     return names[:K]
 
 
-def _proto_fold_names(proto_raw, proto_windows, det_idx, sfreq, ds_dir=None):
-    """Return prototype names. Prefer dataset_config.proto_names when its
-    length matches the actual K; otherwise fall back to the auto-mode
-    polarity-derived names (P1, P2, ... / N1, N2, ...)."""
+def _proto_fold_names(proto_raw, proto_windows, det_idx, sfreq):
+    """Polarity-derived prototype names (P1, P2, ... / N1, N2, ...)."""
     K = proto_raw.shape[0]
-    if ds_dir is not None:
-        cfg = json.load(open(DATASETS_DIR / ds_dir / 'dataset_config.json'))
-        cfg_names = list(cfg.get('proto_names', []))
-        if len(cfg_names) == K:
-            return cfg_names
     pos_count = neg_count = 0
     names = []
     for k in range(K):
@@ -1117,7 +1110,14 @@ def fig_prototypes_single_dataset(ds_label, ds_dir, var_dir, det_idx,
         windows.append(tuple(np.round(np.mean(wks, axis=0), 1)))
     T = next(iter(all_protos.values())).shape[1]
     time_ms = np.arange(T) / sfreq * 1000
-    proto_names = _proto_names_for(ds_dir, K)
+    rdir_protos = sorted(rdir.glob('prototypes_*.npz'))
+    mean_proto = np.zeros((K, 3, T))
+    for f in rdir_protos:
+        d = np.load(f)
+        p = d['mf_template']
+        mean_proto[:p.shape[0]] += p
+    mean_proto /= max(len(rdir_protos), 1)
+    proto_names = _proto_fold_names(mean_proto, windows, det_idx, sfreq)
     n_subj = len(subjects)
 
     trace_alpha = 0.65
@@ -1211,11 +1211,17 @@ def fig_prototypes_all_datasets():
             windows.append(tuple(np.round(np.mean(wks, axis=0), 1)))
         T = next(iter(all_protos.values())).shape[1]
         time_ms = np.arange(T) / sfreq * 1000
+        C_full = np.load(proto_files[0])['mf_template'].shape[1]
+        mean_proto = np.zeros((K, C_full, T))
+        for f in proto_files:
+            p = np.load(f)['mf_template']
+            mean_proto[:p.shape[0]] += p
+        mean_proto /= max(len(proto_files), 1)
         per_ds.append({
             'name': name, 'subjects': subjects, 'protos': all_protos,
             'per_fold_windows': per_fold_windows, 'fold_K': fold_K,
             'K': K, 'windows': windows, 'time_ms': time_ms,
-            'proto_names': _proto_names_for(ds_dir, K),
+            'proto_names': _proto_fold_names(mean_proto, windows, det_idx, sfreq),
             'n_subj': len(subjects),
         })
 
@@ -1794,7 +1800,7 @@ def write_fullmontage_auroc_table(out_path):
          r'\label{sup:tab-fullmontage-auroc}',
          r'\begin{tabular}{lcccccc}', r'\toprule',
          r'Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\', r'\midrule']
-    all_means = {n: [] for n, _ in _SUP_METHODS}
+    all_rounded = {n: [] for n, _ in _SUP_METHODS}
     all_deltas = []
     for lab, d in _sup_rows():
         vf = d[3]
@@ -1802,7 +1808,8 @@ def write_fullmontage_auroc_table(out_path):
         for name, mdl in _SUP_METHODS:
             pj = _persubj_fusion(d[1], vf, mdl) if mdl == 'erpxttn_peak' else _persubj_forward(d[1], vf, mdl)
             m, s, n = _msd(pj)
-            vals[name] = (m, s)
+            vals[name] = (round(m, 3) if m is not None else None,
+                          round(s, 3) if s is not None else None)
         best = max((v[0] for v in vals.values() if v[0] is not None), default=None)
         cells = []
         for name, _ in _SUP_METHODS:
@@ -1810,7 +1817,7 @@ def write_fullmontage_auroc_table(out_path):
             if m is None:
                 cells.append('--')
             else:
-                all_means[name].append(m)
+                all_rounded[name].append(m)
                 cell = f'{m:.3f} $\\pm$ {s:.3f}'
                 if best is not None and abs(m - best) < 1e-4:
                     cell = r'\textbf{' + cell + '}'
@@ -1818,7 +1825,7 @@ def write_fullmontage_auroc_table(out_path):
         xt_m = vals['ERP-XTTN'][0]
         bl = [vals[n][0] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and vals[n][0] is not None]
         if bl and xt_m is not None:
-            delta = max(bl) - xt_m
+            delta = round(max(bl) - xt_m, 3)
             all_deltas.append(delta)
             L.append(f'{lab} & ' + ' & '.join(cells) + f' & \\textit{{{delta:.3f}}} \\\\')
         else:
@@ -1826,18 +1833,18 @@ def write_fullmontage_auroc_table(out_path):
     L.append(r'\midrule')
     mean_cells = []
     for name, _ in _SUP_METHODS:
-        v = all_means[name]
-        m = float(np.mean(v)) if v else None
+        v = all_rounded[name]
+        m = round(float(np.mean(v)), 3) if v else None
         if m is None:
             mean_cells.append('--')
         else:
             mean_cells.append(f'{m:.3f}')
-    best_mean = max(float(np.mean(all_means[n])) for n, _ in _SUP_METHODS if all_means[n])
+    best_mean = max(round(float(np.mean(all_rounded[n])), 3) for n, _ in _SUP_METHODS if all_rounded[n])
     for i, (name, _) in enumerate(_SUP_METHODS):
-        v = all_means[name]
-        if v and abs(float(np.mean(v)) - best_mean) < 1e-4:
+        v = all_rounded[name]
+        if v and abs(round(float(np.mean(v)), 3) - best_mean) < 1e-4:
             mean_cells[i] = r'\textbf{' + mean_cells[i] + '}'
-    mean_delta = float(np.mean(all_deltas)) if all_deltas else None
+    mean_delta = round(float(np.mean(all_deltas)), 3) if all_deltas else None
     delta_cell = f'\\textbf{{{mean_delta:.3f}}}' if mean_delta is not None else '--'
     L.append(r'\textit{Mean} & ' + ' & '.join(mean_cells) + f' & {delta_cell} \\\\')
     L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
@@ -1864,7 +1871,7 @@ def write_fullmontage_ba_table(out_path):
          r'\label{sup:tab-fullmontage-ba}',
          r'\begin{tabular}{lcccccc}', r'\toprule',
          r'Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\', r'\midrule']
-    all_means = {n: [] for n, _ in _SUP_METHODS}
+    all_rounded = {n: [] for n, _ in _SUP_METHODS}
     all_deltas = []
     for lab, d in _sup_rows():
         vf = d[3]
@@ -1872,7 +1879,8 @@ def write_fullmontage_ba_table(out_path):
         for name, mdl in _SUP_METHODS:
             pj = _persubj_balacc(d[1], vf, mdl)
             m, s, n = _msd(pj)
-            vals[name] = (m, s)
+            vals[name] = (round(m, 3) if m is not None else None,
+                          round(s, 3) if s is not None else None)
         best = max((v[0] for v in vals.values() if v[0] is not None), default=None)
         cells = []
         for name, _ in _SUP_METHODS:
@@ -1880,7 +1888,7 @@ def write_fullmontage_ba_table(out_path):
             if m is None:
                 cells.append('--')
             else:
-                all_means[name].append(m)
+                all_rounded[name].append(m)
                 cell = f'{m:.3f} $\\pm$ {s:.3f}'
                 if best is not None and abs(m - best) < 1e-4:
                     cell = r'\textbf{' + cell + '}'
@@ -1888,7 +1896,7 @@ def write_fullmontage_ba_table(out_path):
         xt_m = vals['ERP-XTTN'][0]
         bl = [vals[n][0] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and vals[n][0] is not None]
         if bl and xt_m is not None:
-            delta = max(bl) - xt_m
+            delta = round(max(bl) - xt_m, 3)
             all_deltas.append(delta)
             L.append(f'{lab} & ' + ' & '.join(cells) + f' & \\textit{{{delta:.3f}}} \\\\')
         else:
@@ -1896,15 +1904,15 @@ def write_fullmontage_ba_table(out_path):
     L.append(r'\midrule')
     mean_cells = []
     for name, _ in _SUP_METHODS:
-        v = all_means[name]
-        m = float(np.mean(v)) if v else None
+        v = all_rounded[name]
+        m = round(float(np.mean(v)), 3) if v else None
         mean_cells.append(f'{m:.3f}' if m is not None else '--')
-    best_mean = max(float(np.mean(all_means[n])) for n, _ in _SUP_METHODS if all_means[n])
+    best_mean = max(round(float(np.mean(all_rounded[n])), 3) for n, _ in _SUP_METHODS if all_rounded[n])
     for i, (name, _) in enumerate(_SUP_METHODS):
-        v = all_means[name]
-        if v and abs(float(np.mean(v)) - best_mean) < 1e-4:
+        v = all_rounded[name]
+        if v and abs(round(float(np.mean(v)), 3) - best_mean) < 1e-4:
             mean_cells[i] = r'\textbf{' + mean_cells[i] + '}'
-    mean_delta = float(np.mean(all_deltas)) if all_deltas else None
+    mean_delta = round(float(np.mean(all_deltas)), 3) if all_deltas else None
     delta_cell = f'\\textbf{{{mean_delta:.3f}}}' if mean_delta is not None else '--'
     L.append(r'\textit{Mean} & ' + ' & '.join(mean_cells) + f' & {delta_cell} \\\\')
     L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
@@ -1926,7 +1934,7 @@ def write_balacc_table(out_path):
          r'\label{sup:tab-balacc}',
          r'\begin{tabular}{lcccccc}', r'\toprule',
          r'Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\', r'\midrule']
-    all_means = {n: [] for n, _ in _SUP_METHODS}
+    all_rounded = {n: [] for n, _ in _SUP_METHODS}
     all_deltas = []
     for lab, d in _sup_rows():
         v3 = d[2]
@@ -1934,7 +1942,8 @@ def write_balacc_table(out_path):
         for name, mdl in _SUP_METHODS:
             pj = _persubj_balacc(d[1], v3, mdl)
             m, s, n = _msd(pj)
-            vals[name] = (m, s)
+            vals[name] = (round(m, 3) if m is not None else None,
+                          round(s, 3) if s is not None else None)
         best = max((v[0] for v in vals.values() if v[0] is not None), default=None)
         cells = []
         for name, _ in _SUP_METHODS:
@@ -1942,7 +1951,7 @@ def write_balacc_table(out_path):
             if m is None:
                 cells.append('--')
             else:
-                all_means[name].append(m)
+                all_rounded[name].append(m)
                 cell = f'{m:.3f} $\\pm$ {s:.3f}'
                 if best is not None and abs(m - best) < 1e-4:
                     cell = r'\textbf{' + cell + '}'
@@ -1950,7 +1959,7 @@ def write_balacc_table(out_path):
         xt_m = vals['ERP-XTTN'][0]
         bl = [vals[n][0] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and vals[n][0] is not None]
         if bl and xt_m is not None:
-            delta = max(bl) - xt_m
+            delta = round(max(bl) - xt_m, 3)
             all_deltas.append(delta)
             L.append(f'{lab} & ' + ' & '.join(cells) + f' & \\textit{{{delta:.3f}}} \\\\')
         else:
@@ -1958,15 +1967,15 @@ def write_balacc_table(out_path):
     L.append(r'\midrule')
     mean_cells = []
     for name, _ in _SUP_METHODS:
-        v = all_means[name]
-        m = float(np.mean(v)) if v else None
+        v = all_rounded[name]
+        m = round(float(np.mean(v)), 3) if v else None
         mean_cells.append(f'{m:.3f}' if m is not None else '--')
-    best_mean = max(float(np.mean(all_means[n])) for n, _ in _SUP_METHODS if all_means[n])
+    best_mean = max(round(float(np.mean(all_rounded[n])), 3) for n, _ in _SUP_METHODS if all_rounded[n])
     for i, (name, _) in enumerate(_SUP_METHODS):
-        v = all_means[name]
-        if v and abs(float(np.mean(v)) - best_mean) < 1e-4:
+        v = all_rounded[name]
+        if v and abs(round(float(np.mean(v)), 3) - best_mean) < 1e-4:
             mean_cells[i] = r'\textbf{' + mean_cells[i] + '}'
-    mean_delta = float(np.mean(all_deltas)) if all_deltas else None
+    mean_delta = round(float(np.mean(all_deltas)), 3) if all_deltas else None
     delta_cell = f'\\textbf{{{mean_delta:.3f}}}' if mean_delta is not None else '--'
     L.append(r'\textit{Mean} & ' + ' & '.join(mean_cells) + f' & {delta_cell} \\\\')
     L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
@@ -2853,7 +2862,7 @@ def write_main_auroc_table(out_path):
          r'Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\',
          r'\midrule']
     rows = _difficulty_order()
-    all_means = {n: [] for n, _ in _SUP_METHODS}
+    all_rounded = {n: [] for n, _ in _SUP_METHODS}
     all_deltas = []
     for d in rows:
         lab = d[0].replace(' ErrP', '')
@@ -2862,7 +2871,8 @@ def write_main_auroc_table(out_path):
         for name, mdl in _SUP_METHODS:
             pj = _persubj_fusion(d[1], v3, mdl) if mdl == 'erpxttn_peak' else _persubj_forward(d[1], v3, mdl)
             m, s, n = _msd(pj)
-            vals[name] = (m, s)
+            vals[name] = (round(m, 3) if m is not None else None,
+                          round(s, 3) if s is not None else None)
         best = max((v[0] for v in vals.values() if v[0] is not None), default=None)
         cells = []
         for name, _ in _SUP_METHODS:
@@ -2870,7 +2880,7 @@ def write_main_auroc_table(out_path):
             if m is None:
                 cells.append('--')
             else:
-                all_means[name].append(m)
+                all_rounded[name].append(m)
                 cell = f'{m:.3f} $\\pm$ {s:.3f}'
                 if best is not None and abs(m - best) < 1e-4:
                     cell = r'\textbf{' + cell + '}'
@@ -2878,7 +2888,7 @@ def write_main_auroc_table(out_path):
         xt_m = vals['ERP-XTTN'][0]
         bl = [vals[n][0] for n, _ in _SUP_METHODS if n != 'ERP-XTTN' and vals[n][0] is not None]
         if bl and xt_m is not None:
-            delta = max(bl) - xt_m
+            delta = round(max(bl) - xt_m, 3)
             all_deltas.append(delta)
             L.append(f'{lab} & ' + ' & '.join(cells) + f' & \\textit{{{delta:.3f}}} \\\\')
         else:
@@ -2886,18 +2896,18 @@ def write_main_auroc_table(out_path):
     L.append(r'\midrule')
     mean_cells = []
     for name, _ in _SUP_METHODS:
-        v = all_means[name]
-        m = float(np.mean(v)) if v else None
+        v = all_rounded[name]
+        m = round(float(np.mean(v)), 3) if v else None
         if m is None:
             mean_cells.append('--')
         else:
             mean_cells.append(f'{m:.3f}')
-    best_mean = max(float(np.mean(all_means[n])) for n, _ in _SUP_METHODS if all_means[n])
+    best_mean = max(round(float(np.mean(all_rounded[n])), 3) for n, _ in _SUP_METHODS if all_rounded[n])
     for i, (name, _) in enumerate(_SUP_METHODS):
-        v = all_means[name]
-        if v and abs(float(np.mean(v)) - best_mean) < 1e-4:
+        v = all_rounded[name]
+        if v and abs(round(float(np.mean(v)), 3) - best_mean) < 1e-4:
             mean_cells[i] = r'\textbf{' + mean_cells[i] + '}'
-    mean_delta = float(np.mean(all_deltas)) if all_deltas else None
+    mean_delta = round(float(np.mean(all_deltas)), 3) if all_deltas else None
     delta_cell = f'\\textbf{{{mean_delta:.3f}}}' if mean_delta is not None else '--'
     L.append(r'\textit{Mean} & ' + ' & '.join(mean_cells) + f' & {delta_cell} \\\\')
     L += [r'\bottomrule', r'\end{tabular}', r'\end{table}']
