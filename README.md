@@ -73,6 +73,7 @@ Neural models are evaluated over seeds 1–5. xDAWN+RG is deterministic and uses
 
 ## Requirements
 
+- Python 3.10+
 - CUDA-capable GPU recommended
 - The archived experiments used Python 3.11.14 and an NVIDIA RTX PRO 6000 Blackwell Server Edition on RunPod.
 
