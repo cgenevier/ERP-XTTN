@@ -3,12 +3,12 @@
 \centering
 \setlength{\tabcolsep}{6pt}
 \caption{%
-Effect of prototype polarity inversion on the grounded routing readout versus the unconstrained learned classification head of the original ERP-XTTN \cite{wyman2024}, at the three-channel montage (mean AUROC, LOSO, seed-averaged across five seeds). Both readouts operate over the identical attention tensor and identical frozen prototypes; only the readout differs. Inversion is applied at inference on the frozen model. A readout that depends on prototype content should reverse under inversion; one that classifies from attention-pattern geometry should be unaffected. Noise-null values for the grounded arm are in Table~\ref{sup:tab-grounding-3-routing}. Datasets ordered by mean AUROC across all five methods, descending.%
+Effect of prototype polarity inversion on the grounded routing readout (routing factor only) versus the unconstrained learned classification head of the original ERP-XTTN \cite{wyman2026}, at the three-channel montage (mean AUROC, LOSO, seed-averaged across five seeds). Both readouts operate over the identical attention tensor and identical frozen prototypes; only the readout differs. Inversion is applied at inference on the frozen model. Noise-null values for the grounded arm are in Table~\ref{sup:tab-grounding-3-routing}. Datasets ordered by mean AUROC across all five methods, descending. Abbreviations as in Table~\ref{sup:tab-grounding-full-routing}.%
 }
 \label{sup:tab-polarity-contrast}
 \begin{tabular}{lcccc}
 \toprule
-Dataset & Grounded intact & Grounded polarity-inv. & Learned head intact & Learned head polarity-inv. \\
+Dataset & ERP-XTTN Routing-only & Polarity-inv. & Learned Head (Intact) & Learned Head (Polarity-inv.) \\
 \midrule
 HRI & 0.81 $\pm$ 0.10 & 0.19 $\pm$ 0.10 & 0.82 $\pm$ 0.11 & 0.82 $\pm$ 0.11 \\
 ERN & 0.81 $\pm$ 0.11 & 0.19 $\pm$ 0.11 & 0.82 $\pm$ 0.12 & 0.82 $\pm$ 0.12 \\
