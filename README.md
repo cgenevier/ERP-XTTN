@@ -318,8 +318,8 @@ If you use v3.0.0, cite the software below. The article citation will be added a
   year={2026},
   publisher={Zenodo},
   version={v3.0.0},
-  doi={10.5281/zenodo.20087550},
-  url={https://doi.org/10.5281/zenodo.20087550}
+  doi={10.5281/zenodo.21810709},
+  url={https://doi.org/10.5281/zenodo.21810709}
 }
 ```
 
