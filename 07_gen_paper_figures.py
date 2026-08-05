@@ -20,15 +20,12 @@ Run with no arguments. Re-running re-uses the morphology cache if present.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from matplotlib.colors import TwoSlopeNorm
-from matplotlib.gridspec import GridSpec
 import numpy as np
 from scipy.stats import spearmanr, wilcoxon
 
@@ -432,43 +429,8 @@ def fig_tpfp_tptn():
 
 
 # ====================================================================
-# C. Routing combined figure (3-panel) per component
+# C. Peak-unit routing figures
 # ====================================================================
-
-def _patch_centers_ms(N_patches, sfreq, pw=8):
-    return (np.arange(N_patches) + 0.5) * (pw / sfreq) * 1000.0
-
-
-def _load_routing_data(ds_dir, var_dir):
-    """Return dict with: subjects, attn[subj], labels[subj], aurocs[subj],
-    fold_K[subj], windows (mean across folds), N_patches, K, sfreq."""
-    rdir = _seed_dir(ds_dir, var_dir)
-    res = json.load(open(rdir / 'results.json'))
-    subjects = [r['test_subject'] for r in res['folds']]
-    aurocs = {r['test_subject']: r['test_auroc'] for r in res['folds']}
-
-    attn, labels = {}, {}
-    fold_windows = {}
-    sfreq = None
-    for s in subjects:
-        d = np.load(rdir / f'attention_{s}.npz')
-        attn[s] = d['attention_weights']  # (trials, H, N_patches, K)
-        labels[s] = d['labels']
-        p = np.load(rdir / f'prototypes_{s}.npz')
-        fold_windows[s] = [tuple(w) for w in p['proto_windows_ms']]
-        sfreq = float(p['sfreq'])
-
-    fold_K = {s: len(fold_windows[s]) for s in subjects}
-    K = max(fold_K.values())
-    windows = []
-    for k in range(K):
-        wks = [fold_windows[s][k] for s in subjects if fold_K[s] > k]
-        windows.append(tuple(np.round(np.mean(wks, axis=0), 1)))
-
-    N_patches = attn[subjects[0]].shape[2]
-    return dict(subjects=subjects, attn=attn, labels=labels, aurocs=aurocs,
-                fold_K=fold_K, windows=windows, N_patches=N_patches, K=K,
-                sfreq=sfreq, fold_windows=fold_windows)
 
 
 def _format_class_label(key):
@@ -678,7 +640,6 @@ def fig_morphology_cz(ds_label, ds_dir, var_dir, det_idx, out_path):
     fn = d['fn']
     tn = d['tn']
     fp = d['fp']
-    subjects = list(d['subjects'])
 
     T = tp.shape[1]
     time_ms = np.arange(T) / sfreq * 1000.0

@@ -1066,7 +1066,7 @@ def main():
                         help="EPMN training recipe: 'shared' (matched protocol; default) or "
                              "'native' (Wei et al.'s own recipe; robustness variant, writes to epmn_native/).")
     parser.add_argument("--ablation-tag", default=None,
-                        help="Suffix appended to the results dir (e.g. 'qkv', 'nosa', 'k2') to "
+                        help="Suffix appended to the results dir (e.g. 'nosa', 'k2', 'h8') to "
                              "keep ablation runs separate from the main model.")
     args = parser.parse_args()
 

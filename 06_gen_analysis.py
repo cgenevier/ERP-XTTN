@@ -2,12 +2,12 @@
 """06_gen_analysis.py — cross-dataset interpretability analysis.
 
 Computes a battery of metrics per (dataset, variant) for the paper model
-`erpxttn_auto`, plus paired-LOSO interpretability tax against EEGNet and
-xDAWN+RG baselines. Output is a single JSON file consumed by the
-Analysis tab in `dashboard.html`.
+`erpxttn_peak`, plus paired-LOSO interpretability tax against EEGNet,
+xDAWN+RG, EEG-Deformer, and EPMN. Output is a single JSON file consumed by
+the Analysis tab in `dashboard.html`.
 
 Metrics per (dataset, variant):
-    - Paired interpretability tax vs EEGNet and vs xDAWN+RG
+    - Paired interpretability tax vs EEGNet, xDAWN+RG, EEG-Deformer, and EPMN
         (mean subject-paired AUROC delta, SEM, Wilcoxon p)
     - Minority class proportion
     - K statistics: mode, range, consistency (fraction at mode)
@@ -16,7 +16,7 @@ Metrics per (dataset, variant):
     - Grand-average diff-wave SNR proxy at each prototype's peak
     - Mean normalized attention entropy across subjects
     - Routing discriminability (cosine distance between class-averaged
-        attention vectors)
+        per-prototype routed-attention mass)
     - Per-subject AUROC SD
     - Latency variability (SD of peak latency of dominant component
         across per-subject difference waves)
@@ -32,7 +32,6 @@ import mne
 import numpy as np
 from scipy import stats
 from scipy.ndimage import gaussian_filter1d
-from scipy.signal import find_peaks
 
 REPO_ROOT = Path(__file__).resolve().parent
 DATASETS_DIR = REPO_ROOT / "datasets"
@@ -91,7 +90,7 @@ def model_results_dir(ds_dir, variant_dir, model):
 
 def discover_combos():
     """Return list of (dataset_dir, variant_key, variant_dir, cfg) for
-    every dataset × variant that has at least one erpxttn_auto seed result."""
+    every dataset × variant that has at least one erpxttn_peak seed result."""
     combos = []
     for dcfg in sorted(DATASETS_DIR.glob("*/dataset_config.json")):
         cfg = json.load(open(dcfg))
@@ -243,7 +242,7 @@ def wilcoxon_rank_biserial(deltas):
 
 
 def metric_tax_paired(ds_dir, var_dir):
-    """Paired-subject AUROC delta: baseline - erpxttn_auto (seed-averaged).
+    """Paired-subject AUROC delta: baseline - erpxttn_peak (seed-averaged).
 
     Per baseline: mean/median delta, SEM, Wilcoxon signed-rank p, rank-biserial
     effect size, and per-seed dataset-mean AUROC (stability). Uses subjects
@@ -629,7 +628,6 @@ def metric_tp_fp_tn_correlations(ds_dir, var_key, cfg, loaded_epochs_cache):
         preds = (probs >= 0.5).astype(int)
         Xd = Xs[:, det_idx, :]
         tp_mask = (labels == 1) & (preds == 1)
-        fn_mask = (labels == 1) & (preds == 0)
         tn_mask = (labels == 0) & (preds == 0)
         fp_mask = (labels == 0) & (preds == 1)
         if tp_mask.sum() == 0:
@@ -845,13 +843,13 @@ def main():
         "n_combos": len(results),
         "combos": results,
         "metric_descriptions": {
-            "tax": "Paired LOSO interpretability tax: per-subject (baseline_AUROC − ERPXTTN_Auto_AUROC), where each subject's AUROC is averaged over all seeds first. Positive = baseline wins. Reports mean/median delta, SEM, Wilcoxon signed-rank p (raw and BH-FDR-corrected across datasets within variant class), rank-biserial effect size, and per-seed dataset-mean AUROCs for both models (stability). Baselines: EEGNet, xDAWN+RG, EEG-Deformer, EPMN.",
+            "tax": "Paired LOSO interpretability tax: per-subject (baseline_AUROC − ERPXTTN_Peak_AUROC), where each subject's AUROC is averaged over all seeds first. Positive = baseline wins. Reports mean/median delta, SEM, Wilcoxon signed-rank p (raw and BH-FDR-corrected across datasets within variant class), rank-biserial effect size, and per-seed dataset-mean AUROCs for both models (stability). Baselines: EEGNet, xDAWN+RG, EEG-Deformer, EPMN.",
             "class_balance_minority": "Proportion of epochs belonging to the minority class, pooled across all test subjects. 0.5 = perfect balance.",
             "k_stats": "Number of prototypes (K) detected by auto peak-finder per LOSO fold. K_mode is the most common value; K_consistency is the fraction of folds at K_mode.",
             "proto_stability": "Positional prototype stability: per-prototype-slot mean pairwise Pearson r across LOSO folds at the detection channel, averaged across slots. Higher = prototypes look more alike across folds. Note: the metric treats slot-index as canonical, so it mixes shape stability with K-consistency (see K_stats for the latter alone).",
             "snr_proxy": "Grand-average difference-wave SNR at each prototype's peak latency, per fold: peak |amplitude| ÷ trial-to-trial SD across all training-pool trials at that same sample. Averaged across prototypes within a fold and across folds. Higher = stereotyped component against noisier trial-level signal.",
-            "attention_entropy": "Mean normalized attention entropy across subjects. Computed per trial over the flattened (N_patches × K) attention vector and normalized by log(N_patches × K). 0 = peaked routing (one patch×prototype dominates), 1 = diffuse.",
-            "routing_discriminability": "Mean cosine distance between class-averaged attention vectors (error vs correct) across subjects. Higher = more class-discriminative routing.",
+            "attention_entropy": "Mean normalized attention entropy across subjects. Computed per trial over the flattened (N_valid_peaks × K) routing-attention vector and normalized by log(N_valid_peaks × K). Padded peak slots are excluded. 0 = concentrated routing (one peak×prototype dominates), 1 = diffuse.",
+            "routing_discriminability": "Mean cosine distance between class-averaged per-prototype routed-attention-mass vectors (positive vs negative class) across subjects. Higher = more class-discriminative routing.",
             "auroc": "Seed-averaged LOSO test AUROC for erpxttn_peak. `mean` and `sd` are the mean and cross-subject SD of per-subject (seed-averaged) AUROC; `seed_mean`/`seed_sd` summarize the per-seed dataset-mean AUROC (n_seeds) as a seed-stability check.",
             "latency_variability": "Cross-subject SD (ms) of the peak latency of the dominant difference-wave component at the detection channel (per-subject diff wave, smoothed, argmax of |amplitude| after 50 ms). Large SD = the component moves around across subjects.",
             "tp_fp_tn_corr": "Pearson r between a subject's TP grand-mean waveform and their FP grand-mean waveform at the detection channel (and TP↔TN as contrast). Aggregated across subjects as mean ± 95% bootstrap CI. TP↔FP ≫ TP↔TN ⇒ the model's false alarms morphologically resemble its hits, which is a signature of waveform-based classification.",
