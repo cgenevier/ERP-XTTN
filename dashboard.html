@@ -301,6 +301,41 @@ tbody tr.clickable { cursor: pointer; }
   color: var(--text-secondary);
   font-size: 0.9rem;
 }
+/* ── Validation tab ── */
+.val-card {
+  background: var(--bg-panel-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.val-head { font-size: 1.02rem; margin-bottom: 8px; }
+.val-badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.val-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid; border-radius: 999px;
+  padding: 3px 10px; font-size: 0.82rem; font-weight: 500;
+  background: rgba(0,0,0,0.15);
+}
+.val-chip b { font-size: 0.9rem; }
+.val-detail { margin-top: 10px; }
+.val-detail summary {
+  cursor: pointer; color: var(--accent); font-size: 0.85rem;
+  padding: 4px 0; user-select: none;
+}
+.val-detail-body { padding-top: 10px; }
+.val-ladder {
+  display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+  margin-bottom: 12px;
+}
+.val-ladder-legend { font-size: 0.84rem; line-height: 1.5; min-width: 180px; flex: 1; }
+.val-metrics { width: 100%; border-collapse: collapse; font-size: 0.85rem; max-width: 460px; }
+.val-metrics td { padding: 3px 8px; border-bottom: 1px solid var(--border); }
+.val-metrics tr.val-grp td {
+  color: var(--accent); font-weight: 600; font-size: 0.8rem;
+  text-transform: uppercase; letter-spacing: 0.03em;
+  padding-top: 10px; border-bottom: 1px solid var(--accent);
+}
 .compare-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -374,6 +409,41 @@ tbody tr.clickable { cursor: pointer; }
   }
   .header { padding: 12px 16px; }
   .main { padding: 16px; }
+  /* Tabs never overflow the viewport — they scroll horizontally instead. */
+  .tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab-btn { flex: 0 0 auto; white-space: nowrap; }
+}
+@media (max-width: 600px) {
+  body { -webkit-text-size-adjust: 100%; }
+  /* Header stacks: title over actions, both left-aligned. */
+  .header { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 14px; }
+  .header h1 { font-size: 1.15rem; }
+  .header-actions { flex-wrap: wrap; }
+  .header-status { font-size: 0.72rem; }
+  .tabs { padding: 0 8px; }
+  .tab-btn { padding: 10px 14px; font-size: 0.82rem; }
+  .main { padding: 12px 10px; }
+  /* Stack figure pairs/grids and the side-by-side compare panels. */
+  .fig-pair, .fig-grid { grid-template-columns: 1fr; }
+  .compare-grid { grid-template-columns: 1fr; }
+  /* Full-width, tap-friendly selects. */
+  .controls-row { gap: 10px; }
+  .control-group { flex: 1 1 100%; }
+  .control-group select { min-width: 0; width: 100%; }
+  /* Tables still scroll inside .table-container; tighten cells for phone. */
+  table { font-size: 0.8rem; }
+  thead th, tbody td { padding: 7px 10px; }
+  .detail-inner { padding: 10px 12px 12px; }
+  button { padding: 7px 12px; font-size: 0.8rem; }
+  button.btn-small { padding: 4px 10px; }
+  .lightbox { padding: 10px; }
+  .lightbox img { max-width: 98vw; max-height: 88vh; }
+  .lightbox-close { top: 8px; right: 12px; }
 }
 </style>
 </head>
@@ -395,6 +465,8 @@ tbody tr.clickable { cursor: pointer; }
   <button class="tab-btn" data-tab="figures">Figures</button>
   <button class="tab-btn" data-tab="compare">Compare</button>
   <button class="tab-btn" data-tab="analysis">Analysis</button>
+  <button class="tab-btn" data-tab="ablations">Ablations</button>
+  <button class="tab-btn" data-tab="validation">Validation</button>
 </div>
 
 <div class="main">
@@ -423,6 +495,13 @@ tbody tr.clickable { cursor: pointer; }
     <div id="analysisControls" class="controls-row"></div>
     <div id="analysisContent"></div>
   </div>
+
+  <div id="panelAblations" class="tab-panel">
+    <div id="ablationsContent"></div>
+  </div>
+  <div id="panelValidation" class="tab-panel">
+    <div id="validationContent"></div>
+  </div>
 </div>
 
 <div id="lightbox" class="lightbox">
@@ -446,24 +525,18 @@ function authUrl(path) {
   return _jupyterToken ? path + sep + 'token=' + _jupyterToken : path;
 }
 
-const KNOWN_MODELS = ['xdawn_rg', 'eegnet', 'erpxttn_constrained', 'erpxttn_auto'];
+const KNOWN_MODELS = ['erpxttn_peak', 'eegnet', 'eeg_deformer', 'epmn', 'epmn_native', 'xdawn_rg'];
+// Seeds probed per model. Neural models sweep 1..5; xDAWN+RG is deterministic
+// (seed-1 only). Missing seed dirs are simply skipped.
+const SEED_CANDIDATES = [1, 2, 3, 4, 5];
+const EXPECTED_SEEDS = (m) => (m === 'xdawn_rg' ? 1 : 5);
 function modelDisplay(m) {
   if (m === 'eegnet') return 'EEGNet';
-  if (m === 'erpxttn_auto') return 'ERP-XTTN Auto';
-  const xttnAutoKMatch = m.match(/^erpxttn_auto(\d+)$/);
-  if (xttnAutoKMatch) {
-    return 'ERP-XTTN Auto K=' + xttnAutoKMatch[1];
-  }
-  if (m === 'erpxttn' || m === 'erpxttn_constrained') return 'ERP-XTTN Constrained';
+  if (m === 'eeg_deformer') return 'EEG-Deformer';
+  if (m === 'epmn') return 'EPMN';
+  if (m === 'epmn_native') return 'EPMN (native)';
+  if (m === 'erpxttn_peak') return 'ERP-XTTN';
   if (m === 'xdawn_rg') return 'xDAWN+RG';
-  const autoKMatch = m.match(/^(.+)_auto(\d+)$/);
-  if (autoKMatch) {
-    return modelDisplay(autoKMatch[1]) + ' Auto K=' + autoKMatch[2];
-  }
-  if (m.endsWith('_auto')) {
-    const base = m.replace('_auto', '');
-    return modelDisplay(base) + ' Auto';
-  }
   return m;
 }
 const MODEL_DISPLAY = Object.fromEntries(KNOWN_MODELS.map(m => [m, modelDisplay(m)]));
@@ -487,6 +560,12 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
       // Lazy-build controls once, then render
       if (!document.getElementById('analVarBtns')) renderAnalysisControls();
       renderAnalysis();
+    }
+    if (btn.dataset.tab === 'ablations') {
+      renderAblations();
+    }
+    if (btn.dataset.tab === 'validation') {
+      renderValidation();
     }
   });
 });
@@ -725,6 +804,449 @@ async function fetchJson(relPath) {
 }
 
 
+function _mean(a) { return a.reduce((x, y) => x + y, 0) / a.length; }
+// Headline AUROC for the overview table: fusion (two-factor) when the model has it
+// (ERP-XTTN), else the plain routing/test AUROC (baselines). Keeps best-model
+// selection and coloring on a like-for-like "headline number" basis.
+function headlineAuroc(r) {
+  if (!r) return null;
+  return r.mean_two_factor != null ? r.mean_two_factor : r.mean_auroc;
+}
+function _std(a) {
+  if (a.length < 2) return 0;
+  const m = _mean(a);
+  return Math.sqrt(a.reduce((s, v) => s + (v - m) * (v - m), 0) / (a.length - 1));
+}
+
+// Aggregate per-seed results.json into one results object: each subject's
+// AUROC/bal-acc is averaged over the available seeds. Adds _seedInfo for the
+// progress/status display.
+function aggregateSeeds(seedResults, expectedSeeds) {
+  const bySubj = new Map();
+  let elapsed = 0;
+  for (const { results } of seedResults) {
+    if (results.elapsed_seconds != null) elapsed += results.elapsed_seconds;
+    // Two-factor (fusion) AUROC is stored per-subject at the top level, not per fold.
+    const tfMap = results.two_factor_auroc_per_subject || {};
+    for (const f of (results.folds || [])) {
+      if (!bySubj.has(f.test_subject)) bySubj.set(f.test_subject, { a: [], b: [], tf: [] });
+      const e = bySubj.get(f.test_subject);
+      if (f.test_auroc != null) e.a.push(f.test_auroc);
+      if (f.test_bal_acc != null) e.b.push(f.test_bal_acc);
+      if (tfMap[f.test_subject] != null) e.tf.push(tfMap[f.test_subject]);
+    }
+  }
+  const folds = [];
+  for (const [subj, e] of bySubj) {
+    folds.push({
+      test_subject: subj,
+      test_auroc: e.a.length ? _mean(e.a) : null,
+      two_factor_auroc: e.tf.length ? _mean(e.tf) : null,
+      test_bal_acc: e.b.length ? _mean(e.b) : null,
+      n_seeds: e.a.length,
+    });
+  }
+  const aurocs = folds.map(f => f.test_auroc).filter(v => v != null);
+  const tfs = folds.map(f => f.two_factor_auroc).filter(v => v != null);
+  // Per-seed dataset-mean AUROC (seed stability).
+  const seedMeans = seedResults.map(sr => {
+    const a = (sr.results.folds || []).map(f => f.test_auroc).filter(v => v != null);
+    return a.length ? _mean(a) : null;
+  }).filter(v => v != null);
+  const seedsPresent = seedResults.map(s => s.seed).sort((x, y) => x - y);
+  return {
+    mean_auroc: aurocs.length ? _mean(aurocs) : null,
+    std_auroc: aurocs.length > 1 ? _std(aurocs) : 0,
+    // Seed-averaged fusion (two-factor) headline; null for models without it (baselines).
+    mean_two_factor: tfs.length ? _mean(tfs) : null,
+    std_two_factor: tfs.length > 1 ? _std(tfs) : 0,
+    folds: folds,
+    elapsed_seconds: elapsed || null,
+    _seedInfo: {
+      seedsPresent: seedsPresent,
+      nSeeds: seedsPresent.length,
+      expectedSeeds: expectedSeeds,
+      complete: seedsPresent.length >= expectedSeeds,
+      seedMean: seedMeans.length ? _mean(seedMeans) : null,
+      seedSd: seedMeans.length > 1 ? _std(seedMeans) : 0,
+      foldsPerSeed: seedResults.map(s => (s.results.folds || []).length),
+    },
+  };
+}
+
+/* ── Ablations tab ── */
+// Two-factor ablation grid — HRI first, then ERN/P300/N400.
+const ABL_DATASETS = [
+  {label: 'HRI',  dir: 'hri_errp_cursor', preset: 'midline3'},
+  {label: 'ERN',  dir: 'erpcore_ern',  preset: 'midline3_ern'},
+  {label: 'P300', dir: 'erpcore_p300', preset: 'midline3'},
+  {label: 'N400', dir: 'erpcore_n400', preset: 'midline3_n400'},
+];
+// metric: 'fusion' = mean two-factor per-subject; 'forward' = the model's own
+// forward AUROC (fold test_auroc — for e2e/learned_readout which have no Stage-2
+// fusion, and for route_only which is the routing pathway). dir = results subdir.
+const ABL_CONFIGS = [
+  {tag: null,             label: 'Base — routing + amplitude', axis: '—',      dir: 'erpxttn_peak',                     metric: 'fusion'},
+  {tag: 'route_only',     label: 'Routing only',               axis: 'Tier 1', dir: 'erpxttn_peak',                     metric: 'forward'},
+  {tag: 'amp_only',       label: 'Amplitude only',             axis: 'Tier 1', dir: 'erpxttn_peak_amp_only',            metric: 'fusion'},
+  {tag: 'e2e',            label: 'End-to-end joint head',      axis: 'Tier 1', dir: 'ablation_erpxttn_e2e',             metric: 'forward'},
+  {tag: 'nowhiten',       label: 'No whitening (raw cosine)',  axis: 'Tier 1', dir: 'ablation_erpxttn_nowhiten',        metric: 'fusion'},
+  {tag: 'nosa',           label: 'No self-attention',          axis: 'Tier 2', dir: 'erpxttn_peak_nosa',                metric: 'fusion'},
+  {tag: 'k2',             label: 'K = 2',                      axis: 'Tier 2', dir: 'erpxttn_peak_k2',                  metric: 'fusion'},
+  {tag: 'k6',             label: 'K = 6',                      axis: 'Tier 2', dir: 'erpxttn_peak_k6',                  metric: 'fusion'},
+  {tag: 'prom0.01',       label: 'Prominence 0.01',            axis: 'Tier 2', dir: 'erpxttn_peak_prom0.01',            metric: 'fusion'},
+  {tag: 'prom0.05',       label: 'Prominence 0.05',            axis: 'Tier 2', dir: 'erpxttn_peak_prom0.05',            metric: 'fusion'},
+  {tag: 'h2',             label: '2 heads',                    axis: 'Tier 2', dir: 'erpxttn_peak_h2',                  metric: 'fusion'},
+  {tag: 'h8',             label: '8 heads',                    axis: 'Tier 2', dir: 'erpxttn_peak_h8',                  metric: 'fusion'},
+  {tag: 'learned_readout',label: 'Learned free head',          axis: 'Tier 3', dir: 'ablation_erpxttn_learned_readout', metric: 'forward'},
+];
+
+async function ablAuroc(dir, variantDir, modelDir, metric) {
+  const base = 'datasets/' + dir + '/results/tmin0ms_tmax800ms/' + variantDir + '/' + modelDir;
+  const bySubj = {};
+  const seedMeans = [];
+  let nSeeds = 0;
+  // Fetch all seeds concurrently (missing seeds return null, not a hang).
+  const seedResults = await Promise.all(
+    SEED_CANDIDATES.map(seed => fetchJson(base + '/seed-' + seed + '/results.json'))
+  );
+  for (const r of seedResults) {
+    if (!r) continue;
+    const a = [];
+    if (metric === 'fusion' && r.two_factor_auroc_per_subject) {
+      // Stage-2 fusion headline (base / nowhiten / Tier-2 / amp_only).
+      for (const [subj, v] of Object.entries(r.two_factor_auroc_per_subject)) {
+        if (v != null) { (bySubj[subj] = bySubj[subj] || []).push(v); a.push(v); }
+      }
+    } else {
+      // Model's own forward AUROC (e2e / learned_readout / routing-only).
+      for (const f of (r.folds || [])) {
+        if (f.test_auroc != null) {
+          (bySubj[f.test_subject] = bySubj[f.test_subject] || []).push(f.test_auroc);
+          a.push(f.test_auroc);
+        }
+      }
+    }
+    if (a.length) { nSeeds++; seedMeans.push(_mean(a)); }
+  }
+  const perSubj = Object.values(bySubj).map(v => _mean(v));
+  return {
+    mean: perSubj.length ? _mean(perSubj) : null,
+    sd: perSubj.length > 1 ? _std(perSubj) : 0,
+    nSubjects: perSubj.length, nSeeds,
+    seedSd: seedMeans.length > 1 ? _std(seedMeans) : 0,
+  };
+}
+
+async function renderAblations() {
+  const container = document.getElementById('ablationsContent');
+  if (!allData.length) {
+    container.innerHTML = '<div class="no-fig" style="padding:32px;">Load a repo first (Overview tab).</div>';
+    return;
+  }
+  container.innerHTML = '<div class="no-fig" style="padding:24px;">Loading ablation results…</div>';
+
+  const intro = '<div style="color:var(--text-secondary);font-size:0.85rem;margin:8px 0 16px;">'
+    + 'ERP-XTTN two-factor ablations, 3-channel, 5-seed-averaged, on ERN/HRI/P300/N400. '
+    + '&Delta; = arm &minus; base per-subject AUROC (base = routing + amplitude fusion); green higher, red lower. '
+    + 'Tier 1 = the rebuild (route_only / amp_only / e2e / nowhiten); Tier 2 = retained knobs; Tier 3 = learned free head. '
+    + 'e2e, learned_readout and route_only report the model&rsquo;s own forward AUROC (no Stage-2 fusion); the rest report fusion. '
+    + 'route_only is read from the base run; amp_only is produced by ablation_amp_only.py. '
+    + 'Arms appear as results land (&mdash; = not yet run).</div>';
+
+  try {
+  let html = intro;
+  let any = false;
+  for (const ds of ABL_DATASETS) {
+    const cfg = await fetchJson('datasets/' + ds.dir + '/dataset_config.json');
+    if (!cfg || !cfg.variants || !cfg.variants[ds.preset]) continue;
+    const variantDir = cfg.variants[ds.preset];
+    const baseAuroc = await ablAuroc(ds.dir, variantDir, 'erpxttn_peak', 'fusion');
+
+    // All configs for this dataset fetched concurrently (each from its own tagged dir).
+    const rows = await Promise.all(ABL_CONFIGS.map(async c => {
+      const r = await ablAuroc(ds.dir, variantDir, c.dir, c.metric);
+      const delta = (r.mean != null && baseAuroc.mean != null) ? r.mean - baseAuroc.mean : null;
+      return {...c, ...r, delta, isBase: !c.tag};
+    }));
+    if (rows.some(r => r.nSeeds > 0)) any = true;
+
+    html += '<h3 style="margin:18px 0 8px;color:var(--accent);">' + escapeHtml(ds.label) + '</h3>';
+    html += '<div class="table-container"><table><thead><tr>'
+      + '<th>Axis</th><th>Config</th><th>AUROC (mean &plusmn; SD)</th><th>&Delta; vs base</th><th>seeds</th></tr></thead><tbody>';
+    for (const r of rows) {
+      const rowStyle = r.isBase ? ' style="font-weight:600;"' : '';
+      const aurocCell = r.mean != null
+        ? '<span class="auroc-cell" style="background:' + aurocColor(r.mean) + '">' + fmt(r.mean) + ' &plusmn; ' + fmt(r.sd) + '</span>'
+          + ' <span style="font-size:0.72rem;color:var(--text-secondary);">(' + r.nSeeds + ' seed' + (r.nSeeds === 1 ? '' : 's') + ')</span>'
+        : '<span class="cell-missing">&mdash;</span>';
+      let deltaCell;
+      if (r.isBase) {
+        deltaCell = '<span style="color:var(--text-secondary);">(base)</span>';
+      } else if (r.delta != null) {
+        const col = r.delta >= 0 ? '#4caf50' : '#e57373';
+        deltaCell = '<span style="color:' + col + ';font-variant-numeric:tabular-nums;">'
+          + (r.delta >= 0 ? '+' : '') + r.delta.toFixed(3) + '</span>';
+      } else {
+        deltaCell = '<span class="cell-missing">&mdash;</span>';
+      }
+      const seedCell = r.nSeeds > 0
+        ? (r.nSeeds + '/5' + (r.nSeeds < 5 ? ' &#9203;' : ''))
+        : '<span class="cell-missing">&mdash;</span>';
+      html += '<tr' + rowStyle + '><td style="color:var(--text-secondary);font-size:0.8rem;">' + escapeHtml(r.axis)
+        + '</td><td>' + escapeHtml(r.label) + '</td><td>' + aurocCell + '</td><td>' + deltaCell
+        + '</td><td style="font-size:0.75rem;color:var(--text-secondary);">' + seedCell + '</td></tr>';
+    }
+    html += '</tbody></table></div>';
+    container.innerHTML = html;   // progressive: paint each dataset as it completes
+  }
+
+  if (!any) {
+    html += '<div class="no-fig" style="padding:24px;">No ablation results yet. They appear here as the ablation grid completes.</div>';
+  }
+  container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '<div class="no-fig" style="padding:24px;">Ablation render error: '
+      + escapeHtml(String((e && e.message) || e)) + '</div>';
+  }
+}
+
+/* ── Validation tab ── */
+// Grounding tests (08_certify.py -> validation.json). NOT called a "certificate" in
+// the paper — this is evidence the routing decision is anchored in the ERP template.
+// Grounded model runs on all 9 datasets; the learned free-head overlay only exists
+// where the learned_readout ablation was trained (HRI / ERN / P300 / N400).
+const VAL_DATASETS = [
+  {label: 'BNCI', dir: 'bnci_errp_013-2015', preset: 'midline3'},
+  {label: 'HRI',  dir: 'hri_errp_cursor',    preset: 'midline3'},
+  {label: 'ERN',  dir: 'erpcore_ern',        preset: 'midline3_ern'},
+  {label: 'P300', dir: 'erpcore_p300',       preset: 'midline3'},
+  {label: 'N400', dir: 'erpcore_n400',       preset: 'midline3_n400'},
+  {label: 'N170', dir: 'erpcore_n170',       preset: 'occipital3_n170'},
+  {label: 'N2pc', dir: 'erpcore_n2pc',       preset: 'posterior3_n2pc'},
+  {label: 'LRP',  dir: 'erpcore_lrp',        preset: 'lateral3_lrp'},
+  {label: 'MMN',  dir: 'erpcore_mmn',        preset: 'midline3'},
+];
+
+// Fetch validation.json across seeds; return each aggregate metric's seed-averaged mean.
+async function valAgg(dir, variantDir) {
+  const base = 'datasets/' + dir + '/results/tmin0ms_tmax800ms/' + variantDir + '/erpxttn_peak';
+  const seedResults = await Promise.all(
+    SEED_CANDIDATES.map(seed => fetchJson(base + '/seed-' + seed + '/validation.json'))
+  );
+  const acc = {}, seeds = [];
+  let foldsPerSeed = [];
+  for (let i = 0; i < seedResults.length; i++) {
+    const r = seedResults[i];
+    if (!r || !r.aggregate) continue;
+    seeds.push(SEED_CANDIDATES[i]);
+    foldsPerSeed.push(r.n_folds || null);
+    for (const [k, v] of Object.entries(r.aggregate)) {
+      if (v && typeof v === 'object' && typeof v.mean === 'number') {
+        (acc[k] = acc[k] || []).push(v.mean);
+      }
+    }
+  }
+  if (!seeds.length) return null;
+  const agg = {};
+  for (const [k, arr] of Object.entries(acc)) agg[k] = _mean(arr);
+  return {agg, nSeeds: seeds.length, seedsPresent: seeds, foldsPerSeed};
+}
+
+// Learned free-head forward ladder (validation_learned.json), seed-averaged. null if absent.
+async function valLearned(dir, variantDir) {
+  const base = 'datasets/' + dir + '/results/tmin0ms_tmax800ms/' + variantDir
+    + '/ablation_erpxttn_learned_readout';
+  const seedResults = await Promise.all(
+    SEED_CANDIDATES.map(seed => fetchJson(base + '/seed-' + seed + '/validation_learned.json'))
+  );
+  const acc = {}, seeds = [];
+  for (let i = 0; i < seedResults.length; i++) {
+    const r = seedResults[i];
+    if (!r || !r.ladder_forward) continue;
+    seeds.push(SEED_CANDIDATES[i]);
+    for (const [k, v] of Object.entries(r.ladder_forward)) {
+      if (v && typeof v.mean === 'number') (acc[k] = acc[k] || []).push(v.mean);
+    }
+  }
+  if (!seeds.length) return null;
+  return {
+    intact: acc.intact ? _mean(acc.intact) : null,
+    polarity: acc.polarity ? _mean(acc.polarity) : null,
+    cross: acc.cross_component ? _mean(acc.cross_component) : null,
+    noise: acc.noise ? _mean(acc.noise) : null,
+    nSeeds: seeds.length,
+  };
+}
+
+// Grounding pass/warn/fail logic. A dataset whose routing barely clears chance is a
+// "floor" case: the collapse tests can't demonstrate anything on signal that isn't
+// there, so those badges become ⚠ (informative-null), not ✗.
+function valChecks(a) {
+  const routing = a.routing_auroc;
+  const floor = routing == null || routing < 0.58;   // near-chance decoding
+  function grade(v, passAt, warnAt, higherBetter) {
+    // higherBetter: PASS when v >= passAt. else (lower better): PASS when v <= passAt.
+    if (higherBetter) return v >= passAt ? 'pass' : (v >= warnAt ? 'warn' : 'fail');
+    return v <= passAt ? 'pass' : (v <= warnAt ? 'warn' : 'fail');
+  }
+  const checks = {};
+  // 1. Routing decodes above chance.
+  checks.routing = routing == null ? 'na' : (routing >= 0.62 ? 'pass' : (routing >= 0.55 ? 'warn' : 'fail'));
+  // 2. Template load-bearing: polarity swap collapses AUROC (ideally below chance).
+  const collapse = (a.ladder_intact != null && a.ladder_polarity != null)
+    ? a.ladder_intact - a.ladder_polarity : null;
+  checks.ladder = floor ? 'warn' : (collapse == null ? 'na' : grade(collapse, 0.15, 0.05, true));
+  // 3. Carrier scramble -> chance (waveform shape, not spectral artifact).
+  const carrierDev = Math.max(Math.abs((a.carrier_peak_proto ?? 0.5) - 0.5),
+                              Math.abs((a.carrier_trial ?? 0.5) - 0.5));
+  checks.carrier = grade(carrierDev, 0.05, 0.10, false);
+  // 4. Amplitude localizes in time: on-window beats early-baseline window.
+  const ampGain = (a.amp_channel_on != null && a.amp_channel_baseline != null)
+    ? a.amp_channel_on - a.amp_channel_baseline : null;
+  checks.amploc = floor ? 'warn' : (ampGain == null ? 'na' : grade(ampGain, 0.08, 0.03, true));
+  // 5. Amplitude channel-specific: permuting channel assignment returns to chance.
+  const permDev = a.amp_channel_permute != null ? a.amp_channel_permute - 0.5 : null;
+  checks.ampspec = floor ? 'warn' : (permDev == null ? 'na' : grade(permDev, 0.05, 0.10, false));
+  return {checks, floor};
+}
+
+function valChip(label, state) {
+  const C = {pass: '#66bb6a', warn: '#ffb74d', fail: '#ef5350', na: '#5a6a80'};
+  const I = {pass: '✓', warn: '⚠', fail: '✗', na: '·'};
+  const c = C[state] || C.na;
+  return '<span class="val-chip" style="border-color:' + c + ';color:' + c + ';">'
+    + '<b>' + I[state] + '</b> ' + label + '</span>';
+}
+
+// Compact ladder mini-chart: intact -> polarity -> cross, chance line at 0.5.
+// Grounded (solid) should dive below chance; learned free head (dashed) stays flat.
+function ladderSvg(g, l) {
+  const W = 240, H = 96, padL = 30, padR = 8, padT = 8, padB = 18;
+  const x = i => padL + i * ((W - padL - padR) / 2);
+  const y = v => padT + (1 - v) * (H - padT - padB);
+  const rungs = ['intact', 'polarity', 'cross'];
+  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:280px;">';
+  // axis + chance line
+  s += '<line x1="' + padL + '" y1="' + y(0.5) + '" x2="' + (W - padR) + '" y2="' + y(0.5)
+    + '" stroke="#5a6a80" stroke-dasharray="3 3" stroke-width="1"/>';
+  s += '<text x="2" y="' + (y(0.5) + 3) + '" fill="#5a6a80" font-size="8">.5</text>';
+  s += '<text x="2" y="' + (y(1.0) + 6) + '" fill="#5a6a80" font-size="8">1</text>';
+  s += '<text x="2" y="' + y(0.0) + '" fill="#5a6a80" font-size="8">0</text>';
+  function poly(vals, color, dash) {
+    const pts = vals.map((v, i) => v == null ? null : x(i) + ',' + y(v)).filter(Boolean);
+    if (pts.length < 1) return '';
+    let o = '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + color
+      + '" stroke-width="1.6"' + (dash ? ' stroke-dasharray="4 3"' : '') + '/>';
+    vals.forEach((v, i) => { if (v != null) o += '<circle cx="' + x(i) + '" cy="' + y(v) + '" r="2.4" fill="' + color + '"/>'; });
+    return o;
+  }
+  s += poly(rungs.map(r => g[r]), '#4fc3f7', false);      // grounded
+  if (l) s += poly([l.intact, l.polarity, l.cross], '#ffb74d', true);  // learned free head
+  ['intact', 'swap', 'cross'].forEach((lab, i) =>
+    s += '<text x="' + x(i) + '" y="' + (H - 5) + '" fill="#a0a0b0" font-size="8" text-anchor="middle">' + lab + '</text>');
+  s += '</svg>';
+  return s;
+}
+
+const VAL_METRIC_GROUPS = [
+  {title: 'Routing readout', keys: [['routing_auroc', 'routing AUROC'], ['two_factor', 'two-factor fusion']]},
+  {title: 'Template swap ladder', keys: [['ladder_intact', 'intact'], ['ladder_polarity', 'polarity swap'],
+    ['ladder_cross', 'cross-component'], ['ladder_null', 'permutation null']]},
+  {title: 'Carrier scramble (→ chance)', keys: [['carrier_peak_proto', 'prototype carrier'], ['carrier_trial', 'trial carrier']]},
+  {title: 'Amplitude — channel', keys: [['amp_channel_on', 'on-window'], ['amp_channel_off', 'off-window'],
+    ['amp_channel_baseline', 'early baseline'], ['amp_channel_permute', 'channel-permute']]},
+  {title: 'Amplitude — contrast', keys: [['amp_contrast_on', 'on-window'], ['amp_contrast_off', 'off-window'],
+    ['amp_contrast_baseline', 'early baseline'], ['amp_contrast_permute', 'permute']]},
+  {title: 'Amplitude — scalar (legacy)', keys: [['amp_on', 'on-window'], ['amp_off', 'off-window'],
+    ['amp_baseline', 'early baseline'], ['amp_permute', 'permute'], ['legacy_scalar_mf_proxy', 'scalar MF proxy']]},
+  {title: 'Gradient sanity', keys: [['G_m', 'match ∂ (fixed≈0)'], ['G_c', 'attn ∂'], ['G_c_null_mean', 'attn ∂ null']]},
+];
+
+async function renderValidation() {
+  const container = document.getElementById('validationContent');
+  if (!allData.length) {
+    container.innerHTML = '<div class="no-fig" style="padding:32px;">Load a repo first (Overview tab).</div>';
+    return;
+  }
+  container.innerHTML = '<div class="no-fig" style="padding:24px;">Loading grounding results…</div>';
+
+  const intro = '<div style="color:var(--text-secondary);font-size:0.85rem;margin:8px 0 14px;line-height:1.5;">'
+    + 'Grounding evidence that the routing decision is anchored in the ERP template — 5-seed-averaged, 3-channel. '
+    + 'Each dataset passes five checks: <b>routing</b> decodes above chance; the <b>ladder</b> collapses when the '
+    + 'template polarity is swapped (evidence the fixed match <i>m</i> is load-bearing); the <b>carrier</b> scramble '
+    + 'returns to chance (shape, not spectral power); amplitude <b>localizes</b> to the on-window and is channel-'
+    + '<b>specific</b> (permute → chance). <span style="color:#66bb6a;">✓ pass</span> · '
+    + '<span style="color:#ffb74d;">⚠ near-chance floor / partial</span> · <span style="color:#ef5350;">✗ fail</span>. '
+    + 'Floor datasets (routing ≈ chance) can\'t demonstrate a collapse, so their collapse badges read ⚠. '
+    + 'Expand a card for the swap ladder (grounded <span style="color:#4fc3f7;">solid</span> vs learned free-head '
+    + '<span style="color:#ffb74d;">dashed</span>, where run) and all metrics.</div>';
+
+  try {
+    let html = intro;
+    let any = false;
+    for (const ds of VAL_DATASETS) {
+      const cfg = await fetchJson('datasets/' + ds.dir + '/dataset_config.json');
+      if (!cfg || !cfg.variants || !cfg.variants[ds.preset]) continue;
+      const variantDir = cfg.variants[ds.preset];
+      const [v, learned] = await Promise.all([valAgg(ds.dir, variantDir), valLearned(ds.dir, variantDir)]);
+      if (!v) {
+        html += '<div class="val-card"><div class="val-head"><b>' + ds.label
+          + '</b> <span style="color:var(--text-secondary);">— no grounding run yet</span></div></div>';
+        continue;
+      }
+      any = true;
+      const a = v.agg;
+      const {checks, floor} = valChecks(a);
+      const routingTxt = a.routing_auroc != null ? a.routing_auroc.toFixed(3) : '—';
+      const floorTag = floor ? ' <span style="color:#ffb74d;font-size:0.8rem;">floor (routing≈chance)</span>' : '';
+      let head = '<div class="val-head"><b>' + ds.label + '</b> '
+        + '<span style="color:var(--text-secondary);font-size:0.85rem;">routing AUROC '
+        + '<span style="color:' + aurocColor(a.routing_auroc) + ';font-weight:600;">' + routingTxt + '</span>'
+        + ' · fusion ' + (a.two_factor != null ? a.two_factor.toFixed(3) : '—')
+        + ' · ' + v.nSeeds + ' seed' + (v.nSeeds === 1 ? '' : 's') + '</span>' + floorTag + '</div>';
+      let chips = '<div class="val-badges">'
+        + valChip('Routing', checks.routing) + valChip('Ladder', checks.ladder)
+        + valChip('Carrier', checks.carrier) + valChip('Amp loc', checks.amploc)
+        + valChip('Amp spec', checks.ampspec) + '</div>';
+
+      // Layer 2 + 3 in an expandable.
+      const ladderG = {intact: a.ladder_intact, polarity: a.ladder_polarity, cross: a.ladder_cross};
+      let detail = '<details class="val-detail"><summary>swap ladder &amp; all metrics</summary>'
+        + '<div class="val-detail-body">';
+      detail += '<div class="val-ladder"><div>' + ladderSvg(ladderG, learned) + '</div>'
+        + '<div class="val-ladder-legend"><div><span style="color:#4fc3f7;">━</span> grounded readout (Σ a·m)</div>'
+        + (learned ? '<div><span style="color:#ffb74d;">╌</span> learned free head (' + learned.nSeeds + ' seed'
+            + (learned.nSeeds === 1 ? '' : 's') + ')</div>'
+            + '<div style="color:var(--text-secondary);font-size:0.78rem;margin-top:4px;">The free head ignores <i>m</i>, '
+            + 'so its ladder stays flat under template swaps — the grounded line collapses below chance.</div>'
+          : '<div style="color:var(--text-secondary);font-size:0.78rem;">learned free head not run on this dataset</div>')
+        + '</div></div>';
+      // Full metric table.
+      detail += '<table class="val-metrics">';
+      for (const grp of VAL_METRIC_GROUPS) {
+        detail += '<tr class="val-grp"><td colspan="2">' + grp.title + '</td></tr>';
+        for (const [k, lbl] of grp.keys) {
+          if (a[k] == null) continue;
+          detail += '<tr><td>' + lbl + '</td><td style="text-align:right;color:'
+            + aurocColor(a[k]) + ';font-variant-numeric:tabular-nums;">' + a[k].toFixed(3) + '</td></tr>';
+        }
+      }
+      detail += '</table></div></details>';
+
+      html += '<div class="val-card">' + head + chips + detail + '</div>';
+    }
+    if (!any) {
+      html += '<div class="no-fig" style="padding:24px;">No grounding results yet. '
+        + 'They appear here as 08_certify.py writes validation.json per seed.</div>';
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '<div class="no-fig" style="padding:24px;">Validation render error: '
+      + escapeHtml(String((e && e.message) || e)) + '</div>';
+  }
+}
+
 async function scanDatasets() {
   if (IS_FILE_PROTOCOL && !localFiles) {
     renderLocalPrompt();
@@ -779,14 +1301,24 @@ async function scanDatasets() {
     const variantProbes = Object.entries(variants).map(async ([variantKey, variantDirName]) => {
       const variantPath = 'datasets/' + dirName + '/results/tmin0ms_tmax800ms/' + variantDirName;
 
-      // Probe all 4 models for results.json in parallel
+      // Probe each model across seed-<N>/ dirs and aggregate.
       const ERPXTTN_FAMILY = KNOWN_MODELS.filter(m => m.startsWith('erpxttn'));
       const modelProbes = await Promise.all(KNOWN_MODELS.map(async modelName => {
-        const modelPath = variantPath + '/' + modelName;
-        const results = await fetchJson(modelPath + '/results.json');
-        if (!results) return null;
+        const modelDir = variantPath + '/' + modelName;
+        // Probe candidate seeds in parallel.
+        const seedResults = (await Promise.all(SEED_CANDIDATES.map(async seed => {
+          const seedPath = modelDir + '/seed-' + seed;
+          const r = await fetchJson(seedPath + '/results.json');
+          return r ? { seed, results: r, path: seedPath } : null;
+        }))).filter(Boolean);
+        if (seedResults.length === 0) return null;
 
-        const modelData = { results: results, figures: {}, basePath: modelPath };
+        // Seed-averaged results object (compatible with the renderers).
+        const results = aggregateSeeds(seedResults, EXPECTED_SEEDS(modelName));
+        // Figures (if generated) live under the lowest present seed dir.
+        const modelPath = seedResults[0].path;
+        const modelData = { results: results, figures: {}, basePath: modelPath,
+                            seedInfo: results._seedInfo };
 
         const subjects = config.subjects || [];
         if (ERPXTTN_FAMILY.includes(modelName)) {
@@ -926,6 +1458,14 @@ function getSubjectBalAcc(modelData, subj) {
   return fold ? fold.test_bal_acc : null;
 }
 
+// Per-subject fusion (two-factor) AUROC — the headline number for ERP-XTTN;
+// null for models without a fusion (baselines).
+function getSubjectFusion(modelData, subj) {
+  if (!modelData || !modelData.results || !modelData.results.folds) return null;
+  const fold = modelData.results.folds.find(f => f.test_subject === subj);
+  return fold ? fold.two_factor_auroc : null;
+}
+
 /* ── Rendering ── */
 function renderAll() {
   renderOverview();
@@ -998,9 +1538,9 @@ function renderOverviewTable(filterCategory) {
     let bestAuroc = -1;
     let bestModel = null;
     for (const m of KNOWN_MODELS) {
-      const r = modelMap[m]?.results;
-      if (r && r.mean_auroc != null && r.mean_auroc > bestAuroc) {
-        bestAuroc = r.mean_auroc;
+      const h = headlineAuroc(modelMap[m]?.results);
+      if (h != null && h > bestAuroc) {
+        bestAuroc = h;
         bestModel = m;
       }
     }
@@ -1011,9 +1551,26 @@ function renderOverviewTable(filterCategory) {
     html += '<td>' + escapeHtml(vk) + '</td>';
     for (const m of KNOWN_MODELS) {
       const r = modelMap[m]?.results;
-      if (r && r.mean_auroc != null) {
+      if (r && headlineAuroc(r) != null) {
         const isBest = m === bestModel;
-        html += '<td><span class="auroc-cell' + (isBest ? ' cell-best' : '') + '" style="background:' + aurocColor(r.mean_auroc) + '">' + fmt(r.mean_auroc) + ' &plusmn; ' + fmt(r.std_auroc) + '</span></td>';
+        const si = r._seedInfo;
+        let seedBadge = '';
+        if (si) {
+          const color = si.complete ? 'var(--text-secondary)' : '#ffb74d';
+          const tip = 'seeds present: [' + si.seedsPresent.join(', ') + ']'
+            + ' (' + si.nSeeds + '/' + si.expectedSeeds + ')'
+            + (si.seedMean != null ? '\nper-seed mean ' + fmt(si.seedMean) + ' ± ' + fmt(si.seedSd) : '');
+          seedBadge = ' <span title="' + escapeHtml(tip) + '" style="font-size:0.68rem;color:' + color + ';">'
+            + si.nSeeds + '/' + si.expectedSeeds + 's' + (si.complete ? '' : ' &#9203;') + '</span>';
+        }
+        // Fusion is the headline when present (ERP-XTTN); routing shown underneath.
+        const hasFusion = r.mean_two_factor != null;
+        const head = hasFusion ? r.mean_two_factor : r.mean_auroc;
+        const headStd = hasFusion ? r.std_two_factor : r.std_auroc;
+        const routingSub = (hasFusion && r.mean_auroc != null)
+          ? '<div style="font-size:0.68rem;color:var(--text-secondary);margin-top:2px;">routing ' + fmt(r.mean_auroc) + '</div>'
+          : '';
+        html += '<td><span class="auroc-cell' + (isBest ? ' cell-best' : '') + '" style="background:' + aurocColor(head) + '">' + fmt(head) + ' &plusmn; ' + fmt(headStd) + '</span>' + seedBadge + routingSub + '</td>';
       } else {
         html += '<td><span class="cell-missing">&mdash;</span></td>';
       }
@@ -1039,18 +1596,26 @@ function renderOverviewTable(filterCategory) {
     const subjects = ds.subjects || [];
     for (const sub of subjects) {
       html += '<tr><td>' + escapeHtml(sub) + '</td>';
-      // Find best for this subject
+      // Headline per subject = fusion (two-factor) when present, else routing —
+      // best cell chosen on that headline number, like the main rows.
       let bestSubVal = -1;
       let bestSubModel = null;
       for (const m of KNOWN_MODELS) {
-        const val = getSubjectAuroc(modelMap[m], sub);
-        if (val != null && val > bestSubVal) { bestSubVal = val; bestSubModel = m; }
+        const fusion = getSubjectFusion(modelMap[m], sub);
+        const head = fusion != null ? fusion : getSubjectAuroc(modelMap[m], sub);
+        if (head != null && head > bestSubVal) { bestSubVal = head; bestSubModel = m; }
       }
       for (const m of KNOWN_MODELS) {
-        const val = getSubjectAuroc(modelMap[m], sub);
-        if (val != null) {
+        const routing = getSubjectAuroc(modelMap[m], sub);
+        const fusion = getSubjectFusion(modelMap[m], sub);
+        const head = fusion != null ? fusion : routing;
+        if (head != null) {
           const isBest = m === bestSubModel;
-          html += '<td><span class="auroc-cell' + (isBest ? ' cell-best' : '') + '" style="background:' + aurocColor(val) + '">' + fmt(val) + '</span></td>';
+          // Fusion headline with routing beneath (mirrors the overview rows).
+          const routingSub = (fusion != null && routing != null)
+            ? '<div style="font-size:0.68rem;color:var(--text-secondary);margin-top:2px;">routing ' + fmt(routing) + '</div>'
+            : '';
+          html += '<td><span class="auroc-cell' + (isBest ? ' cell-best' : '') + '" style="background:' + aurocColor(head) + '">' + fmt(head) + '</span>' + routingSub + '</td>';
         } else {
           html += '<td><span class="cell-missing">&mdash;</span></td>';
         }
@@ -1446,14 +2011,22 @@ const ANALYSIS_COLUMNS = [
     extractor: c => c.auroc ? c.auroc.mean : null, isNum: true, digits: 3},
   {id: 'auroc_sd', label: 'AUROC SD', metricKey: 'auroc',
     extractor: c => c.auroc ? c.auroc.sd : null, isNum: true, digits: 3},
-  {id: 'tax_eegnet', label: 'Tax vs EEGNet', metricKey: 'tax',
-    extractor: c => c.tax && c.tax.eegnet ? c.tax.eegnet.mean_delta : null,
-    secondary: c => c.tax && c.tax.eegnet ? c.tax.eegnet.sem : null,
-    isNum: true, digits: 3, fmtFn: (v, s) => v==null ? '' : v.toFixed(3) + (s!=null ? ' ±' + s.toFixed(3) : '')},
-  {id: 'tax_xdawn', label: 'Tax vs xDAWN+RG', metricKey: 'tax',
-    extractor: c => c.tax && c.tax.xdawn_rg ? c.tax.xdawn_rg.mean_delta : null,
-    secondary: c => c.tax && c.tax.xdawn_rg ? c.tax.xdawn_rg.sem : null,
-    isNum: true, digits: 3, fmtFn: (v, s) => v==null ? '' : v.toFixed(3) + (s!=null ? ' ±' + s.toFixed(3) : '')},
+  ...['eegnet', 'eeg_deformer', 'epmn', 'xdawn_rg'].map(bl => ({
+    id: 'tax_' + bl, label: 'Tax vs ' + modelDisplay(bl), metricKey: 'tax',
+    extractor: c => c.tax && c.tax[bl] ? c.tax[bl].mean_delta : null,
+    secondary: c => c.tax && c.tax[bl] ? c.tax[bl] : null,
+    isNum: true, digits: 3,
+    // Δ ±sem  (effect size r, FDR-corrected q or raw p)
+    fmtFn: (v, s) => {
+      if (v == null) return '';
+      let t = v.toFixed(3);
+      if (s && s.sem != null) t += ' ±' + s.sem.toFixed(3);
+      if (s && s.rank_biserial != null) t += '  r=' + s.rank_biserial.toFixed(2);
+      if (s && s.wilcoxon_p_corrected != null) t += '  q=' + s.wilcoxon_p_corrected.toFixed(3);
+      else if (s && s.wilcoxon_p != null) t += '  p=' + s.wilcoxon_p.toFixed(3);
+      return t;
+    },
+  })),
   {id: 'balance', label: 'Class balance', metricKey: 'class_balance_minority',
     extractor: c => c.class_balance_minority, isNum: true, digits: 3},
   {id: 'k_mode', label: 'K (mode)', metricKey: 'k_stats',
@@ -1591,7 +2164,7 @@ function renderAnalysisTable(combos, descriptions) {
   let html = '<h3 style="margin:12px 0;color:var(--accent);">Metrics by dataset × variant</h3>';
   html += '<div class="table-container"><table><thead><tr>';
   for (const col of ANALYSIS_COLUMNS) {
-    const desc = col.metricKey && descriptions[col.metricKey] ? descriptions[col.metricKey] : '';
+    const desc = col.metricKey && descriptions && descriptions[col.metricKey] ? descriptions[col.metricKey] : '';
     const title = desc ? ' title="' + escapeHtml(desc) + '"' : '';
     html += '<th' + title + '>' + escapeHtml(col.label) + '</th>';
   }
@@ -1624,12 +2197,14 @@ function renderAnalysisScatters(combos) {
   ];
   const baselines = [
     {taxKey: 'tax_eegnet', label: 'vs EEGNet'},
-    {taxKey: 'tax_xdawn', label: 'vs xDAWN+RG'},
+    {taxKey: 'tax_eeg_deformer', label: 'vs EEG-Deformer'},
+    {taxKey: 'tax_epmn', label: 'vs EPMN'},
+    {taxKey: 'tax_xdawn_rg', label: 'vs xDAWN+RG'},
   ];
-  const taxLabel = 'Interpretability tax (baseline − ERPXTTN Auto AUROC)';
+  const taxLabel = 'Interpretability tax (baseline − ERP-XTTN AUROC)';
 
   let html = '<h3 style="margin:20px 0 8px;color:var(--accent);">Tax vs interpretability metrics</h3>';
-  html += '<div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:12px;">Each row = one metric. Left column uses EEGNet as the tax baseline, right column uses xDAWN+RG. Each point is a (dataset, variant) — <span style="color:#4fc3f7;">● 3-channel preset</span>, <span style="color:#ffb74d;">● full montage</span>. Spearman ρ is reported per-variant (n=9 each) to avoid the same x value contributing twice for montage-invariant metrics. n is low; treat ρ as a trend indicator, not a significance test. Hover a point for details.</div>';
+  html += '<div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:12px;">Plots are grouped by metric, with one panel per baseline (EEGNet, EEG-Deformer, EPMN, xDAWN+RG). Each point is a (dataset, variant) — <span style="color:#4fc3f7;">● 3-channel preset</span>, <span style="color:#ffb74d;">● full montage</span>. Spearman ρ is reported per-variant (n=9 each) to avoid the same x value contributing twice for montage-invariant metrics. n is low; treat ρ as a trend indicator, not a significance test. Hover a point for details.</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:16px;">';
   for (const sc of scatterCols) {
     const col = ANALYSIS_COLUMNS.find(cc => cc.id === sc.id);

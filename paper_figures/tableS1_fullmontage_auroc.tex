@@ -1,0 +1,26 @@
+% Table S1 — Full-montage AUROC
+\begin{table}[t]
+\centering
+\setlength{\tabcolsep}{5pt}
+\caption{%
+Full-montage classification performance (area under the receiver operating characteristic curve, AUROC; mean $\pm$ standard deviation across subjects) under leave-one-subject-out (LOSO) cross-validation. Channel counts vary by dataset (Table~\ref{tab:datasets} of the main text): 64 for BNCI, 27 for HRI, and 30 for all ERP CORE datasets. Neural models (ERP-XTTN, EEGNet, EEG-Deformer, EPMN) report seed-averaged means across five independent training seeds; xDAWN+RG is deterministic (single run). Bold marks the highest mean per dataset. $\Delta$ = best baseline minus ERP-XTTN (performance gap, in AUROC); the best baseline is selected post hoc per dataset and $\Delta$ is reported descriptively. Datasets ordered as in main text Table~\ref{tab:auroc} (three-channel mean AUROC, descending). AUROC: area under the receiver operating characteristic curve; LOSO: leave-one-subject-out; EEG-Deformer: dense convolutional transformer \cite{ding2024}; EPMN: ERP Prototypical Matching Net \cite{wei2022}; xDAWN+RG: xDAWN spatial filtering with Riemannian geometry classification.%
+}
+\label{sup:tab-fullmontage-auroc}
+\begin{tabular}{lcccccc}
+\toprule
+Dataset & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\
+\midrule
+HRI & 0.850 $\pm$ 0.098 & 0.869 $\pm$ 0.092 & \textbf{0.877 $\pm$ 0.099} & 0.844 $\pm$ 0.101 & 0.869 $\pm$ 0.085 & \textit{0.027} \\
+ERN & 0.925 $\pm$ 0.055 & \textbf{0.951 $\pm$ 0.042} & 0.942 $\pm$ 0.047 & 0.927 $\pm$ 0.052 & 0.928 $\pm$ 0.054 & \textit{0.026} \\
+LRP & 0.850 $\pm$ 0.067 & \textbf{0.871 $\pm$ 0.070} & 0.868 $\pm$ 0.064 & 0.843 $\pm$ 0.066 & 0.854 $\pm$ 0.074 & \textit{0.021} \\
+BNCI & 0.776 $\pm$ 0.062 & \textbf{0.845 $\pm$ 0.063} & 0.842 $\pm$ 0.089 & 0.811 $\pm$ 0.072 & 0.820 $\pm$ 0.061 & \textit{0.069} \\
+N170 & 0.768 $\pm$ 0.099 & 0.755 $\pm$ 0.100 & 0.774 $\pm$ 0.104 & 0.732 $\pm$ 0.095 & \textbf{0.793 $\pm$ 0.098} & \textit{0.025} \\
+P300 & 0.700 $\pm$ 0.084 & 0.772 $\pm$ 0.092 & \textbf{0.780 $\pm$ 0.095} & 0.732 $\pm$ 0.088 & 0.722 $\pm$ 0.090 & \textit{0.080} \\
+N2pc & 0.682 $\pm$ 0.076 & 0.698 $\pm$ 0.088 & \textbf{0.701 $\pm$ 0.089} & 0.670 $\pm$ 0.075 & 0.672 $\pm$ 0.077 & \textit{0.019} \\
+MMN & 0.611 $\pm$ 0.046 & 0.617 $\pm$ 0.048 & 0.614 $\pm$ 0.049 & 0.572 $\pm$ 0.036 & \textbf{0.626 $\pm$ 0.052} & \textit{0.015} \\
+N400 & 0.723 $\pm$ 0.075 & \textbf{0.761 $\pm$ 0.079} & 0.727 $\pm$ 0.080 & 0.720 $\pm$ 0.084 & 0.712 $\pm$ 0.078 & \textit{0.038} \\
+\midrule
+\textit{Mean} & 0.765 & \textbf{0.793} & 0.792 & 0.761 & 0.777 & \textbf{0.036} \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,451 @@
+% Per-subject AUROC tables, one per dataset (S7--S15).
+
+% Table S7 — Per-subject AUROC, HRI
+\begin{table}[t]
+\centering
+\caption{%
+Per-subject AUROC (mean $\pm$ standard deviation across five training seeds, LOSO) at the three-channel montage for HRI ErrP ($n = 11$ subjects). Subject numbering follows the original dataset release, which does not include sub-01 or sub-12; all eleven subjects distributed in the public release were analyzed. Each row is one LOSO fold with the indicated subject held out; the reported value is that subject\textquotesingle s test-set AUROC averaged across seeds (xDAWN+RG: single deterministic run, standard deviation omitted). Bold marks the highest mean per subject. $\Delta$ = best baseline minus ERP-XTTN. The mean row matches the HRI entry of main text Table~\ref{tab:auroc}. $\Delta$ is computed per subject as that subject\textquotesingle s best-baseline AUROC minus ERP-XTTN AUROC, then averaged; because the identity of the best baseline varies across subjects, the mean $\Delta$ here is generally larger than the fixed-best-baseline $\Delta$ reported in Table~\ref{tab:auroc}. AUROC: area under the receiver operating characteristic curve; LOSO: leave-one-subject-out.%
+}
+\label{sup:tab-persubj-hri}
+\begin{tabular}{lcccccc}
+\toprule
+Subject & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\
+\midrule
+sub-02 & 0.753 $\pm$ 0.008 & 0.813 $\pm$ 0.004 & \textbf{0.814 $\pm$ 0.018} & 0.759 $\pm$ 0.041 & 0.736 & \textit{0.061} \\
+sub-03 & 0.858 $\pm$ 0.004 & 0.863 $\pm$ 0.004 & \textbf{0.880 $\pm$ 0.008} & 0.872 $\pm$ 0.014 & 0.875 & \textit{0.023} \\
+sub-04 & 0.976 $\pm$ 0.001 & \textbf{0.984 $\pm$ 0.002} & 0.984 $\pm$ 0.002 & 0.971 $\pm$ 0.006 & 0.976 & \textit{0.008} \\
+sub-05 & 0.735 $\pm$ 0.007 & 0.776 $\pm$ 0.004 & \textbf{0.780 $\pm$ 0.012} & 0.717 $\pm$ 0.015 & 0.742 & \textit{0.045} \\
+sub-06 & 0.850 $\pm$ 0.008 & \textbf{0.909 $\pm$ 0.006} & 0.889 $\pm$ 0.014 & 0.825 $\pm$ 0.044 & 0.877 & \textit{0.059} \\
+sub-07 & 0.864 $\pm$ 0.009 & \textbf{0.884 $\pm$ 0.004} & 0.853 $\pm$ 0.012 & 0.852 $\pm$ 0.032 & 0.860 & \textit{0.020} \\
+sub-08 & 0.877 $\pm$ 0.006 & 0.876 $\pm$ 0.008 & \textbf{0.884 $\pm$ 0.010} & 0.864 $\pm$ 0.025 & 0.854 & \textit{0.007} \\
+sub-09 & 0.911 $\pm$ 0.004 & 0.912 $\pm$ 0.006 & 0.900 $\pm$ 0.012 & 0.900 $\pm$ 0.024 & \textbf{0.935} & \textit{0.025} \\
+sub-10 & \textbf{0.612 $\pm$ 0.009} & 0.607 $\pm$ 0.010 & 0.606 $\pm$ 0.028 & 0.611 $\pm$ 0.021 & 0.597 & \textit{-0.001} \\
+sub-11 & \textbf{0.874 $\pm$ 0.009} & 0.871 $\pm$ 0.017 & 0.858 $\pm$ 0.015 & 0.872 $\pm$ 0.016 & 0.846 & \textit{-0.002} \\
+sub-13 & 0.900 $\pm$ 0.006 & \textbf{0.945 $\pm$ 0.002} & 0.918 $\pm$ 0.021 & 0.901 $\pm$ 0.009 & 0.905 & \textit{0.044} \\
+\midrule
+\textit{Mean} & 0.837 $\pm$ 0.101 & \textbf{0.858 $\pm$ 0.101} & 0.852 $\pm$ 0.097 & 0.831 $\pm$ 0.100 & 0.837 $\pm$ 0.107 & \textbf{0.026} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% Table S8 — Per-subject AUROC, ERN
+\begin{table}[t]
+\centering
+\caption{%
+Per-subject AUROC (mean $\pm$ standard deviation across five training seeds, LOSO) at the three-channel montage for ERP CORE ERN ($n = 40$ subjects). Conventions as in Table~\ref{sup:tab-persubj-hri}. The mean row matches the ERN entry of main text Table~\ref{tab:auroc}.%
+}
+\label{sup:tab-persubj-ern}
+\begin{tabular}{lcccccc}
+\toprule
+Subject & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\
+\midrule
+sub-01 & 0.759 $\pm$ 0.018 & \textbf{0.819 $\pm$ 0.011} & 0.792 $\pm$ 0.032 & 0.700 $\pm$ 0.027 & 0.689 & \textit{0.060} \\
+sub-02 & 0.709 $\pm$ 0.023 & \textbf{0.892 $\pm$ 0.023} & 0.871 $\pm$ 0.069 & 0.748 $\pm$ 0.096 & 0.630 & \textit{0.182} \\
+sub-03 & 0.920 $\pm$ 0.006 & \textbf{0.958 $\pm$ 0.006} & 0.937 $\pm$ 0.018 & 0.851 $\pm$ 0.086 & 0.856 & \textit{0.038} \\
+sub-04 & \textbf{0.934 $\pm$ 0.008} & 0.931 $\pm$ 0.012 & 0.868 $\pm$ 0.063 & 0.911 $\pm$ 0.027 & 0.929 & \textit{-0.003} \\
+sub-05 & \textbf{0.995 $\pm$ 0.002} & 0.948 $\pm$ 0.009 & 0.979 $\pm$ 0.017 & 0.880 $\pm$ 0.186 & 0.891 & \textit{-0.016} \\
+sub-06 & 0.724 $\pm$ 0.013 & 0.777 $\pm$ 0.014 & 0.734 $\pm$ 0.037 & 0.683 $\pm$ 0.023 & \textbf{0.786} & \textit{0.062} \\
+sub-07 & 0.555 $\pm$ 0.028 & 0.579 $\pm$ 0.043 & 0.581 $\pm$ 0.074 & \textbf{0.675 $\pm$ 0.067} & 0.402 & \textit{0.120} \\
+sub-08 & 0.908 $\pm$ 0.011 & \textbf{0.931 $\pm$ 0.006} & 0.922 $\pm$ 0.007 & 0.871 $\pm$ 0.018 & 0.920 & \textit{0.024} \\
+sub-09 & \textbf{0.769 $\pm$ 0.034} & 0.761 $\pm$ 0.014 & 0.754 $\pm$ 0.047 & 0.655 $\pm$ 0.122 & 0.694 & \textit{-0.008} \\
+sub-10 & 0.663 $\pm$ 0.008 & \textbf{0.784 $\pm$ 0.009} & 0.710 $\pm$ 0.059 & 0.671 $\pm$ 0.059 & 0.722 & \textit{0.121} \\
+sub-11 & 0.635 $\pm$ 0.018 & \textbf{0.686 $\pm$ 0.014} & 0.666 $\pm$ 0.009 & 0.617 $\pm$ 0.053 & 0.617 & \textit{0.051} \\
+sub-12 & 0.858 $\pm$ 0.012 & \textbf{0.880 $\pm$ 0.007} & 0.835 $\pm$ 0.019 & 0.863 $\pm$ 0.032 & 0.804 & \textit{0.023} \\
+sub-13 & 0.778 $\pm$ 0.018 & \textbf{0.852 $\pm$ 0.026} & 0.827 $\pm$ 0.034 & 0.728 $\pm$ 0.074 & 0.842 & \textit{0.074} \\
+sub-14 & 0.886 $\pm$ 0.014 & \textbf{0.935 $\pm$ 0.009} & 0.870 $\pm$ 0.043 & 0.876 $\pm$ 0.054 & 0.846 & \textit{0.050} \\
+sub-15 & 0.942 $\pm$ 0.010 & 0.946 $\pm$ 0.007 & \textbf{0.952 $\pm$ 0.015} & 0.915 $\pm$ 0.020 & 0.950 & \textit{0.010} \\
+sub-16 & 0.927 $\pm$ 0.011 & \textbf{0.963 $\pm$ 0.004} & 0.951 $\pm$ 0.004 & 0.927 $\pm$ 0.013 & 0.918 & \textit{0.035} \\
+sub-17 & 0.867 $\pm$ 0.013 & \textbf{0.936 $\pm$ 0.005} & 0.856 $\pm$ 0.026 & 0.837 $\pm$ 0.062 & 0.780 & \textit{0.069} \\
+sub-18 & 0.844 $\pm$ 0.015 & \textbf{0.884 $\pm$ 0.009} & 0.823 $\pm$ 0.028 & 0.789 $\pm$ 0.060 & 0.829 & \textit{0.040} \\
+sub-19 & 0.921 $\pm$ 0.015 & \textbf{0.969 $\pm$ 0.004} & 0.946 $\pm$ 0.016 & 0.930 $\pm$ 0.049 & 0.911 & \textit{0.048} \\
+sub-20 & 0.768 $\pm$ 0.026 & \textbf{0.855 $\pm$ 0.029} & 0.797 $\pm$ 0.019 & 0.760 $\pm$ 0.076 & 0.565 & \textit{0.087} \\
+sub-21 & 0.891 $\pm$ 0.009 & \textbf{0.954 $\pm$ 0.005} & 0.911 $\pm$ 0.030 & 0.843 $\pm$ 0.148 & 0.932 & \textit{0.063} \\
+sub-22 & 0.855 $\pm$ 0.010 & \textbf{0.890 $\pm$ 0.003} & 0.873 $\pm$ 0.020 & 0.847 $\pm$ 0.024 & 0.853 & \textit{0.034} \\
+sub-23 & 0.917 $\pm$ 0.011 & \textbf{0.964 $\pm$ 0.006} & 0.952 $\pm$ 0.015 & 0.860 $\pm$ 0.095 & 0.858 & \textit{0.047} \\
+sub-24 & 0.941 $\pm$ 0.010 & \textbf{0.956 $\pm$ 0.008} & 0.940 $\pm$ 0.022 & 0.814 $\pm$ 0.226 & 0.945 & \textit{0.015} \\
+sub-25 & 0.607 $\pm$ 0.020 & \textbf{0.796 $\pm$ 0.031} & 0.794 $\pm$ 0.040 & 0.655 $\pm$ 0.043 & 0.512 & \textit{0.189} \\
+sub-26 & 0.990 $\pm$ 0.003 & \textbf{0.996 $\pm$ 0.000} & 0.994 $\pm$ 0.002 & 0.987 $\pm$ 0.002 & 0.992 & \textit{0.006} \\
+sub-27 & 0.813 $\pm$ 0.016 & \textbf{0.882 $\pm$ 0.004} & 0.779 $\pm$ 0.043 & 0.788 $\pm$ 0.038 & 0.843 & \textit{0.068} \\
+sub-28 & 0.715 $\pm$ 0.034 & \textbf{0.760 $\pm$ 0.009} & 0.720 $\pm$ 0.032 & 0.721 $\pm$ 0.050 & 0.687 & \textit{0.045} \\
+sub-29 & 0.794 $\pm$ 0.011 & \textbf{0.798 $\pm$ 0.023} & 0.762 $\pm$ 0.054 & 0.722 $\pm$ 0.106 & 0.725 & \textit{0.004} \\
+sub-30 & 0.932 $\pm$ 0.006 & \textbf{0.940 $\pm$ 0.009} & 0.903 $\pm$ 0.029 & 0.878 $\pm$ 0.054 & 0.897 & \textit{0.008} \\
+sub-31 & 0.902 $\pm$ 0.009 & \textbf{0.950 $\pm$ 0.004} & 0.935 $\pm$ 0.013 & 0.928 $\pm$ 0.029 & 0.873 & \textit{0.048} \\
+sub-32 & 0.938 $\pm$ 0.012 & \textbf{0.945 $\pm$ 0.004} & 0.917 $\pm$ 0.032 & 0.862 $\pm$ 0.018 & 0.899 & \textit{0.007} \\
+sub-33 & 0.851 $\pm$ 0.011 & \textbf{0.886 $\pm$ 0.011} & 0.822 $\pm$ 0.023 & 0.801 $\pm$ 0.078 & 0.726 & \textit{0.035} \\
+sub-34 & 0.726 $\pm$ 0.020 & 0.800 $\pm$ 0.007 & \textbf{0.804 $\pm$ 0.025} & 0.718 $\pm$ 0.017 & 0.709 & \textit{0.077} \\
+sub-35 & 0.898 $\pm$ 0.008 & \textbf{0.949 $\pm$ 0.003} & 0.906 $\pm$ 0.009 & 0.830 $\pm$ 0.101 & 0.880 & \textit{0.051} \\
+sub-36 & 0.776 $\pm$ 0.016 & 0.755 $\pm$ 0.012 & 0.744 $\pm$ 0.026 & 0.773 $\pm$ 0.029 & \textbf{0.806} & \textit{0.030} \\
+sub-37 & 0.827 $\pm$ 0.020 & 0.861 $\pm$ 0.016 & \textbf{0.873 $\pm$ 0.021} & 0.789 $\pm$ 0.064 & 0.816 & \textit{0.046} \\
+sub-38 & 0.771 $\pm$ 0.006 & \textbf{0.812 $\pm$ 0.011} & 0.788 $\pm$ 0.010 & 0.725 $\pm$ 0.116 & 0.740 & \textit{0.042} \\
+sub-39 & 0.832 $\pm$ 0.009 & \textbf{0.882 $\pm$ 0.006} & 0.854 $\pm$ 0.049 & 0.775 $\pm$ 0.072 & 0.807 & \textit{0.050} \\
+sub-40 & 0.639 $\pm$ 0.014 & \textbf{0.704 $\pm$ 0.026} & 0.651 $\pm$ 0.079 & 0.599 $\pm$ 0.115 & 0.651 & \textit{0.065} \\
+\midrule
+\textit{Mean} & 0.824 $\pm$ 0.110 & \textbf{0.869 $\pm$ 0.093} & 0.840 $\pm$ 0.097 & 0.795 $\pm$ 0.096 & 0.793 $\pm$ 0.130 & \textbf{0.050} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% Table S9 — Per-subject AUROC, LRP
+\begin{table}[t]
+\centering
+\caption{%
+Per-subject AUROC (mean $\pm$ standard deviation across five training seeds, LOSO) at the three-channel montage for ERP CORE LRP ($n = 40$ subjects). Conventions as in Table~\ref{sup:tab-persubj-hri}. The mean row matches the LRP entry of main text Table~\ref{tab:auroc}.%
+}
+\label{sup:tab-persubj-lrp}
+\begin{tabular}{lcccccc}
+\toprule
+Subject & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\
+\midrule
+sub-01 & 0.763 $\pm$ 0.005 & 0.786 $\pm$ 0.014 & 0.760 $\pm$ 0.043 & 0.786 $\pm$ 0.017 & \textbf{0.807} & \textit{0.043} \\
+sub-02 & 0.831 $\pm$ 0.004 & 0.867 $\pm$ 0.008 & \textbf{0.875 $\pm$ 0.005} & 0.844 $\pm$ 0.009 & 0.860 & \textit{0.044} \\
+sub-03 & 0.715 $\pm$ 0.016 & 0.688 $\pm$ 0.008 & 0.666 $\pm$ 0.046 & 0.639 $\pm$ 0.110 & \textbf{0.718} & \textit{0.004} \\
+sub-04 & 0.774 $\pm$ 0.004 & 0.843 $\pm$ 0.012 & 0.851 $\pm$ 0.009 & 0.806 $\pm$ 0.030 & \textbf{0.871} & \textit{0.097} \\
+sub-05 & 0.763 $\pm$ 0.007 & \textbf{0.795 $\pm$ 0.011} & 0.746 $\pm$ 0.036 & 0.772 $\pm$ 0.010 & 0.781 & \textit{0.033} \\
+sub-06 & 0.747 $\pm$ 0.004 & 0.745 $\pm$ 0.008 & 0.750 $\pm$ 0.008 & 0.737 $\pm$ 0.008 & \textbf{0.758} & \textit{0.010} \\
+sub-07 & 0.677 $\pm$ 0.002 & 0.701 $\pm$ 0.002 & 0.719 $\pm$ 0.015 & 0.702 $\pm$ 0.025 & \textbf{0.762} & \textit{0.085} \\
+sub-08 & 0.833 $\pm$ 0.004 & 0.849 $\pm$ 0.005 & 0.831 $\pm$ 0.017 & 0.849 $\pm$ 0.020 & \textbf{0.856} & \textit{0.023} \\
+sub-09 & 0.574 $\pm$ 0.007 & 0.589 $\pm$ 0.007 & \textbf{0.624 $\pm$ 0.016} & 0.586 $\pm$ 0.030 & 0.613 & \textit{0.050} \\
+sub-10 & 0.584 $\pm$ 0.006 & 0.592 $\pm$ 0.011 & 0.582 $\pm$ 0.015 & 0.593 $\pm$ 0.015 & \textbf{0.635} & \textit{0.051} \\
+sub-11 & 0.765 $\pm$ 0.005 & 0.814 $\pm$ 0.006 & 0.818 $\pm$ 0.010 & 0.800 $\pm$ 0.025 & \textbf{0.835} & \textit{0.070} \\
+sub-12 & 0.849 $\pm$ 0.002 & 0.870 $\pm$ 0.004 & 0.872 $\pm$ 0.007 & 0.873 $\pm$ 0.013 & \textbf{0.876} & \textit{0.027} \\
+sub-13 & 0.775 $\pm$ 0.012 & \textbf{0.792 $\pm$ 0.010} & 0.790 $\pm$ 0.012 & 0.762 $\pm$ 0.023 & 0.760 & \textit{0.017} \\
+sub-14 & 0.809 $\pm$ 0.006 & 0.824 $\pm$ 0.008 & 0.848 $\pm$ 0.018 & 0.826 $\pm$ 0.024 & \textbf{0.880} & \textit{0.071} \\
+sub-15 & 0.910 $\pm$ 0.003 & \textbf{0.939 $\pm$ 0.002} & 0.930 $\pm$ 0.030 & 0.899 $\pm$ 0.020 & 0.908 & \textit{0.030} \\
+sub-16 & 0.697 $\pm$ 0.007 & \textbf{0.775 $\pm$ 0.006} & 0.734 $\pm$ 0.028 & 0.719 $\pm$ 0.063 & 0.759 & \textit{0.078} \\
+sub-17 & 0.762 $\pm$ 0.006 & 0.796 $\pm$ 0.006 & \textbf{0.811 $\pm$ 0.013} & 0.760 $\pm$ 0.062 & 0.796 & \textit{0.049} \\
+sub-18 & 0.640 $\pm$ 0.017 & \textbf{0.731 $\pm$ 0.004} & 0.730 $\pm$ 0.020 & 0.725 $\pm$ 0.019 & 0.706 & \textit{0.090} \\
+sub-19 & 0.712 $\pm$ 0.004 & \textbf{0.734 $\pm$ 0.004} & 0.726 $\pm$ 0.024 & 0.715 $\pm$ 0.030 & 0.730 & \textit{0.022} \\
+sub-20 & 0.790 $\pm$ 0.003 & 0.824 $\pm$ 0.005 & 0.819 $\pm$ 0.006 & 0.817 $\pm$ 0.016 & \textbf{0.830} & \textit{0.040} \\
+sub-21 & 0.781 $\pm$ 0.008 & \textbf{0.848 $\pm$ 0.006} & 0.825 $\pm$ 0.013 & 0.797 $\pm$ 0.089 & 0.829 & \textit{0.067} \\
+sub-22 & 0.891 $\pm$ 0.006 & 0.912 $\pm$ 0.003 & 0.905 $\pm$ 0.009 & 0.889 $\pm$ 0.018 & \textbf{0.915} & \textit{0.024} \\
+sub-23 & 0.655 $\pm$ 0.011 & 0.722 $\pm$ 0.013 & 0.716 $\pm$ 0.007 & 0.690 $\pm$ 0.016 & \textbf{0.734} & \textit{0.079} \\
+sub-24 & 0.722 $\pm$ 0.006 & 0.730 $\pm$ 0.006 & 0.746 $\pm$ 0.011 & 0.700 $\pm$ 0.015 & \textbf{0.756} & \textit{0.034} \\
+sub-25 & 0.812 $\pm$ 0.011 & \textbf{0.874 $\pm$ 0.017} & 0.871 $\pm$ 0.017 & 0.856 $\pm$ 0.017 & 0.839 & \textit{0.062} \\
+sub-26 & 0.831 $\pm$ 0.005 & 0.847 $\pm$ 0.003 & \textbf{0.852 $\pm$ 0.009} & 0.820 $\pm$ 0.027 & 0.827 & \textit{0.021} \\
+sub-27 & 0.796 $\pm$ 0.005 & \textbf{0.808 $\pm$ 0.008} & 0.803 $\pm$ 0.010 & 0.793 $\pm$ 0.006 & 0.805 & \textit{0.012} \\
+sub-28 & 0.734 $\pm$ 0.003 & 0.737 $\pm$ 0.005 & 0.718 $\pm$ 0.015 & 0.711 $\pm$ 0.044 & \textbf{0.764} & \textit{0.030} \\
+sub-29 & 0.641 $\pm$ 0.005 & 0.665 $\pm$ 0.008 & 0.666 $\pm$ 0.009 & 0.628 $\pm$ 0.065 & \textbf{0.668} & \textit{0.027} \\
+sub-30 & 0.712 $\pm$ 0.007 & 0.743 $\pm$ 0.016 & 0.755 $\pm$ 0.011 & 0.704 $\pm$ 0.027 & \textbf{0.759} & \textit{0.047} \\
+sub-31 & 0.751 $\pm$ 0.005 & \textbf{0.777 $\pm$ 0.006} & 0.762 $\pm$ 0.023 & 0.761 $\pm$ 0.023 & 0.768 & \textit{0.026} \\
+sub-32 & 0.891 $\pm$ 0.015 & 0.935 $\pm$ 0.011 & \textbf{0.939 $\pm$ 0.020} & 0.878 $\pm$ 0.055 & 0.894 & \textit{0.047} \\
+sub-33 & 0.661 $\pm$ 0.006 & 0.703 $\pm$ 0.011 & 0.706 $\pm$ 0.015 & 0.687 $\pm$ 0.015 & \textbf{0.709} & \textit{0.048} \\
+sub-34 & 0.780 $\pm$ 0.003 & 0.792 $\pm$ 0.005 & 0.770 $\pm$ 0.020 & 0.769 $\pm$ 0.028 & \textbf{0.794} & \textit{0.014} \\
+sub-35 & 0.874 $\pm$ 0.005 & \textbf{0.910 $\pm$ 0.005} & 0.893 $\pm$ 0.019 & 0.879 $\pm$ 0.037 & 0.899 & \textit{0.036} \\
+sub-36 & 0.853 $\pm$ 0.006 & \textbf{0.904 $\pm$ 0.004} & 0.844 $\pm$ 0.059 & 0.832 $\pm$ 0.101 & 0.887 & \textit{0.050} \\
+sub-37 & 0.808 $\pm$ 0.004 & 0.852 $\pm$ 0.006 & 0.837 $\pm$ 0.007 & 0.836 $\pm$ 0.020 & \textbf{0.860} & \textit{0.052} \\
+sub-38 & 0.721 $\pm$ 0.004 & 0.741 $\pm$ 0.007 & 0.742 $\pm$ 0.013 & 0.734 $\pm$ 0.017 & \textbf{0.769} & \textit{0.047} \\
+sub-39 & 0.800 $\pm$ 0.004 & 0.830 $\pm$ 0.004 & 0.833 $\pm$ 0.012 & 0.812 $\pm$ 0.012 & \textbf{0.839} & \textit{0.039} \\
+sub-40 & 0.771 $\pm$ 0.005 & \textbf{0.801 $\pm$ 0.007} & 0.788 $\pm$ 0.022 & 0.795 $\pm$ 0.012 & 0.800 & \textit{0.030} \\
+\midrule
+\textit{Mean} & 0.761 $\pm$ 0.080 & 0.792 $\pm$ 0.084 & 0.786 $\pm$ 0.081 & 0.769 $\pm$ 0.080 & \textbf{0.796 $\pm$ 0.074} & \textbf{0.043} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% Table S10 — Per-subject AUROC, BNCI
+\begin{table}[t]
+\centering
+\caption{%
+Per-subject AUROC (mean $\pm$ standard deviation across five training seeds, LOSO) at the three-channel montage for BNCI ErrP ($n = 6$ subjects). Conventions as in Table~\ref{sup:tab-persubj-hri}. The mean row matches the BNCI entry of main text Table~\ref{tab:auroc}.%
+}
+\label{sup:tab-persubj-bnci}
+\begin{tabular}{lcccccc}
+\toprule
+Subject & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\
+\midrule
+sub-01 & 0.881 $\pm$ 0.010 & \textbf{0.915 $\pm$ 0.008} & 0.882 $\pm$ 0.004 & 0.823 $\pm$ 0.028 & 0.897 & \textit{0.034} \\
+sub-02 & 0.745 $\pm$ 0.006 & \textbf{0.795 $\pm$ 0.004} & 0.750 $\pm$ 0.010 & 0.741 $\pm$ 0.061 & 0.778 & \textit{0.050} \\
+sub-03 & 0.825 $\pm$ 0.015 & 0.817 $\pm$ 0.013 & \textbf{0.852 $\pm$ 0.020} & 0.779 $\pm$ 0.016 & 0.823 & \textit{0.027} \\
+sub-04 & 0.697 $\pm$ 0.010 & \textbf{0.754 $\pm$ 0.006} & 0.736 $\pm$ 0.018 & 0.693 $\pm$ 0.026 & 0.753 & \textit{0.057} \\
+sub-05 & 0.816 $\pm$ 0.012 & 0.825 $\pm$ 0.005 & \textbf{0.840 $\pm$ 0.010} & 0.789 $\pm$ 0.021 & 0.811 & \textit{0.024} \\
+sub-06 & 0.660 $\pm$ 0.007 & 0.648 $\pm$ 0.011 & \textbf{0.664 $\pm$ 0.019} & 0.539 $\pm$ 0.076 & 0.650 & \textit{0.004} \\
+\midrule
+\textit{Mean} & 0.771 $\pm$ 0.084 & \textbf{0.792 $\pm$ 0.088} & 0.787 $\pm$ 0.084 & 0.727 $\pm$ 0.102 & 0.785 $\pm$ 0.082 & \textbf{0.033} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% Table S11 — Per-subject AUROC, N170
+\begin{table}[t]
+\centering
+\caption{%
+Per-subject AUROC (mean $\pm$ standard deviation across five training seeds, LOSO) at the three-channel montage for ERP CORE N170 ($n = 40$ subjects). Conventions as in Table~\ref{sup:tab-persubj-hri}. The mean row matches the N170 entry of main text Table~\ref{tab:auroc}.%
+}
+\label{sup:tab-persubj-n170}
+\begin{tabular}{lcccccc}
+\toprule
+Subject & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\
+\midrule
+sub-01 & 0.577 $\pm$ 0.006 & 0.594 $\pm$ 0.019 & 0.583 $\pm$ 0.016 & 0.585 $\pm$ 0.014 & \textbf{0.648} & \textit{0.071} \\
+sub-02 & 0.663 $\pm$ 0.007 & 0.663 $\pm$ 0.011 & 0.649 $\pm$ 0.023 & 0.669 $\pm$ 0.013 & \textbf{0.716} & \textit{0.053} \\
+sub-03 & 0.680 $\pm$ 0.010 & 0.659 $\pm$ 0.025 & \textbf{0.681 $\pm$ 0.037} & 0.650 $\pm$ 0.008 & 0.665 & \textit{0.001} \\
+sub-04 & 0.758 $\pm$ 0.032 & 0.720 $\pm$ 0.027 & \textbf{0.776 $\pm$ 0.022} & 0.711 $\pm$ 0.042 & 0.686 & \textit{0.018} \\
+sub-05 & 0.703 $\pm$ 0.018 & 0.658 $\pm$ 0.019 & 0.707 $\pm$ 0.012 & 0.667 $\pm$ 0.017 & \textbf{0.740} & \textit{0.037} \\
+sub-06 & 0.832 $\pm$ 0.018 & 0.842 $\pm$ 0.024 & 0.843 $\pm$ 0.019 & 0.843 $\pm$ 0.038 & \textbf{0.907} & \textit{0.075} \\
+sub-07 & \textbf{0.844 $\pm$ 0.013} & 0.806 $\pm$ 0.020 & 0.794 $\pm$ 0.029 & 0.801 $\pm$ 0.031 & 0.765 & \textit{-0.039} \\
+sub-08 & 0.744 $\pm$ 0.024 & 0.698 $\pm$ 0.013 & 0.621 $\pm$ 0.013 & 0.683 $\pm$ 0.083 & \textbf{0.828} & \textit{0.084} \\
+sub-09 & 0.835 $\pm$ 0.010 & 0.850 $\pm$ 0.015 & 0.853 $\pm$ 0.015 & 0.808 $\pm$ 0.047 & \textbf{0.862} & \textit{0.028} \\
+sub-10 & \textbf{0.741 $\pm$ 0.016} & 0.733 $\pm$ 0.018 & 0.725 $\pm$ 0.016 & 0.703 $\pm$ 0.029 & 0.721 & \textit{-0.008} \\
+sub-11 & 0.650 $\pm$ 0.019 & 0.618 $\pm$ 0.026 & 0.570 $\pm$ 0.031 & 0.528 $\pm$ 0.074 & \textbf{0.657} & \textit{0.007} \\
+sub-12 & 0.636 $\pm$ 0.016 & 0.612 $\pm$ 0.022 & 0.631 $\pm$ 0.010 & 0.655 $\pm$ 0.057 & \textbf{0.720} & \textit{0.084} \\
+sub-13 & 0.718 $\pm$ 0.035 & 0.726 $\pm$ 0.032 & \textbf{0.732 $\pm$ 0.027} & 0.718 $\pm$ 0.009 & 0.696 & \textit{0.014} \\
+sub-14 & \textbf{0.855 $\pm$ 0.019} & 0.777 $\pm$ 0.015 & 0.762 $\pm$ 0.034 & 0.771 $\pm$ 0.045 & 0.805 & \textit{-0.050} \\
+sub-15 & 0.720 $\pm$ 0.016 & 0.703 $\pm$ 0.042 & \textbf{0.735 $\pm$ 0.012} & 0.691 $\pm$ 0.019 & 0.709 & \textit{0.016} \\
+sub-16 & 0.879 $\pm$ 0.009 & 0.918 $\pm$ 0.014 & \textbf{0.937 $\pm$ 0.015} & 0.914 $\pm$ 0.005 & 0.869 & \textit{0.058} \\
+sub-17 & 0.685 $\pm$ 0.008 & 0.640 $\pm$ 0.025 & 0.623 $\pm$ 0.045 & 0.606 $\pm$ 0.105 & \textbf{0.694} & \textit{0.009} \\
+sub-18 & 0.634 $\pm$ 0.013 & 0.676 $\pm$ 0.032 & \textbf{0.688 $\pm$ 0.013} & 0.615 $\pm$ 0.024 & 0.617 & \textit{0.053} \\
+sub-19 & 0.614 $\pm$ 0.014 & 0.654 $\pm$ 0.023 & 0.613 $\pm$ 0.012 & 0.664 $\pm$ 0.015 & \textbf{0.679} & \textit{0.066} \\
+sub-20 & 0.752 $\pm$ 0.027 & 0.757 $\pm$ 0.046 & 0.789 $\pm$ 0.037 & 0.765 $\pm$ 0.038 & \textbf{0.849} & \textit{0.097} \\
+sub-21 & 0.695 $\pm$ 0.015 & 0.637 $\pm$ 0.017 & 0.618 $\pm$ 0.031 & 0.639 $\pm$ 0.038 & \textbf{0.724} & \textit{0.029} \\
+sub-22 & 0.594 $\pm$ 0.022 & 0.760 $\pm$ 0.020 & \textbf{0.848 $\pm$ 0.013} & 0.683 $\pm$ 0.119 & 0.573 & \textit{0.254} \\
+sub-23 & 0.602 $\pm$ 0.008 & 0.615 $\pm$ 0.010 & 0.592 $\pm$ 0.031 & 0.599 $\pm$ 0.025 & \textbf{0.638} & \textit{0.035} \\
+sub-24 & \textbf{0.919 $\pm$ 0.007} & 0.824 $\pm$ 0.014 & 0.823 $\pm$ 0.026 & 0.859 $\pm$ 0.027 & 0.909 & \textit{-0.010} \\
+sub-25 & 0.614 $\pm$ 0.011 & 0.555 $\pm$ 0.025 & 0.531 $\pm$ 0.027 & 0.565 $\pm$ 0.031 & \textbf{0.654} & \textit{0.040} \\
+sub-26 & \textbf{0.821 $\pm$ 0.030} & 0.752 $\pm$ 0.026 & 0.673 $\pm$ 0.044 & 0.782 $\pm$ 0.043 & 0.799 & \textit{-0.021} \\
+sub-27 & 0.735 $\pm$ 0.022 & 0.759 $\pm$ 0.012 & \textbf{0.769 $\pm$ 0.009} & \textbf{0.770 $\pm$ 0.010} & 0.732 & \textit{0.035} \\
+sub-28 & 0.846 $\pm$ 0.016 & \textbf{0.878 $\pm$ 0.018} & 0.830 $\pm$ 0.027 & 0.866 $\pm$ 0.014 & 0.878 & \textit{0.032} \\
+sub-29 & 0.589 $\pm$ 0.016 & 0.588 $\pm$ 0.017 & \textbf{0.659 $\pm$ 0.012} & 0.532 $\pm$ 0.049 & 0.510 & \textit{0.070} \\
+sub-30 & 0.850 $\pm$ 0.010 & 0.866 $\pm$ 0.009 & 0.837 $\pm$ 0.008 & 0.844 $\pm$ 0.041 & \textbf{0.896} & \textit{0.046} \\
+sub-31 & 0.774 $\pm$ 0.010 & 0.694 $\pm$ 0.017 & 0.712 $\pm$ 0.025 & 0.647 $\pm$ 0.066 & \textbf{0.792} & \textit{0.018} \\
+sub-32 & 0.740 $\pm$ 0.033 & 0.808 $\pm$ 0.022 & \textbf{0.836 $\pm$ 0.013} & 0.695 $\pm$ 0.045 & 0.754 & \textit{0.097} \\
+sub-33 & 0.589 $\pm$ 0.021 & 0.562 $\pm$ 0.014 & 0.596 $\pm$ 0.015 & 0.580 $\pm$ 0.015 & \textbf{0.608} & \textit{0.019} \\
+sub-34 & 0.718 $\pm$ 0.018 & \textbf{0.743 $\pm$ 0.019} & 0.739 $\pm$ 0.013 & 0.712 $\pm$ 0.042 & 0.733 & \textit{0.025} \\
+sub-35 & 0.894 $\pm$ 0.015 & 0.872 $\pm$ 0.018 & 0.890 $\pm$ 0.017 & 0.817 $\pm$ 0.087 & \textbf{0.903} & \textit{0.009} \\
+sub-36 & 0.897 $\pm$ 0.020 & \textbf{0.907 $\pm$ 0.008} & 0.873 $\pm$ 0.011 & 0.818 $\pm$ 0.040 & 0.906 & \textit{0.010} \\
+sub-37 & 0.704 $\pm$ 0.024 & \textbf{0.759 $\pm$ 0.041} & 0.756 $\pm$ 0.007 & 0.703 $\pm$ 0.033 & 0.758 & \textit{0.055} \\
+sub-38 & 0.941 $\pm$ 0.007 & \textbf{0.958 $\pm$ 0.008} & 0.902 $\pm$ 0.030 & 0.941 $\pm$ 0.010 & 0.927 & \textit{0.016} \\
+sub-39 & 0.619 $\pm$ 0.027 & 0.617 $\pm$ 0.017 & 0.596 $\pm$ 0.011 & 0.612 $\pm$ 0.031 & \textbf{0.671} & \textit{0.052} \\
+sub-40 & \textbf{0.817 $\pm$ 0.008} & 0.804 $\pm$ 0.016 & 0.790 $\pm$ 0.033 & 0.752 $\pm$ 0.075 & 0.723 & \textit{-0.013} \\
+\midrule
+\textit{Mean} & 0.737 $\pm$ 0.105 & 0.732 $\pm$ 0.105 & 0.730 $\pm$ 0.106 & 0.712 $\pm$ 0.104 & \textbf{0.748 $\pm$ 0.104} & \textbf{0.037} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% Table S12 — Per-subject AUROC, P300
+\begin{table}[t]
+\centering
+\caption{%
+Per-subject AUROC (mean $\pm$ standard deviation across five training seeds, LOSO) at the three-channel montage for ERP CORE P300 ($n = 40$ subjects). Conventions as in Table~\ref{sup:tab-persubj-hri}. The mean row matches the P300 entry of main text Table~\ref{tab:auroc}.%
+}
+\label{sup:tab-persubj-p300}
+\begin{tabular}{lcccccc}
+\toprule
+Subject & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\
+\midrule
+sub-01 & 0.611 $\pm$ 0.020 & \textbf{0.691 $\pm$ 0.018} & 0.689 $\pm$ 0.034 & 0.632 $\pm$ 0.031 & 0.570 & \textit{0.080} \\
+sub-02 & 0.719 $\pm$ 0.023 & \textbf{0.805 $\pm$ 0.015} & 0.800 $\pm$ 0.017 & 0.761 $\pm$ 0.032 & 0.716 & \textit{0.085} \\
+sub-03 & 0.583 $\pm$ 0.037 & \textbf{0.737 $\pm$ 0.012} & 0.684 $\pm$ 0.023 & 0.648 $\pm$ 0.037 & 0.578 & \textit{0.154} \\
+sub-04 & 0.750 $\pm$ 0.016 & \textbf{0.905 $\pm$ 0.009} & 0.826 $\pm$ 0.052 & 0.741 $\pm$ 0.054 & 0.746 & \textit{0.155} \\
+sub-05 & \textbf{0.620 $\pm$ 0.016} & 0.607 $\pm$ 0.013 & 0.579 $\pm$ 0.015 & 0.552 $\pm$ 0.017 & 0.540 & \textit{-0.013} \\
+sub-06 & 0.481 $\pm$ 0.039 & 0.463 $\pm$ 0.017 & \textbf{0.500 $\pm$ 0.028} & 0.454 $\pm$ 0.029 & 0.445 & \textit{0.020} \\
+sub-07 & \textbf{0.730 $\pm$ 0.022} & 0.701 $\pm$ 0.018 & 0.722 $\pm$ 0.027 & 0.710 $\pm$ 0.025 & 0.608 & \textit{-0.007} \\
+sub-08 & 0.635 $\pm$ 0.009 & \textbf{0.645 $\pm$ 0.014} & 0.629 $\pm$ 0.023 & 0.620 $\pm$ 0.017 & 0.583 & \textit{0.010} \\
+sub-09 & 0.635 $\pm$ 0.015 & 0.676 $\pm$ 0.008 & 0.641 $\pm$ 0.021 & 0.655 $\pm$ 0.027 & \textbf{0.708} & \textit{0.073} \\
+sub-10 & 0.623 $\pm$ 0.021 & 0.704 $\pm$ 0.017 & \textbf{0.706 $\pm$ 0.027} & 0.672 $\pm$ 0.047 & 0.628 & \textit{0.083} \\
+sub-11 & 0.670 $\pm$ 0.012 & 0.736 $\pm$ 0.004 & \textbf{0.743 $\pm$ 0.005} & 0.685 $\pm$ 0.011 & 0.688 & \textit{0.073} \\
+sub-12 & 0.682 $\pm$ 0.027 & 0.738 $\pm$ 0.007 & \textbf{0.765 $\pm$ 0.017} & 0.705 $\pm$ 0.038 & 0.611 & \textit{0.083} \\
+sub-13 & 0.608 $\pm$ 0.035 & 0.651 $\pm$ 0.011 & \textbf{0.690 $\pm$ 0.031} & 0.672 $\pm$ 0.020 & 0.584 & \textit{0.082} \\
+sub-14 & 0.545 $\pm$ 0.025 & 0.606 $\pm$ 0.008 & \textbf{0.608 $\pm$ 0.027} & 0.601 $\pm$ 0.039 & 0.538 & \textit{0.064} \\
+sub-15 & 0.666 $\pm$ 0.018 & 0.739 $\pm$ 0.012 & 0.739 $\pm$ 0.017 & 0.692 $\pm$ 0.029 & \textbf{0.748} & \textit{0.082} \\
+sub-16 & 0.769 $\pm$ 0.021 & \textbf{0.860 $\pm$ 0.013} & 0.846 $\pm$ 0.021 & 0.817 $\pm$ 0.021 & 0.788 & \textit{0.091} \\
+sub-17 & 0.654 $\pm$ 0.013 & 0.720 $\pm$ 0.007 & 0.715 $\pm$ 0.032 & 0.657 $\pm$ 0.039 & \textbf{0.727} & \textit{0.073} \\
+sub-18 & 0.636 $\pm$ 0.016 & \textbf{0.758 $\pm$ 0.021} & 0.716 $\pm$ 0.029 & 0.658 $\pm$ 0.022 & 0.712 & \textit{0.122} \\
+sub-19 & 0.584 $\pm$ 0.021 & \textbf{0.655 $\pm$ 0.008} & 0.654 $\pm$ 0.016 & 0.642 $\pm$ 0.028 & 0.620 & \textit{0.071} \\
+sub-20 & 0.716 $\pm$ 0.021 & \textbf{0.756 $\pm$ 0.009} & 0.731 $\pm$ 0.024 & 0.681 $\pm$ 0.028 & 0.686 & \textit{0.040} \\
+sub-21 & 0.691 $\pm$ 0.017 & 0.723 $\pm$ 0.010 & \textbf{0.743 $\pm$ 0.032} & 0.669 $\pm$ 0.010 & 0.644 & \textit{0.052} \\
+sub-22 & 0.642 $\pm$ 0.008 & \textbf{0.674 $\pm$ 0.013} & 0.638 $\pm$ 0.027 & 0.629 $\pm$ 0.020 & 0.557 & \textit{0.032} \\
+sub-23 & 0.527 $\pm$ 0.012 & \textbf{0.661 $\pm$ 0.014} & 0.622 $\pm$ 0.021 & 0.602 $\pm$ 0.070 & 0.547 & \textit{0.135} \\
+sub-24 & 0.657 $\pm$ 0.018 & 0.687 $\pm$ 0.010 & \textbf{0.730 $\pm$ 0.022} & 0.698 $\pm$ 0.039 & 0.699 & \textit{0.073} \\
+sub-25 & 0.779 $\pm$ 0.030 & 0.796 $\pm$ 0.011 & 0.797 $\pm$ 0.021 & \textbf{0.817 $\pm$ 0.012} & 0.709 & \textit{0.038} \\
+sub-26 & 0.764 $\pm$ 0.031 & 0.798 $\pm$ 0.012 & \textbf{0.818 $\pm$ 0.019} & 0.748 $\pm$ 0.040 & 0.719 & \textit{0.053} \\
+sub-27 & 0.702 $\pm$ 0.028 & 0.740 $\pm$ 0.009 & 0.725 $\pm$ 0.015 & 0.667 $\pm$ 0.045 & \textbf{0.787} & \textit{0.086} \\
+sub-28 & 0.734 $\pm$ 0.013 & 0.731 $\pm$ 0.013 & \textbf{0.764 $\pm$ 0.016} & 0.727 $\pm$ 0.022 & 0.680 & \textit{0.030} \\
+sub-29 & 0.678 $\pm$ 0.030 & \textbf{0.715 $\pm$ 0.013} & 0.685 $\pm$ 0.023 & 0.636 $\pm$ 0.020 & 0.647 & \textit{0.037} \\
+sub-30 & 0.610 $\pm$ 0.022 & 0.779 $\pm$ 0.017 & \textbf{0.783 $\pm$ 0.031} & 0.660 $\pm$ 0.036 & 0.700 & \textit{0.173} \\
+sub-31 & 0.775 $\pm$ 0.024 & \textbf{0.866 $\pm$ 0.012} & 0.851 $\pm$ 0.012 & 0.805 $\pm$ 0.034 & 0.720 & \textit{0.092} \\
+sub-32 & 0.707 $\pm$ 0.021 & 0.799 $\pm$ 0.013 & \textbf{0.802 $\pm$ 0.011} & 0.745 $\pm$ 0.054 & 0.735 & \textit{0.095} \\
+sub-33 & 0.607 $\pm$ 0.033 & \textbf{0.804 $\pm$ 0.016} & 0.758 $\pm$ 0.025 & 0.627 $\pm$ 0.046 & 0.785 & \textit{0.196} \\
+sub-34 & 0.768 $\pm$ 0.016 & \textbf{0.846 $\pm$ 0.005} & 0.815 $\pm$ 0.025 & 0.827 $\pm$ 0.030 & 0.809 & \textit{0.078} \\
+sub-35 & 0.681 $\pm$ 0.013 & 0.654 $\pm$ 0.021 & 0.633 $\pm$ 0.024 & 0.629 $\pm$ 0.060 & \textbf{0.701} & \textit{0.019} \\
+sub-36 & \textbf{0.613 $\pm$ 0.022} & 0.588 $\pm$ 0.013 & 0.595 $\pm$ 0.038 & 0.564 $\pm$ 0.054 & 0.502 & \textit{-0.018} \\
+sub-37 & 0.730 $\pm$ 0.018 & 0.810 $\pm$ 0.023 & \textbf{0.832 $\pm$ 0.014} & 0.775 $\pm$ 0.035 & 0.764 & \textit{0.102} \\
+sub-38 & 0.636 $\pm$ 0.018 & \textbf{0.793 $\pm$ 0.010} & 0.776 $\pm$ 0.027 & 0.674 $\pm$ 0.035 & 0.673 & \textit{0.157} \\
+sub-39 & \textbf{0.719 $\pm$ 0.006} & 0.672 $\pm$ 0.013 & 0.688 $\pm$ 0.023 & 0.643 $\pm$ 0.053 & 0.715 & \textit{-0.003} \\
+sub-40 & \textbf{0.637 $\pm$ 0.020} & 0.625 $\pm$ 0.018 & 0.624 $\pm$ 0.025 & 0.566 $\pm$ 0.024 & 0.485 & \textit{-0.012} \\
+\midrule
+\textit{Mean} & 0.664 $\pm$ 0.071 & \textbf{0.723 $\pm$ 0.087} & 0.717 $\pm$ 0.082 & 0.674 $\pm$ 0.077 & 0.660 $\pm$ 0.091 & \textbf{0.071} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% Table S13 — Per-subject AUROC, N2pc
+\begin{table}[t]
+\centering
+\caption{%
+Per-subject AUROC (mean $\pm$ standard deviation across five training seeds, LOSO) at the three-channel montage for ERP CORE N2pc ($n = 40$ subjects). Conventions as in Table~\ref{sup:tab-persubj-hri}. The mean row matches the N2pc entry of main text Table~\ref{tab:auroc}.%
+}
+\label{sup:tab-persubj-n2pc}
+\begin{tabular}{lcccccc}
+\toprule
+Subject & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\
+\midrule
+sub-01 & 0.640 $\pm$ 0.007 & \textbf{0.645 $\pm$ 0.014} & 0.645 $\pm$ 0.009 & 0.615 $\pm$ 0.012 & 0.605 & \textit{0.005} \\
+sub-02 & 0.617 $\pm$ 0.018 & \textbf{0.645 $\pm$ 0.013} & 0.610 $\pm$ 0.009 & 0.611 $\pm$ 0.018 & 0.626 & \textit{0.028} \\
+sub-03 & \textbf{0.568 $\pm$ 0.003} & 0.555 $\pm$ 0.010 & 0.541 $\pm$ 0.007 & 0.554 $\pm$ 0.018 & 0.549 & \textit{-0.013} \\
+sub-04 & 0.783 $\pm$ 0.021 & 0.818 $\pm$ 0.012 & \textbf{0.834 $\pm$ 0.020} & 0.773 $\pm$ 0.028 & 0.817 & \textit{0.051} \\
+sub-05 & 0.756 $\pm$ 0.008 & 0.743 $\pm$ 0.011 & \textbf{0.778 $\pm$ 0.013} & 0.724 $\pm$ 0.004 & 0.766 & \textit{0.022} \\
+sub-06 & 0.845 $\pm$ 0.009 & \textbf{0.897 $\pm$ 0.003} & 0.871 $\pm$ 0.010 & 0.885 $\pm$ 0.011 & 0.886 & \textit{0.053} \\
+sub-07 & 0.681 $\pm$ 0.012 & \textbf{0.713 $\pm$ 0.014} & 0.701 $\pm$ 0.013 & 0.677 $\pm$ 0.013 & 0.690 & \textit{0.031} \\
+sub-08 & 0.698 $\pm$ 0.014 & \textbf{0.702 $\pm$ 0.013} & 0.698 $\pm$ 0.032 & 0.695 $\pm$ 0.012 & 0.688 & \textit{0.004} \\
+sub-09 & 0.682 $\pm$ 0.011 & \textbf{0.724 $\pm$ 0.011} & 0.688 $\pm$ 0.021 & 0.682 $\pm$ 0.026 & 0.665 & \textit{0.042} \\
+sub-10 & \textbf{0.540 $\pm$ 0.006} & 0.516 $\pm$ 0.005 & 0.507 $\pm$ 0.010 & 0.530 $\pm$ 0.016 & 0.540 & \textit{-0.001} \\
+sub-11 & 0.639 $\pm$ 0.012 & 0.664 $\pm$ 0.010 & 0.629 $\pm$ 0.029 & 0.651 $\pm$ 0.011 & \textbf{0.684} & \textit{0.045} \\
+sub-12 & 0.482 $\pm$ 0.010 & 0.484 $\pm$ 0.008 & \textbf{0.508 $\pm$ 0.008} & 0.482 $\pm$ 0.029 & 0.449 & \textit{0.026} \\
+sub-13 & 0.674 $\pm$ 0.021 & 0.700 $\pm$ 0.006 & \textbf{0.703 $\pm$ 0.017} & 0.640 $\pm$ 0.011 & 0.671 & \textit{0.029} \\
+sub-14 & 0.631 $\pm$ 0.016 & 0.654 $\pm$ 0.012 & 0.596 $\pm$ 0.032 & 0.657 $\pm$ 0.019 & \textbf{0.670} & \textit{0.039} \\
+sub-15 & 0.671 $\pm$ 0.011 & \textbf{0.721 $\pm$ 0.008} & 0.707 $\pm$ 0.015 & 0.715 $\pm$ 0.022 & 0.717 & \textit{0.050} \\
+sub-16 & 0.840 $\pm$ 0.009 & \textbf{0.844 $\pm$ 0.017} & 0.835 $\pm$ 0.018 & 0.794 $\pm$ 0.022 & 0.832 & \textit{0.004} \\
+sub-17 & 0.636 $\pm$ 0.010 & 0.601 $\pm$ 0.008 & 0.635 $\pm$ 0.013 & 0.589 $\pm$ 0.012 & \textbf{0.652} & \textit{0.016} \\
+sub-18 & 0.712 $\pm$ 0.011 & 0.732 $\pm$ 0.019 & 0.735 $\pm$ 0.009 & 0.716 $\pm$ 0.020 & \textbf{0.737} & \textit{0.025} \\
+sub-19 & 0.671 $\pm$ 0.012 & 0.681 $\pm$ 0.016 & 0.689 $\pm$ 0.013 & 0.686 $\pm$ 0.013 & \textbf{0.717} & \textit{0.047} \\
+sub-20 & 0.517 $\pm$ 0.009 & 0.525 $\pm$ 0.002 & 0.536 $\pm$ 0.021 & \textbf{0.539 $\pm$ 0.017} & 0.501 & \textit{0.022} \\
+sub-21 & 0.588 $\pm$ 0.008 & 0.587 $\pm$ 0.009 & 0.591 $\pm$ 0.011 & 0.608 $\pm$ 0.010 & \textbf{0.627} & \textit{0.039} \\
+sub-22 & 0.669 $\pm$ 0.009 & 0.716 $\pm$ 0.005 & \textbf{0.725 $\pm$ 0.009} & 0.697 $\pm$ 0.011 & 0.650 & \textit{0.057} \\
+sub-23 & \textbf{0.618 $\pm$ 0.007} & 0.567 $\pm$ 0.005 & 0.558 $\pm$ 0.007 & 0.567 $\pm$ 0.018 & 0.585 & \textit{-0.034} \\
+sub-24 & 0.694 $\pm$ 0.015 & 0.706 $\pm$ 0.005 & 0.708 $\pm$ 0.024 & 0.690 $\pm$ 0.008 & \textbf{0.750} & \textit{0.056} \\
+sub-25 & \textbf{0.635 $\pm$ 0.006} & 0.631 $\pm$ 0.016 & 0.601 $\pm$ 0.010 & 0.613 $\pm$ 0.014 & 0.619 & \textit{-0.004} \\
+sub-26 & 0.521 $\pm$ 0.023 & 0.516 $\pm$ 0.005 & 0.510 $\pm$ 0.011 & \textbf{0.532 $\pm$ 0.013} & 0.516 & \textit{0.010} \\
+sub-27 & 0.589 $\pm$ 0.007 & 0.587 $\pm$ 0.013 & 0.580 $\pm$ 0.019 & 0.564 $\pm$ 0.022 & \textbf{0.614} & \textit{0.025} \\
+sub-28 & 0.613 $\pm$ 0.008 & 0.610 $\pm$ 0.012 & \textbf{0.624 $\pm$ 0.023} & 0.594 $\pm$ 0.022 & 0.608 & \textit{0.012} \\
+sub-29 & 0.515 $\pm$ 0.012 & 0.510 $\pm$ 0.010 & 0.513 $\pm$ 0.005 & \textbf{0.528 $\pm$ 0.013} & 0.517 & \textit{0.014} \\
+sub-30 & 0.547 $\pm$ 0.008 & \textbf{0.566 $\pm$ 0.011} & 0.534 $\pm$ 0.018 & 0.549 $\pm$ 0.026 & 0.539 & \textit{0.019} \\
+sub-31 & \textbf{0.592 $\pm$ 0.012} & 0.591 $\pm$ 0.007 & 0.588 $\pm$ 0.013 & 0.559 $\pm$ 0.011 & 0.557 & \textit{-0.001} \\
+sub-32 & 0.589 $\pm$ 0.009 & 0.641 $\pm$ 0.004 & 0.619 $\pm$ 0.018 & 0.596 $\pm$ 0.010 & \textbf{0.655} & \textit{0.066} \\
+sub-33 & 0.672 $\pm$ 0.006 & 0.706 $\pm$ 0.009 & 0.679 $\pm$ 0.013 & 0.653 $\pm$ 0.016 & \textbf{0.740} & \textit{0.068} \\
+sub-34 & 0.624 $\pm$ 0.010 & \textbf{0.662 $\pm$ 0.013} & 0.662 $\pm$ 0.017 & 0.635 $\pm$ 0.030 & 0.608 & \textit{0.038} \\
+sub-35 & 0.616 $\pm$ 0.010 & \textbf{0.661 $\pm$ 0.008} & 0.645 $\pm$ 0.018 & 0.613 $\pm$ 0.030 & 0.655 & \textit{0.045} \\
+sub-36 & \textbf{0.636 $\pm$ 0.008} & 0.608 $\pm$ 0.009 & 0.595 $\pm$ 0.019 & 0.610 $\pm$ 0.010 & 0.625 & \textit{-0.011} \\
+sub-37 & \textbf{0.701 $\pm$ 0.006} & 0.684 $\pm$ 0.005 & 0.652 $\pm$ 0.030 & 0.694 $\pm$ 0.008 & 0.688 & \textit{-0.006} \\
+sub-38 & 0.681 $\pm$ 0.008 & 0.675 $\pm$ 0.006 & 0.680 $\pm$ 0.022 & 0.664 $\pm$ 0.023 & \textbf{0.700} & \textit{0.020} \\
+sub-39 & 0.621 $\pm$ 0.005 & 0.600 $\pm$ 0.027 & 0.589 $\pm$ 0.010 & 0.638 $\pm$ 0.017 & \textbf{0.679} & \textit{0.058} \\
+sub-40 & \textbf{0.563 $\pm$ 0.014} & 0.546 $\pm$ 0.016 & 0.522 $\pm$ 0.014 & 0.547 $\pm$ 0.011 & 0.555 & \textit{-0.008} \\
+\midrule
+\textit{Mean} & 0.639 $\pm$ 0.081 & 0.648 $\pm$ 0.092 & 0.641 $\pm$ 0.092 & 0.634 $\pm$ 0.082 & \textbf{0.649 $\pm$ 0.093} & \textbf{0.025} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% Table S14 — Per-subject AUROC, MMN
+\begin{table}[t]
+\centering
+\caption{%
+Per-subject AUROC (mean $\pm$ standard deviation across five training seeds, LOSO) at the three-channel montage for ERP CORE MMN ($n = 40$ subjects). Conventions as in Table~\ref{sup:tab-persubj-hri}. The mean row matches the MMN entry of main text Table~\ref{tab:auroc}.%
+}
+\label{sup:tab-persubj-mmn}
+\begin{tabular}{lcccccc}
+\toprule
+Subject & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\
+\midrule
+sub-01 & 0.676 $\pm$ 0.006 & 0.687 $\pm$ 0.007 & \textbf{0.689 $\pm$ 0.005} & 0.646 $\pm$ 0.022 & 0.665 & \textit{0.013} \\
+sub-02 & \textbf{0.573 $\pm$ 0.003} & 0.566 $\pm$ 0.004 & 0.557 $\pm$ 0.010 & 0.570 $\pm$ 0.018 & 0.568 & \textit{-0.003} \\
+sub-03 & 0.560 $\pm$ 0.003 & \textbf{0.588 $\pm$ 0.005} & 0.576 $\pm$ 0.009 & 0.557 $\pm$ 0.030 & 0.583 & \textit{0.028} \\
+sub-04 & 0.499 $\pm$ 0.004 & \textbf{0.520 $\pm$ 0.007} & 0.519 $\pm$ 0.005 & 0.503 $\pm$ 0.008 & 0.504 & \textit{0.021} \\
+sub-05 & \textbf{0.624 $\pm$ 0.006} & 0.616 $\pm$ 0.012 & 0.611 $\pm$ 0.021 & 0.570 $\pm$ 0.020 & 0.609 & \textit{-0.008} \\
+sub-06 & 0.555 $\pm$ 0.005 & 0.556 $\pm$ 0.008 & 0.555 $\pm$ 0.010 & 0.544 $\pm$ 0.021 & \textbf{0.557} & \textit{0.002} \\
+sub-07 & 0.620 $\pm$ 0.004 & 0.626 $\pm$ 0.005 & 0.626 $\pm$ 0.009 & 0.598 $\pm$ 0.024 & \textbf{0.642} & \textit{0.022} \\
+sub-08 & 0.618 $\pm$ 0.002 & 0.619 $\pm$ 0.006 & \textbf{0.633 $\pm$ 0.014} & 0.588 $\pm$ 0.014 & 0.623 & \textit{0.016} \\
+sub-09 & 0.615 $\pm$ 0.006 & 0.624 $\pm$ 0.008 & \textbf{0.631 $\pm$ 0.014} & 0.603 $\pm$ 0.019 & 0.625 & \textit{0.016} \\
+sub-10 & 0.564 $\pm$ 0.004 & 0.568 $\pm$ 0.005 & \textbf{0.570 $\pm$ 0.006} & 0.543 $\pm$ 0.025 & 0.562 & \textit{0.006} \\
+sub-11 & 0.583 $\pm$ 0.007 & 0.585 $\pm$ 0.009 & 0.583 $\pm$ 0.014 & 0.551 $\pm$ 0.023 & \textbf{0.586} & \textit{0.003} \\
+sub-12 & 0.569 $\pm$ 0.007 & 0.569 $\pm$ 0.004 & 0.569 $\pm$ 0.014 & 0.540 $\pm$ 0.048 & \textbf{0.570} & \textit{0.002} \\
+sub-13 & 0.522 $\pm$ 0.006 & 0.503 $\pm$ 0.005 & 0.511 $\pm$ 0.009 & 0.507 $\pm$ 0.019 & \textbf{0.530} & \textit{0.007} \\
+sub-14 & 0.563 $\pm$ 0.001 & 0.561 $\pm$ 0.006 & 0.568 $\pm$ 0.008 & \textbf{0.568 $\pm$ 0.026} & 0.567 & \textit{0.005} \\
+sub-15 & 0.579 $\pm$ 0.005 & 0.598 $\pm$ 0.006 & 0.594 $\pm$ 0.006 & 0.552 $\pm$ 0.059 & \textbf{0.608} & \textit{0.030} \\
+sub-16 & 0.625 $\pm$ 0.007 & 0.616 $\pm$ 0.004 & 0.624 $\pm$ 0.008 & 0.575 $\pm$ 0.040 & \textbf{0.627} & \textit{0.002} \\
+sub-17 & 0.507 $\pm$ 0.004 & 0.511 $\pm$ 0.009 & 0.496 $\pm$ 0.026 & 0.509 $\pm$ 0.021 & \textbf{0.514} & \textit{0.007} \\
+sub-18 & 0.544 $\pm$ 0.005 & 0.531 $\pm$ 0.004 & 0.538 $\pm$ 0.005 & 0.513 $\pm$ 0.006 & \textbf{0.551} & \textit{0.007} \\
+sub-19 & 0.600 $\pm$ 0.008 & 0.591 $\pm$ 0.008 & 0.594 $\pm$ 0.007 & 0.548 $\pm$ 0.016 & \textbf{0.616} & \textit{0.016} \\
+sub-20 & 0.648 $\pm$ 0.004 & 0.648 $\pm$ 0.011 & 0.654 $\pm$ 0.007 & 0.609 $\pm$ 0.037 & \textbf{0.655} & \textit{0.008} \\
+sub-21 & 0.528 $\pm$ 0.006 & 0.538 $\pm$ 0.007 & 0.529 $\pm$ 0.011 & 0.524 $\pm$ 0.024 & \textbf{0.547} & \textit{0.019} \\
+sub-22 & 0.659 $\pm$ 0.003 & 0.665 $\pm$ 0.008 & \textbf{0.668 $\pm$ 0.006} & 0.612 $\pm$ 0.026 & 0.653 & \textit{0.009} \\
+sub-23 & 0.544 $\pm$ 0.005 & \textbf{0.555 $\pm$ 0.010} & 0.550 $\pm$ 0.005 & 0.549 $\pm$ 0.009 & 0.551 & \textit{0.011} \\
+sub-24 & 0.600 $\pm$ 0.004 & 0.601 $\pm$ 0.004 & 0.602 $\pm$ 0.010 & 0.586 $\pm$ 0.019 & \textbf{0.604} & \textit{0.004} \\
+sub-25 & 0.549 $\pm$ 0.004 & 0.554 $\pm$ 0.005 & 0.563 $\pm$ 0.002 & 0.526 $\pm$ 0.017 & \textbf{0.577} & \textit{0.027} \\
+sub-26 & \textbf{0.620 $\pm$ 0.005} & 0.604 $\pm$ 0.004 & 0.601 $\pm$ 0.005 & 0.567 $\pm$ 0.022 & 0.616 & \textit{-0.004} \\
+sub-27 & 0.621 $\pm$ 0.005 & \textbf{0.646 $\pm$ 0.006} & 0.642 $\pm$ 0.007 & 0.609 $\pm$ 0.019 & 0.635 & \textit{0.025} \\
+sub-28 & 0.555 $\pm$ 0.006 & 0.577 $\pm$ 0.003 & 0.562 $\pm$ 0.006 & 0.541 $\pm$ 0.019 & \textbf{0.582} & \textit{0.027} \\
+sub-29 & 0.557 $\pm$ 0.002 & \textbf{0.563 $\pm$ 0.005} & 0.553 $\pm$ 0.007 & 0.527 $\pm$ 0.035 & 0.558 & \textit{0.006} \\
+sub-30 & 0.534 $\pm$ 0.005 & \textbf{0.555 $\pm$ 0.007} & 0.546 $\pm$ 0.018 & 0.533 $\pm$ 0.017 & 0.545 & \textit{0.021} \\
+sub-31 & 0.612 $\pm$ 0.004 & 0.621 $\pm$ 0.008 & \textbf{0.624 $\pm$ 0.015} & 0.571 $\pm$ 0.023 & 0.621 & \textit{0.012} \\
+sub-32 & 0.559 $\pm$ 0.003 & 0.558 $\pm$ 0.009 & 0.556 $\pm$ 0.013 & 0.555 $\pm$ 0.018 & \textbf{0.570} & \textit{0.011} \\
+sub-33 & 0.649 $\pm$ 0.004 & 0.634 $\pm$ 0.012 & 0.645 $\pm$ 0.011 & 0.619 $\pm$ 0.018 & \textbf{0.652} & \textit{0.002} \\
+sub-34 & \textbf{0.573 $\pm$ 0.004} & 0.547 $\pm$ 0.008 & 0.537 $\pm$ 0.013 & 0.526 $\pm$ 0.011 & 0.545 & \textit{-0.026} \\
+sub-35 & 0.594 $\pm$ 0.006 & 0.593 $\pm$ 0.007 & 0.592 $\pm$ 0.024 & 0.571 $\pm$ 0.028 & \textbf{0.599} & \textit{0.005} \\
+sub-36 & 0.507 $\pm$ 0.002 & 0.514 $\pm$ 0.005 & 0.501 $\pm$ 0.008 & 0.506 $\pm$ 0.015 & \textbf{0.516} & \textit{0.010} \\
+sub-37 & \textbf{0.642 $\pm$ 0.006} & 0.633 $\pm$ 0.007 & 0.631 $\pm$ 0.015 & 0.583 $\pm$ 0.027 & 0.637 & \textit{-0.005} \\
+sub-38 & 0.664 $\pm$ 0.003 & \textbf{0.666 $\pm$ 0.014} & 0.646 $\pm$ 0.015 & 0.598 $\pm$ 0.019 & 0.663 & \textit{0.003} \\
+sub-39 & 0.702 $\pm$ 0.002 & 0.707 $\pm$ 0.006 & 0.695 $\pm$ 0.016 & 0.651 $\pm$ 0.020 & \textbf{0.718} & \textit{0.017} \\
+sub-40 & 0.553 $\pm$ 0.003 & 0.560 $\pm$ 0.006 & 0.555 $\pm$ 0.008 & 0.547 $\pm$ 0.011 & \textbf{0.565} & \textit{0.012} \\
+\midrule
+\textit{Mean} & 0.587 $\pm$ 0.049 & 0.589 $\pm$ 0.049 & 0.587 $\pm$ 0.050 & 0.562 $\pm$ 0.038 & \textbf{0.593 $\pm$ 0.048} & \textbf{0.010} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% Table S15 — Per-subject AUROC, N400
+\begin{table}[t]
+\centering
+\caption{%
+Per-subject AUROC (mean $\pm$ standard deviation across five training seeds, LOSO) at the three-channel montage for ERP CORE N400 ($n = 40$ subjects). Conventions as in Table~\ref{sup:tab-persubj-hri}. The mean row matches the N400 entry of main text Table~\ref{tab:auroc}.%
+}
+\label{sup:tab-persubj-n400}
+\begin{tabular}{lcccccc}
+\toprule
+Subject & ERP-XTTN & EEGNet & EEG-Deformer & EPMN & xDAWN+RG & $\Delta$ \\
+\midrule
+sub-01 & 0.531 $\pm$ 0.024 & 0.531 $\pm$ 0.020 & 0.541 $\pm$ 0.015 & 0.569 $\pm$ 0.023 & \textbf{0.597} & \textit{0.066} \\
+sub-02 & 0.601 $\pm$ 0.023 & \textbf{0.669 $\pm$ 0.013} & 0.658 $\pm$ 0.013 & 0.620 $\pm$ 0.019 & 0.611 & \textit{0.068} \\
+sub-03 & 0.564 $\pm$ 0.021 & \textbf{0.623 $\pm$ 0.015} & 0.603 $\pm$ 0.037 & 0.603 $\pm$ 0.059 & 0.608 & \textit{0.059} \\
+sub-04 & 0.668 $\pm$ 0.032 & \textbf{0.719 $\pm$ 0.008} & 0.650 $\pm$ 0.105 & 0.602 $\pm$ 0.046 & 0.650 & \textit{0.051} \\
+sub-05 & 0.468 $\pm$ 0.025 & 0.493 $\pm$ 0.013 & 0.494 $\pm$ 0.036 & 0.495 $\pm$ 0.043 & \textbf{0.549} & \textit{0.081} \\
+sub-06 & 0.572 $\pm$ 0.022 & 0.578 $\pm$ 0.029 & \textbf{0.623 $\pm$ 0.025} & 0.615 $\pm$ 0.040 & 0.599 & \textit{0.051} \\
+sub-07 & 0.626 $\pm$ 0.014 & \textbf{0.643 $\pm$ 0.013} & 0.623 $\pm$ 0.037 & 0.566 $\pm$ 0.065 & 0.620 & \textit{0.017} \\
+sub-08 & 0.512 $\pm$ 0.024 & 0.598 $\pm$ 0.021 & 0.596 $\pm$ 0.027 & \textbf{0.606 $\pm$ 0.021} & 0.519 & \textit{0.094} \\
+sub-09 & 0.503 $\pm$ 0.007 & \textbf{0.560 $\pm$ 0.012} & 0.528 $\pm$ 0.040 & 0.514 $\pm$ 0.046 & 0.549 & \textit{0.057} \\
+sub-10 & 0.568 $\pm$ 0.016 & \textbf{0.570 $\pm$ 0.020} & 0.566 $\pm$ 0.025 & 0.534 $\pm$ 0.037 & 0.547 & \textit{0.002} \\
+sub-11 & 0.522 $\pm$ 0.025 & 0.475 $\pm$ 0.016 & 0.489 $\pm$ 0.007 & 0.526 $\pm$ 0.023 & \textbf{0.544} & \textit{0.021} \\
+sub-12 & 0.646 $\pm$ 0.030 & \textbf{0.677 $\pm$ 0.020} & 0.657 $\pm$ 0.027 & 0.630 $\pm$ 0.067 & 0.666 & \textit{0.031} \\
+sub-13 & 0.445 $\pm$ 0.021 & 0.513 $\pm$ 0.005 & 0.513 $\pm$ 0.020 & \textbf{0.514 $\pm$ 0.039} & 0.514 & \textit{0.070} \\
+sub-14 & \textbf{0.499 $\pm$ 0.025} & 0.469 $\pm$ 0.011 & 0.479 $\pm$ 0.020 & 0.478 $\pm$ 0.033 & 0.494 & \textit{-0.004} \\
+sub-15 & 0.616 $\pm$ 0.016 & 0.629 $\pm$ 0.017 & 0.656 $\pm$ 0.054 & 0.610 $\pm$ 0.077 & \textbf{0.656} & \textit{0.040} \\
+sub-16 & 0.713 $\pm$ 0.013 & 0.704 $\pm$ 0.012 & 0.641 $\pm$ 0.032 & 0.674 $\pm$ 0.031 & \textbf{0.742} & \textit{0.029} \\
+sub-17 & 0.480 $\pm$ 0.028 & 0.515 $\pm$ 0.018 & 0.480 $\pm$ 0.034 & 0.487 $\pm$ 0.012 & \textbf{0.560} & \textit{0.080} \\
+sub-18 & \textbf{0.459 $\pm$ 0.046} & 0.387 $\pm$ 0.024 & 0.426 $\pm$ 0.050 & 0.431 $\pm$ 0.071 & 0.416 & \textit{-0.028} \\
+sub-19 & 0.754 $\pm$ 0.028 & \textbf{0.798 $\pm$ 0.017} & 0.795 $\pm$ 0.025 & 0.748 $\pm$ 0.060 & 0.774 & \textit{0.045} \\
+sub-20 & 0.623 $\pm$ 0.031 & \textbf{0.699 $\pm$ 0.014} & 0.667 $\pm$ 0.034 & 0.684 $\pm$ 0.050 & 0.693 & \textit{0.077} \\
+sub-21 & 0.479 $\pm$ 0.021 & 0.434 $\pm$ 0.014 & 0.465 $\pm$ 0.030 & \textbf{0.487 $\pm$ 0.032} & 0.436 & \textit{0.008} \\
+sub-22 & 0.567 $\pm$ 0.024 & 0.567 $\pm$ 0.037 & 0.587 $\pm$ 0.051 & 0.588 $\pm$ 0.021 & \textbf{0.610} & \textit{0.043} \\
+sub-23 & 0.560 $\pm$ 0.013 & 0.548 $\pm$ 0.018 & 0.555 $\pm$ 0.041 & 0.521 $\pm$ 0.024 & \textbf{0.562} & \textit{0.002} \\
+sub-24 & 0.579 $\pm$ 0.021 & 0.587 $\pm$ 0.015 & 0.557 $\pm$ 0.033 & \textbf{0.604 $\pm$ 0.055} & 0.603 & \textit{0.025} \\
+sub-25 & 0.496 $\pm$ 0.011 & 0.511 $\pm$ 0.012 & 0.507 $\pm$ 0.008 & \textbf{0.545 $\pm$ 0.046} & 0.527 & \textit{0.049} \\
+sub-26 & 0.683 $\pm$ 0.022 & 0.686 $\pm$ 0.016 & 0.676 $\pm$ 0.037 & \textbf{0.732 $\pm$ 0.023} & 0.687 & \textit{0.049} \\
+sub-27 & 0.551 $\pm$ 0.024 & \textbf{0.560 $\pm$ 0.015} & 0.545 $\pm$ 0.027 & 0.546 $\pm$ 0.023 & 0.519 & \textit{0.010} \\
+sub-28 & 0.465 $\pm$ 0.021 & 0.491 $\pm$ 0.013 & 0.490 $\pm$ 0.032 & 0.471 $\pm$ 0.044 & \textbf{0.491} & \textit{0.027} \\
+sub-29 & 0.567 $\pm$ 0.027 & 0.598 $\pm$ 0.008 & 0.585 $\pm$ 0.037 & \textbf{0.603 $\pm$ 0.030} & 0.589 & \textit{0.037} \\
+sub-30 & 0.516 $\pm$ 0.021 & 0.550 $\pm$ 0.012 & 0.551 $\pm$ 0.033 & \textbf{0.574 $\pm$ 0.039} & 0.567 & \textit{0.059} \\
+sub-31 & 0.706 $\pm$ 0.021 & 0.744 $\pm$ 0.016 & \textbf{0.752 $\pm$ 0.019} & 0.716 $\pm$ 0.021 & 0.743 & \textit{0.046} \\
+sub-32 & 0.452 $\pm$ 0.015 & 0.503 $\pm$ 0.005 & \textbf{0.505 $\pm$ 0.024} & 0.473 $\pm$ 0.023 & 0.432 & \textit{0.053} \\
+sub-33 & 0.594 $\pm$ 0.031 & 0.636 $\pm$ 0.027 & 0.610 $\pm$ 0.011 & \textbf{0.639 $\pm$ 0.016} & 0.574 & \textit{0.046} \\
+sub-34 & 0.567 $\pm$ 0.016 & 0.572 $\pm$ 0.020 & \textbf{0.597 $\pm$ 0.029} & 0.531 $\pm$ 0.049 & 0.520 & \textit{0.030} \\
+sub-35 & 0.542 $\pm$ 0.030 & 0.550 $\pm$ 0.035 & 0.528 $\pm$ 0.071 & 0.504 $\pm$ 0.043 & \textbf{0.560} & \textit{0.017} \\
+sub-36 & 0.563 $\pm$ 0.019 & 0.554 $\pm$ 0.015 & 0.511 $\pm$ 0.036 & 0.468 $\pm$ 0.019 & \textbf{0.575} & \textit{0.012} \\
+sub-37 & 0.531 $\pm$ 0.021 & \textbf{0.585 $\pm$ 0.019} & 0.567 $\pm$ 0.020 & 0.552 $\pm$ 0.023 & 0.540 & \textit{0.053} \\
+sub-38 & \textbf{0.676 $\pm$ 0.016} & 0.654 $\pm$ 0.033 & 0.667 $\pm$ 0.026 & 0.672 $\pm$ 0.029 & 0.642 & \textit{-0.003} \\
+sub-39 & 0.597 $\pm$ 0.017 & \textbf{0.646 $\pm$ 0.022} & 0.596 $\pm$ 0.019 & 0.624 $\pm$ 0.036 & 0.576 & \textit{0.049} \\
+sub-40 & 0.539 $\pm$ 0.013 & \textbf{0.598 $\pm$ 0.027} & 0.587 $\pm$ 0.022 & 0.574 $\pm$ 0.037 & 0.527 & \textit{0.058} \\
+\midrule
+\textit{Mean} & 0.565 $\pm$ 0.077 & \textbf{0.586 $\pm$ 0.087} & 0.578 $\pm$ 0.079 & 0.573 $\pm$ 0.077 & 0.580 $\pm$ 0.081 & \textbf{0.039} \\
+\bottomrule
+\end{tabular}
+\end{table}

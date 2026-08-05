@@ -1,0 +1,122 @@
+{
+  "run_name": "20260725_043752_hri_errp_cursor_midline3_erpxttn_peak_k2",
+  "args": {
+    "dataset": "hri_errp_cursor",
+    "channels": "midline3",
+    "model": "erpxttn",
+    "seed": 4,
+    "resume": true,
+    "max_k": 2,
+    "ablation_mode": "nowhiten",
+    "no_self_attn": false,
+    "num_heads": 4,
+    "patch_width": 8,
+    "d_model": 64,
+    "peak_prominence": null,
+    "epmn_recipe": "shared",
+    "ablation_tag": "k2"
+  },
+  "seed": 4,
+  "device": "cuda",
+  "elapsed_seconds": 3.1,
+  "folds": [
+    {
+      "fold": 0,
+      "test_subject": "sub-02",
+      "best_epoch": 0,
+      "test_auroc": 0.7577782989368355,
+      "test_bal_acc": 0.6266025641025641
+    },
+    {
+      "fold": 1,
+      "test_subject": "sub-03",
+      "best_epoch": 0,
+      "test_auroc": 0.8192217585474778,
+      "test_bal_acc": 0.7624094003953438
+    },
+    {
+      "fold": 2,
+      "test_subject": "sub-04",
+      "best_epoch": 0,
+      "test_auroc": 0.9696545284780579,
+      "test_bal_acc": 0.9297852474323063
+    },
+    {
+      "fold": 3,
+      "test_subject": "sub-05",
+      "best_epoch": 0,
+      "test_auroc": 0.7306048740367251,
+      "test_bal_acc": 0.6511291101217616
+    },
+    {
+      "fold": 4,
+      "test_subject": "sub-06",
+      "best_epoch": 0,
+      "test_auroc": 0.8360121127416725,
+      "test_bal_acc": 0.7787095271372001
+    },
+    {
+      "fold": 5,
+      "test_subject": "sub-07",
+      "best_epoch": 0,
+      "test_auroc": 0.8023435204231559,
+      "test_bal_acc": 0.7232956215104319
+    },
+    {
+      "fold": 6,
+      "test_subject": "sub-08",
+      "best_epoch": 0,
+      "test_auroc": 0.8544630758807589,
+      "test_bal_acc": 0.7829861111111112
+    },
+    {
+      "fold": 7,
+      "test_subject": "sub-09",
+      "best_epoch": 0,
+      "test_auroc": 0.8901357207096722,
+      "test_bal_acc": 0.7944362684980787
+    },
+    {
+      "fold": 8,
+      "test_subject": "sub-10",
+      "best_epoch": 0,
+      "test_auroc": 0.5807642205818498,
+      "test_bal_acc": 0.5435030395136778
+    },
+    {
+      "fold": 9,
+      "test_subject": "sub-11",
+      "best_epoch": 0,
+      "test_auroc": 0.8015829155646785,
+      "test_bal_acc": 0.7276872064106106
+    },
+    {
+      "fold": 10,
+      "test_subject": "sub-13",
+      "best_epoch": 0,
+      "test_auroc": 0.8640522875816994,
+      "test_bal_acc": 0.7888320545609548
+    }
+  ],
+  "mean_auroc": 0.8097,
+  "std_auroc": 0.095,
+  "mean_bal_acc": 0.7372,
+  "std_bal_acc": 0.0977,
+  "mean_routing_auroc": 0.8097,
+  "mean_two_factor_auroc": 0.8246,
+  "std_two_factor_auroc": 0.0987,
+  "two_factor_auroc_per_subject": {
+    "sub-02": 0.7522,
+    "sub-03": 0.8314,
+    "sub-04": 0.974,
+    "sub-05": 0.7155,
+    "sub-06": 0.8595,
+    "sub-07": 0.8484,
+    "sub-08": 0.8861,
+    "sub-09": 0.9103,
+    "sub-10": 0.595,
+    "sub-11": 0.8298,
+    "sub-13": 0.8683
+  },
+  "two_factor_combiner": "perfold_zerocal_routing_channel_contrast_v2"
+}

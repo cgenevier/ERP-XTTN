@@ -1,0 +1,195 @@
+{
+  "run_name": "20260724_160053_bnci_errp_013-2015_full_erpxttn_peak",
+  "args": {
+    "dataset": "bnci_errp_013-2015",
+    "channels": "full",
+    "model": "erpxttn",
+    "seed": 4,
+    "resume": true,
+    "max_k": 4,
+    "no_self_attn": false,
+    "num_heads": 4,
+    "patch_width": 8,
+    "d_model": 64,
+    "peak_prominence": null,
+    "epmn_recipe": "shared",
+    "ablation_tag": null
+  },
+  "seed": 4,
+  "device": "cuda",
+  "elapsed_seconds": 674.3,
+  "folds": [
+    {
+      "fold": 0,
+      "test_subject": "sub-01",
+      "best_epoch": 30,
+      "best_val_auroc": 0.8117912970806663,
+      "test_auroc": 0.7565789127633273,
+      "test_bal_acc": 0.6862188675275491,
+      "detected_windows_ms": [
+        [
+          101.6,
+          269.5
+        ],
+        [
+          269.5,
+          328.1
+        ],
+        [
+          328.1,
+          406.2
+        ],
+        [
+          406.2,
+          585.9
+        ]
+      ]
+    },
+    {
+      "fold": 1,
+      "test_subject": "sub-02",
+      "best_epoch": 11,
+      "best_val_auroc": 0.8110457290104227,
+      "test_auroc": 0.6956498155782166,
+      "test_bal_acc": 0.6434643681334937,
+      "detected_windows_ms": [
+        [
+          101.6,
+          273.4
+        ],
+        [
+          273.4,
+          335.9
+        ],
+        [
+          335.9,
+          410.2
+        ],
+        [
+          410.2,
+          582.0
+        ]
+      ]
+    },
+    {
+      "fold": 2,
+      "test_subject": "sub-03",
+      "best_epoch": 75,
+      "best_val_auroc": 0.8621088372946683,
+      "test_auroc": 0.8365929847450824,
+      "test_bal_acc": 0.7574518265756724,
+      "detected_windows_ms": [
+        [
+          113.3,
+          277.3
+        ],
+        [
+          277.3,
+          332.0
+        ],
+        [
+          332.0,
+          406.2
+        ],
+        [
+          406.2,
+          574.2
+        ]
+      ]
+    },
+    {
+      "fold": 3,
+      "test_subject": "sub-04",
+      "best_epoch": 49,
+      "best_val_auroc": 0.8801186052621701,
+      "test_auroc": 0.7162089816343665,
+      "test_bal_acc": 0.6395652884458245,
+      "detected_windows_ms": [
+        [
+          269.5,
+          332.0
+        ],
+        [
+          332.0,
+          410.2
+        ],
+        [
+          410.2,
+          574.2
+        ],
+        [
+          589.8,
+          789.1
+        ]
+      ]
+    },
+    {
+      "fold": 4,
+      "test_subject": "sub-05",
+      "best_epoch": 76,
+      "best_val_auroc": 0.8369438621010947,
+      "test_auroc": 0.8157102398359067,
+      "test_bal_acc": 0.7443498837986093,
+      "detected_windows_ms": [
+        [
+          273.4,
+          335.9
+        ],
+        [
+          335.9,
+          410.2
+        ],
+        [
+          410.2,
+          570.3
+        ],
+        [
+          585.9,
+          785.2
+        ]
+      ]
+    },
+    {
+      "fold": 5,
+      "test_subject": "sub-06",
+      "best_epoch": 40,
+      "best_val_auroc": 0.8577230397249666,
+      "test_auroc": 0.6003806727030481,
+      "test_bal_acc": 0.5822688093101667,
+      "detected_windows_ms": [
+        [
+          125.0,
+          269.5
+        ],
+        [
+          269.5,
+          332.0
+        ],
+        [
+          332.0,
+          410.2
+        ],
+        [
+          410.2,
+          593.8
+        ]
+      ]
+    }
+  ],
+  "mean_auroc": 0.7369,
+  "std_auroc": 0.0789,
+  "mean_bal_acc": 0.6756,
+  "std_bal_acc": 0.0613,
+  "mean_routing_auroc": 0.7369,
+  "mean_two_factor_auroc": 0.7758,
+  "std_two_factor_auroc": 0.0565,
+  "two_factor_auroc_per_subject": {
+    "sub-01": 0.8154,
+    "sub-02": 0.7772,
+    "sub-03": 0.8234,
+    "sub-04": 0.7747,
+    "sub-05": 0.8076,
+    "sub-06": 0.6563
+  },
+  "two_factor_combiner": "perfold_zerocal_routing_channel_contrast_v2"
+}

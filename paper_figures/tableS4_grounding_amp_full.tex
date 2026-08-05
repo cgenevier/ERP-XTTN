@@ -1,0 +1,28 @@
+% Table S4 — Amplitude grounding, full-montage
+\begin{table}[t]
+\centering
+\setlength{\tabcolsep}{5pt}
+\caption{%
+Full-montage amplitude grounding controls (mean AUROC, LOSO, seed-averaged across five seeds). The ERP-XTTN column reports the full two-factor model AUROC (from Table~\ref{sup:tab-fullmontage-auroc}) as a reference. Amplitude features are evaluated separately for the monopolar channel matched filter (Channel MF; Equation~5) and the bipolar contrast matched filter (Contrast MF; Equation~6). For each derivation: On-target = matched filter computed over the prototype's detected component window; Off-target (early) = window displaced $-300$\,ms from the detected latency (clipped to epoch start); Off-target (late) = window displaced $+150$\,ms; Permutation = matched-filter features shuffled across trials. For each fold and feature family, AUROC is the maximum orientation-invariant AUROC over individual features. These values constitute a descriptive best-feature diagnostic rather than the performance of a trained classifier or the logistic combiner. Datasets ordered by mean AUROC across all five methods, descending. Standard deviations are omitted and are available in the released code \cite{wyman2026erpxttn_code}. Abbreviations as in Table~\ref{sup:tab-grounding-full-routing}.%
+}
+\label{sup:tab-grounding-full-amp}
+\begin{tabular}{l c cccc cccc}
+\toprule
+ & & \multicolumn{4}{c}{Channel MF} & \multicolumn{4}{c}{Contrast MF} \\
+\cmidrule(lr){3-6} \cmidrule(lr){7-10}
+Dataset & ERP-XTTN & On-target & Off-target (early) & Off-target (late) & Permutation & On-target & Off-target (early) & Off-target (late) & Permutation \\
+\midrule
+HRI & 0.85 & 0.77 & 0.59 & 0.76 & 0.56 & 0.83 & 0.65 & 0.81 & 0.59 \\
+ERN & 0.93 & 0.85 & 0.82 & 0.83 & 0.63 & 0.90 & 0.88 & 0.88 & 0.67 \\
+LRP & 0.85 & 0.70 & 0.67 & 0.65 & 0.57 & 0.78 & 0.75 & 0.68 & 0.59 \\
+BNCI & 0.78 & 0.74 & 0.60 & 0.72 & 0.56 & 0.78 & 0.65 & 0.76 & 0.58 \\
+N170 & 0.77 & 0.78 & 0.61 & 0.72 & 0.62 & 0.82 & 0.65 & 0.77 & 0.64 \\
+P300 & 0.70 & 0.69 & 0.62 & 0.72 & 0.64 & 0.72 & 0.66 & 0.75 & 0.67 \\
+N2pc & 0.68 & 0.66 & 0.60 & 0.63 & 0.59 & 0.70 & 0.64 & 0.68 & 0.61 \\
+MMN & 0.61 & 0.60 & 0.56 & 0.58 & 0.56 & 0.62 & 0.58 & 0.60 & 0.57 \\
+N400 & 0.72 & 0.73 & 0.67 & 0.70 & 0.64 & 0.75 & 0.70 & 0.74 & 0.67 \\
+\midrule
+\textit{Mean} & 0.76 & 0.72 & 0.64 & 0.70 & 0.60 & 0.77 & 0.68 & 0.74 & 0.62 \\
+\bottomrule
+\end{tabular}
+\end{table}

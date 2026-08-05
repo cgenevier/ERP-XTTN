@@ -1,0 +1,31 @@
+\begin{table}[t]
+\centering
+\caption{Paired comparison of ERP-XTTN against each baseline (3-channel montage), companion to Table~\ref{tab:table2}. Each cell reports the Hodges--Lehmann estimate of the paired per-subject AUROC difference (ERP-XTTN minus baseline; negative $=$ ERP-XTTN lower) with its 95\% exact distribution-free signed-rank CI below. Per-subject AUROCs are averaged over 5 seeds first (xDAWN+RG is deterministic). \textbf{Bold} $=$ two-sided Wilcoxon signed-rank significant at $q<0.05$ after Benjamini--Hochberg FDR correction across all 36 comparisons (9 datasets $\times$ 4 baselines). $^\dagger$ On BNCI ($n=6$) the exact test floors at $p=0.031$ and cannot survive FDR correction regardless of effect size; BNCI is therefore reported descriptively, as the Hodges--Lehmann point estimate with the CI omitted.}
+\label{tab:paired}
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{lcccc}
+\toprule
+Dataset & vs EEGNet & vs EEG-Deformer & vs EPMN & vs xDAWN+RG \\
+        & \multicolumn{4}{c}{\footnotesize Hodges--Lehmann paired difference (95\% CI)} \\
+\midrule
+HRI ($n{=}11$) & \makecell[c]{$-0.021$\\ \footnotesize[$-0.040$,\,$-0.001$]} & \makecell[c]{$-0.014$\\ \footnotesize[$-0.034$,\,$+0.004$]} & \makecell[c]{$+0.006$\\ \footnotesize[$-0.002$,\,$+0.013$]} & \makecell[c]{$+0.000$\\ \footnotesize[$-0.014$,\,$+0.015$]} \\
+\midrule
+ERN ($n{=}40$) & {\boldmath\makecell[c]{$-0.041$\\ \footnotesize[$-0.051$,\,$-0.029$]}} & \makecell[c]{$-0.010$\\ \footnotesize[$-0.022$,\,$+0.001$]} & {\boldmath\makecell[c]{$+0.031$\\ \footnotesize[$+0.017$,\,$+0.044$]}} & {\boldmath\makecell[c]{$+0.027$\\ \footnotesize[$+0.011$,\,$+0.046$]}} \\
+\midrule
+LRP ($n{=}40$) & {\boldmath\makecell[c]{$-0.029$\\ \footnotesize[$-0.037$,\,$-0.023$]}} & {\boldmath\makecell[c]{$-0.025$\\ \footnotesize[$-0.034$,\,$-0.017$]}} & {\boldmath\makecell[c]{$-0.008$\\ \footnotesize[$-0.016$,\,$-0.001$]}} & {\boldmath\makecell[c]{$-0.034$\\ \footnotesize[$-0.042$,\,$-0.026$]}} \\
+\midrule
+BNCI ($n{=}6$)$^\dagger$ & \makecell[c]{$-0.022$} & \makecell[c]{$-0.015$} & \makecell[c]{$+0.037$} & \makecell[c]{$-0.014$} \\
+\midrule
+N170 ($n{=}40$) & \makecell[c]{$+0.007$\\ \footnotesize[$-0.008$,\,$+0.021$]} & \makecell[c]{$+0.008$\\ \footnotesize[$-0.008$,\,$+0.028$]} & {\boldmath\makecell[c]{$+0.025$\\ \footnotesize[$+0.011$,\,$+0.039$]}} & \makecell[c]{$-0.012$\\ \footnotesize[$-0.028$,\,$+0.003$]} \\
+\midrule
+P300 ($n{=}40$) & {\boldmath\makecell[c]{$-0.057$\\ \footnotesize[$-0.076$,\,$-0.036$]}} & {\boldmath\makecell[c]{$-0.051$\\ \footnotesize[$-0.073$,\,$-0.035$]}} & \makecell[c]{$-0.011$\\ \footnotesize[$-0.026$,\,$+0.003$]} & \makecell[c]{$+0.005$\\ \footnotesize[$-0.017$,\,$+0.025$]} \\
+\midrule
+N2pc ($n{=}40$) & \makecell[c]{$-0.009$\\ \footnotesize[$-0.018$,\,$-0.000$]} & \makecell[c]{$-0.002$\\ \footnotesize[$-0.011$,\,$+0.007$]} & \makecell[c]{$+0.005$\\ \footnotesize[$-0.003$,\,$+0.013$]} & \makecell[c]{$-0.010$\\ \footnotesize[$-0.019$,\,$+0.003$]} \\
+\midrule
+MMN ($n{=}40$) & \makecell[c]{$-0.003$\\ \footnotesize[$-0.006$,\,$+0.001$]} & \makecell[c]{$-0.001$\\ \footnotesize[$-0.005$,\,$+0.003$]} & {\boldmath\makecell[c]{$+0.024$\\ \footnotesize[$+0.017$,\,$+0.031$]}} & {\boldmath\makecell[c]{$-0.006$\\ \footnotesize[$-0.010$,\,$-0.003$]}} \\
+\midrule
+N400 ($n{=}40$) & {\boldmath\makecell[c]{$-0.022$\\ \footnotesize[$-0.033$,\,$-0.010$]}} & {\boldmath\makecell[c]{$-0.014$\\ \footnotesize[$-0.025$,\,$-0.003$]}} & \makecell[c]{$-0.010$\\ \footnotesize[$-0.023$,\,$+0.004$]} & {\boldmath\makecell[c]{$-0.015$\\ \footnotesize[$-0.026$,\,$-0.003$]}} \\
+\bottomrule
+\end{tabular}
+\end{table}

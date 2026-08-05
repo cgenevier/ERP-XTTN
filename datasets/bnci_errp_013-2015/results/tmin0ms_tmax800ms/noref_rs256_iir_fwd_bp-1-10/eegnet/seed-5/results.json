@@ -1,0 +1,76 @@
+{
+  "run_name": "20260706_050539_bnci_errp_013-2015_full_eegnet",
+  "args": {
+    "dataset": "bnci_errp_013-2015",
+    "channels": "full",
+    "model": "eegnet",
+    "seed": 5,
+    "resume": true,
+    "peak_mode": "auto",
+    "max_k": 4,
+    "xattn_mode": "qk",
+    "no_self_attn": false,
+    "num_heads": 4,
+    "patch_width": 8,
+    "d_model": 64,
+    "peak_prominence": null,
+    "ablation_tag": null
+  },
+  "seed": 5,
+  "device": "cuda",
+  "elapsed_seconds": 922.7,
+  "folds": [
+    {
+      "fold": 0,
+      "test_subject": "sub-01",
+      "best_epoch": 60,
+      "best_val_auroc": 0.881811620353663,
+      "test_auroc": 0.8760960471293691,
+      "test_bal_acc": 0.8035452226284091
+    },
+    {
+      "fold": 1,
+      "test_subject": "sub-02",
+      "best_epoch": 71,
+      "best_val_auroc": 0.8885042882966038,
+      "test_auroc": 0.8850125249018719,
+      "test_bal_acc": 0.8053166729126807
+    },
+    {
+      "fold": 2,
+      "test_subject": "sub-03",
+      "best_epoch": 67,
+      "best_val_auroc": 0.8960356061301276,
+      "test_auroc": 0.9144106282617424,
+      "test_bal_acc": 0.8438629064632677
+    },
+    {
+      "fold": 3,
+      "test_subject": "sub-04",
+      "best_epoch": 50,
+      "best_val_auroc": 0.927016477123447,
+      "test_auroc": 0.8110126175676666,
+      "test_bal_acc": 0.6853018579776953
+    },
+    {
+      "fold": 4,
+      "test_subject": "sub-05",
+      "best_epoch": 54,
+      "best_val_auroc": 0.9201510210420063,
+      "test_auroc": 0.8763607794431743,
+      "test_bal_acc": 0.790665782218835
+    },
+    {
+      "fold": 5,
+      "test_subject": "sub-06",
+      "best_epoch": 55,
+      "best_val_auroc": 0.9366062827027333,
+      "test_auroc": 0.7429534763575061,
+      "test_bal_acc": 0.6529243820866302
+    }
+  ],
+  "mean_auroc": 0.851,
+  "std_auroc": 0.0573,
+  "mean_bal_acc": 0.7636,
+  "std_bal_acc": 0.0694
+}

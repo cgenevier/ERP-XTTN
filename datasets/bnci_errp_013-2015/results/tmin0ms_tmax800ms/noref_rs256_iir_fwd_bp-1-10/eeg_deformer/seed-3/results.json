@@ -1,0 +1,76 @@
+{
+  "run_name": "20260706_052043_bnci_errp_013-2015_full_eeg_deformer",
+  "args": {
+    "dataset": "bnci_errp_013-2015",
+    "channels": "full",
+    "model": "eeg_deformer",
+    "seed": 3,
+    "resume": true,
+    "peak_mode": "auto",
+    "max_k": 4,
+    "xattn_mode": "qk",
+    "no_self_attn": false,
+    "num_heads": 4,
+    "patch_width": 8,
+    "d_model": 64,
+    "peak_prominence": null,
+    "ablation_tag": null
+  },
+  "seed": 3,
+  "device": "cuda",
+  "elapsed_seconds": 839.2,
+  "folds": [
+    {
+      "fold": 0,
+      "test_subject": "sub-01",
+      "best_epoch": 23,
+      "best_val_auroc": 0.9136450834773691,
+      "test_auroc": 0.910327959392999,
+      "test_bal_acc": 0.83669621018857
+    },
+    {
+      "fold": 1,
+      "test_subject": "sub-02",
+      "best_epoch": 30,
+      "best_val_auroc": 0.9125129802699896,
+      "test_auroc": 0.8961320736109195,
+      "test_bal_acc": 0.8257805873883114
+    },
+    {
+      "fold": 2,
+      "test_subject": "sub-03",
+      "best_epoch": 25,
+      "best_val_auroc": 0.9208681288428008,
+      "test_auroc": 0.9285678442392614,
+      "test_bal_acc": 0.8480279004415897
+    },
+    {
+      "fold": 3,
+      "test_subject": "sub-04",
+      "best_epoch": 40,
+      "best_val_auroc": 0.9519479788312127,
+      "test_auroc": 0.7930076471814754,
+      "test_bal_acc": 0.6669305892894377
+    },
+    {
+      "fold": 4,
+      "test_subject": "sub-05",
+      "best_epoch": 15,
+      "best_val_auroc": 0.9180254678158242,
+      "test_auroc": 0.8756174669037741,
+      "test_bal_acc": 0.7965276013586624
+    },
+    {
+      "fold": 5,
+      "test_subject": "sub-06",
+      "best_epoch": 18,
+      "best_val_auroc": 0.9438032452445266,
+      "test_auroc": 0.6958425102645676,
+      "test_bal_acc": 0.6487995214400304
+    }
+  ],
+  "mean_auroc": 0.8499,
+  "std_auroc": 0.0813,
+  "mean_bal_acc": 0.7705,
+  "std_bal_acc": 0.0813
+}

@@ -1,0 +1,4588 @@
+{
+  "n_folds": 40,
+  "aggregate": {
+    "n_folds": 40,
+    "routing_auroc": {
+      "mean": 0.563231767732278,
+      "sd": 0.03282814989758107,
+      "n_folds": 40
+    },
+    "G_c": {
+      "mean": 0.18739800043404103,
+      "sd": 0.01845231547739216,
+      "n_folds": 40
+    },
+    "G_c_null_mean": {
+      "mean": 0.18708721385337412,
+      "sd": 0.017490559515973975,
+      "n_folds": 40
+    },
+    "G_m": {
+      "mean": 0.08798785135149956,
+      "sd": 0.012478787034665005,
+      "n_folds": 40
+    },
+    "ladder_intact": {
+      "mean": 0.563231767732278,
+      "sd": 0.03282814989758107,
+      "n_folds": 40
+    },
+    "ladder_polarity": {
+      "mean": 0.4367680730320533,
+      "sd": 0.03282803116700578,
+      "n_folds": 40
+    },
+    "ladder_cross": {
+      "mean": 0.4532697044849936,
+      "sd": 0.03199463659894654,
+      "n_folds": 40
+    },
+    "ladder_null": {
+      "mean": 0.4970798556385354,
+      "sd": 0.025289885677150473,
+      "n_folds": 40
+    },
+    "carrier_peak_proto": {
+      "mean": 0.5014325711877982,
+      "sd": 0.02591395905206474,
+      "n_folds": 40
+    },
+    "carrier_trial": {
+      "mean": 0.49713742537601746,
+      "sd": 0.022334762005464002,
+      "n_folds": 40
+    },
+    "amp_on": {
+      "mean": 0.5757604093319213,
+      "sd": 0.03199141335567677,
+      "n_folds": 40
+    },
+    "amp_off": {
+      "mean": 0.5557263547157574,
+      "sd": 0.026910361935772675,
+      "n_folds": 40
+    },
+    "amp_baseline": {
+      "mean": 0.5283349966298468,
+      "sd": 0.01734254579104828,
+      "n_folds": 40
+    },
+    "amp_permute": {
+      "mean": 0.530603924806145,
+      "sd": 0.013083932299890208,
+      "n_folds": 40
+    },
+    "amp_channel_on": {
+      "mean": 0.5979791124014097,
+      "sd": 0.029512736130361636,
+      "n_folds": 40
+    },
+    "amp_channel_off": {
+      "mean": 0.5799376491178776,
+      "sd": 0.020998052064008683,
+      "n_folds": 40
+    },
+    "amp_channel_baseline": {
+      "mean": 0.5605617601018745,
+      "sd": 0.014077037453521115,
+      "n_folds": 40
+    },
+    "amp_channel_permute": {
+      "mean": 0.5577734881802723,
+      "sd": 0.010151107931674093,
+      "n_folds": 40
+    },
+    "amp_contrast_on": {
+      "mean": 0.6207833084822048,
+      "sd": 0.031338094501215025,
+      "n_folds": 40
+    },
+    "amp_contrast_off": {
+      "mean": 0.6013690103508372,
+      "sd": 0.02415517012265969,
+      "n_folds": 40
+    },
+    "amp_contrast_baseline": {
+      "mean": 0.5807263492249468,
+      "sd": 0.014510520787722343,
+      "n_folds": 40
+    },
+    "amp_contrast_permute": {
+      "mean": 0.5733485828890663,
+      "sd": 0.008338516301739384,
+      "n_folds": 40
+    },
+    "legacy_scalar_mf_proxy": {
+      "mean": 0.5788042560836684,
+      "sd": 0.04295998724019653,
+      "n_folds": 40
+    },
+    "two_factor": {
+      "mean": 0.6110920511180753,
+      "sd": 0.04746293709715119,
+      "n_folds": 40
+    }
+  },
+  "folds": [
+    {
+      "routing_auroc": 0.5902675159235669,
+      "grounding": {
+        "G_a": 0.08317505568265915,
+        "G_m": 0.06592495739459991,
+        "G_c": 0.16401007771492004,
+        "G_c_null_mean": 0.1627526493370533,
+        "G_c_null_ci95": [
+          0.16002977155148984,
+          0.16468885093927382
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5902675159235669,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5648089171974522,
+            "auroc_random": 0.5844777070063695
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5377006369426751,
+            "auroc_random": 0.5821528662420382
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5300509554140127,
+            "auroc_random": 0.5910573248407645
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5065414012738854,
+            "auroc_random": 0.5997070063694268
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5902675159235669,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5925605095541402,
+            "delta": -0.0022929936305733367
+          },
+          {
+            "k": 1,
+            "auroc": 0.5876815286624203,
+            "delta": 0.0025859872611465606
+          },
+          {
+            "k": 2,
+            "auroc": 0.5554394904458599,
+            "delta": 0.034828025477706914
+          },
+          {
+            "k": 3,
+            "auroc": 0.583095541401274,
+            "delta": 0.007171974522292901
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.4869872611464968,
+        "scramble_trial_auroc": 0.5132993630573248
+      },
+      "swap_ladder": {
+        "intact": 0.5902675159235669,
+        "noise": 0.47478980891719746,
+        "phase": 0.464484076433121,
+        "reversed": 0.5843184713375795,
+        "polarity": 0.40973248407643315,
+        "cross_component": 0.41842675159235665,
+        "null_reference": 0.47478980891719746
+      },
+      "amplitude": {
+        "on_component_auroc": 0.639764331210191,
+        "off_component_auroc": 0.6154649681528662,
+        "early_baseline_auroc": 0.5274649681528663,
+        "permute_trial_auroc": 0.528,
+        "channel_on_component_auroc": 0.6558726114649681,
+        "channel_off_component_auroc": 0.6174713375796178,
+        "channel_early_baseline_auroc": 0.5566687898089173,
+        "channel_permute_trial_auroc": 0.5580509554140127,
+        "contrast_on_component_auroc": 0.6568089171974523,
+        "contrast_off_component_auroc": 0.6272292993630574,
+        "contrast_early_baseline_auroc": 0.586796178343949,
+        "contrast_permute_trial_auroc": 0.5908789808917198
+      },
+      "combined": {
+        "routing_only_auroc": 0.5902675159235669,
+        "legacy_scalar_mf_proxy_auroc": 0.662936305732484,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.3614534756464832
+          },
+          {
+            "M": 2,
+            "R2": 0.619399995390846
+          },
+          {
+            "M": 3,
+            "R2": 0.7264532165231266
+          },
+          {
+            "M": 5,
+            "R2": 0.8558614800714064
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6654203821656051
+      }
+    },
+    {
+      "routing_auroc": 0.5566015208846111,
+      "grounding": {
+        "G_a": 0.08399222791194916,
+        "G_m": 0.08385419100522995,
+        "G_c": 0.17346687614917755,
+        "G_c_null_mean": 0.1760979163646698,
+        "G_c_null_ci95": [
+          0.17348590567708017,
+          0.17877652831375598
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5566015208846111,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5361026413430807,
+            "auroc_random": 0.5514584328275964
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.523832702692774,
+            "auroc_random": 0.5598526872635098
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5453234635024429,
+            "auroc_random": 0.5522390801219647
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5276532823922707,
+            "auroc_random": 0.548335843650123
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5566015208846111,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5646835164027773,
+            "delta": -0.00808199551816613
+          },
+          {
+            "k": 1,
+            "auroc": 0.536506741118989,
+            "delta": 0.02009477976562213
+          },
+          {
+            "k": 2,
+            "auroc": 0.5461592153117079,
+            "delta": 0.010442305572903265
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5055471878329232,
+        "scramble_trial_auroc": 0.517174240476103
+      },
+      "swap_ladder": {
+        "intact": 0.5566015208846111,
+        "noise": 0.46715770912163407,
+        "phase": 0.4929098857499725,
+        "reversed": 0.565225377465927,
+        "polarity": 0.4433984791153889,
+        "cross_component": 0.45921347489070935,
+        "null_reference": 0.46715770912163407
+      },
+      "amplitude": {
+        "on_component_auroc": 0.6085926306895413,
+        "off_component_auroc": 0.5471602806656626,
+        "early_baseline_auroc": 0.553763638367437,
+        "permute_trial_auroc": 0.5240806730098087,
+        "channel_on_component_auroc": 0.6064986591234708,
+        "channel_off_component_auroc": 0.5951746813122221,
+        "channel_early_baseline_auroc": 0.5728665368649204,
+        "channel_permute_trial_auroc": 0.5773024503140958,
+        "contrast_on_component_auroc": 0.6149388339884647,
+        "contrast_off_component_auroc": 0.5979850115719482,
+        "contrast_early_baseline_auroc": 0.5896917820800117,
+        "contrast_permute_trial_auroc": 0.5619558429153962
+      },
+      "combined": {
+        "routing_only_auroc": 0.5566015208846111,
+        "legacy_scalar_mf_proxy_auroc": 0.6018515117005254,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.4399408100638862
+          },
+          {
+            "M": 2,
+            "R2": 0.6432434105569882
+          },
+          {
+            "M": 3,
+            "R2": 0.7694665577886906
+          },
+          {
+            "M": 5,
+            "R2": 0.8831887778354929
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5979666434003159
+      }
+    },
+    {
+      "routing_auroc": 0.5393630573248408,
+      "grounding": {
+        "G_a": 0.08159919828176498,
+        "G_m": 0.0870170071721077,
+        "G_c": 0.1559394896030426,
+        "G_c_null_mean": 0.15699560433626175,
+        "G_c_null_ci95": [
+          0.15501791387796401,
+          0.15903623327612876
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5393630573248408,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.549471337579618,
+            "auroc_random": 0.5386050955414012
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5275923566878982,
+            "auroc_random": 0.5415286624203821
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.49450318471337573,
+            "auroc_random": 0.5414394904458598
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5088535031847135,
+            "auroc_random": 0.5300127388535032
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5393630573248408,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5333694267515924,
+            "delta": 0.005993630573248421
+          },
+          {
+            "k": 1,
+            "auroc": 0.5284394904458598,
+            "delta": 0.010923566878980995
+          },
+          {
+            "k": 2,
+            "auroc": 0.539140127388535,
+            "delta": 0.0002229299363057935
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5061210191082802,
+        "scramble_trial_auroc": 0.5321592356687899
+      },
+      "swap_ladder": {
+        "intact": 0.5393630573248408,
+        "noise": 0.4512993630573249,
+        "phase": 0.4768726114649682,
+        "reversed": 0.5293503184713375,
+        "polarity": 0.46063057324840767,
+        "cross_component": 0.48503184713375797,
+        "null_reference": 0.4512993630573249
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5498789808917197,
+        "off_component_auroc": 0.545312101910828,
+        "early_baseline_auroc": 0.523407643312102,
+        "permute_trial_auroc": 0.5591847133757961,
+        "channel_on_component_auroc": 0.5710891719745222,
+        "channel_off_component_auroc": 0.5569490445859873,
+        "channel_early_baseline_auroc": 0.5447770700636942,
+        "channel_permute_trial_auroc": 0.5625923566878981,
+        "contrast_on_component_auroc": 0.5914140127388535,
+        "contrast_off_component_auroc": 0.5750509554140126,
+        "contrast_early_baseline_auroc": 0.5649171974522292,
+        "contrast_permute_trial_auroc": 0.5720000000000001
+      },
+      "combined": {
+        "routing_only_auroc": 0.5393630573248408,
+        "legacy_scalar_mf_proxy_auroc": 0.5512292993630573,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.3795137065335453
+          },
+          {
+            "M": 2,
+            "R2": 0.5837746463696429
+          },
+          {
+            "M": 3,
+            "R2": 0.7079895686353175
+          },
+          {
+            "M": 5,
+            "R2": 0.8125337169775659
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5721910828025478
+      }
+    },
+    {
+      "routing_auroc": 0.4995031847133758,
+      "grounding": {
+        "G_a": 0.10091689229011536,
+        "G_m": 0.09743401408195496,
+        "G_c": 0.21079516410827637,
+        "G_c_null_mean": 0.21071990191936493,
+        "G_c_null_ci95": [
+          0.20818778425455092,
+          0.21314098611474036
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.4995031847133758,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5206114649681528,
+            "auroc_random": 0.49730573248407645
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5209108280254777,
+            "auroc_random": 0.5009617834394904
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5411656050955413,
+            "auroc_random": 0.4901146496815286
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5260636942675159,
+            "auroc_random": 0.5021847133757962
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.4995031847133758,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5008152866242038,
+            "delta": -0.001312101910828034
+          },
+          {
+            "k": 1,
+            "auroc": 0.4883121019108281,
+            "delta": 0.011191082802547714
+          },
+          {
+            "k": 2,
+            "auroc": 0.5076815286624204,
+            "delta": -0.008178343949044653
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.47718471337579615,
+        "scramble_trial_auroc": 0.45445222929936313
+      },
+      "swap_ladder": {
+        "intact": 0.4995031847133758,
+        "noise": 0.49537579617834393,
+        "phase": 0.5027388535031847,
+        "reversed": 0.4942866242038217,
+        "polarity": 0.5004968152866242,
+        "cross_component": 0.49094267515923573,
+        "null_reference": 0.49537579617834393
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5263630573248408,
+        "off_component_auroc": 0.547687898089172,
+        "early_baseline_auroc": 0.5114458598726115,
+        "permute_trial_auroc": 0.5152484076433121,
+        "channel_on_component_auroc": 0.5750509554140127,
+        "channel_off_component_auroc": 0.5704777070063694,
+        "channel_early_baseline_auroc": 0.5369872611464968,
+        "channel_permute_trial_auroc": 0.5529044585987261,
+        "contrast_on_component_auroc": 0.5934140127388535,
+        "contrast_off_component_auroc": 0.5944968152866242,
+        "contrast_early_baseline_auroc": 0.5589235668789808,
+        "contrast_permute_trial_auroc": 0.5724394904458598
+      },
+      "combined": {
+        "routing_only_auroc": 0.4995031847133758,
+        "legacy_scalar_mf_proxy_auroc": 0.5393949044585987,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.16841583209365307
+          },
+          {
+            "M": 2,
+            "R2": 0.5364002367068771
+          },
+          {
+            "M": 3,
+            "R2": 0.7353431820667311
+          },
+          {
+            "M": 5,
+            "R2": 0.9022131944863597
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5132738853503185
+      }
+    },
+    {
+      "routing_auroc": 0.6086815286624204,
+      "grounding": {
+        "G_a": 0.09265031665563583,
+        "G_m": 0.09095025062561035,
+        "G_c": 0.1889016479253769,
+        "G_c_null_mean": 0.1887096057087183,
+        "G_c_null_ci95": [
+          0.18618932515382766,
+          0.19105236493051053
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.6086815286624204,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.59828025477707,
+            "auroc_random": 0.6001337579617834
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5918407643312101,
+            "auroc_random": 0.6043566878980892
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5616178343949044,
+            "auroc_random": 0.6168089171974522
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5234267515923567,
+            "auroc_random": 0.604108280254777
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.6086815286624204,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.6049363057324841,
+            "delta": 0.003745222929936287
+          },
+          {
+            "k": 1,
+            "auroc": 0.5768917197452228,
+            "delta": 0.031789808917197626
+          },
+          {
+            "k": 2,
+            "auroc": 0.6095222929936306,
+            "delta": -0.0008407643312101643
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5275987261146498,
+        "scramble_trial_auroc": 0.49332484076433125
+      },
+      "swap_ladder": {
+        "intact": 0.6086815286624204,
+        "noise": 0.5050828025477707,
+        "phase": 0.48649681528662414,
+        "reversed": 0.5922292993630572,
+        "polarity": 0.39131847133757963,
+        "cross_component": 0.4448917197452229,
+        "null_reference": 0.5050828025477707
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5476687898089172,
+        "off_component_auroc": 0.5603821656050956,
+        "early_baseline_auroc": 0.5734267515923568,
+        "permute_trial_auroc": 0.5407515923566879,
+        "channel_on_component_auroc": 0.5890573248407645,
+        "channel_off_component_auroc": 0.5847261146496815,
+        "channel_early_baseline_auroc": 0.571687898089172,
+        "channel_permute_trial_auroc": 0.5628949044585987,
+        "contrast_on_component_auroc": 0.6001847133757962,
+        "contrast_off_component_auroc": 0.6039044585987261,
+        "contrast_early_baseline_auroc": 0.5760445859872612,
+        "contrast_permute_trial_auroc": 0.5759044585987261
+      },
+      "combined": {
+        "routing_only_auroc": 0.6086815286624204,
+        "legacy_scalar_mf_proxy_auroc": 0.5830191082802547,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.35096424111193014
+          },
+          {
+            "M": 2,
+            "R2": 0.6151152669000477
+          },
+          {
+            "M": 3,
+            "R2": 0.7524379546751641
+          },
+          {
+            "M": 5,
+            "R2": 0.8856808944746368
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.657859872611465
+      }
+    },
+    {
+      "routing_auroc": 0.5848726114649682,
+      "grounding": {
+        "G_a": 0.10424422472715378,
+        "G_m": 0.10563498735427856,
+        "G_c": 0.2104332000017166,
+        "G_c_null_mean": 0.21034654945135117,
+        "G_c_null_ci95": [
+          0.20740055814385414,
+          0.213352083042264
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5848726114649682,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5635222929936307,
+            "auroc_random": 0.5863248407643312
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5639490445859873,
+            "auroc_random": 0.5869426751592357
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5740382165605096,
+            "auroc_random": 0.5820891719745223
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5035605095541401,
+            "auroc_random": 0.5787452229299364
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5848726114649682,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.576687898089172,
+            "delta": 0.008184713375796182
+          },
+          {
+            "k": 1,
+            "auroc": 0.551624203821656,
+            "delta": 0.03324840764331216
+          },
+          {
+            "k": 2,
+            "auroc": 0.5918980891719745,
+            "delta": -0.0070254777070063446
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5014522292993631,
+        "scramble_trial_auroc": 0.5304777070063694
+      },
+      "swap_ladder": {
+        "intact": 0.5848726114649682,
+        "noise": 0.46652866242038216,
+        "phase": 0.5039426751592357,
+        "reversed": 0.587095541401274,
+        "polarity": 0.41512738853503184,
+        "cross_component": 0.4458343949044586,
+        "null_reference": 0.46652866242038216
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5727452229299362,
+        "off_component_auroc": 0.561656050955414,
+        "early_baseline_auroc": 0.5148343949044586,
+        "permute_trial_auroc": 0.5237961783439491,
+        "channel_on_component_auroc": 0.5881974522292993,
+        "channel_off_component_auroc": 0.569375796178344,
+        "channel_early_baseline_auroc": 0.5712866242038217,
+        "channel_permute_trial_auroc": 0.5514394904458599,
+        "contrast_on_component_auroc": 0.6074140127388535,
+        "contrast_off_component_auroc": 0.5908152866242039,
+        "contrast_early_baseline_auroc": 0.5707388535031848,
+        "contrast_permute_trial_auroc": 0.5648343949044586
+      },
+      "combined": {
+        "routing_only_auroc": 0.5848726114649682,
+        "legacy_scalar_mf_proxy_auroc": 0.5890636942675159,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.5006920718520952
+          },
+          {
+            "M": 2,
+            "R2": 0.7089307150625508
+          },
+          {
+            "M": 3,
+            "R2": 0.8074473662105095
+          },
+          {
+            "M": 5,
+            "R2": 0.9073976208516944
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5949044585987261
+      }
+    },
+    {
+      "routing_auroc": 0.5419108280254777,
+      "grounding": {
+        "G_a": 0.0920729711651802,
+        "G_m": 0.07834929972887039,
+        "G_c": 0.18861302733421326,
+        "G_c_null_mean": 0.18637758083641529,
+        "G_c_null_ci95": [
+          0.18381047211587428,
+          0.18855256102979184
+        ],
+        "G_c_above_null": true
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5419108280254777,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5254713375796178,
+            "auroc_random": 0.543904458598726
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5258343949044586,
+            "auroc_random": 0.5340636942675159
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5426305732484077,
+            "auroc_random": 0.5444904458598727
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5261783439490446,
+            "auroc_random": 0.5373248407643312
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5419108280254777,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5384904458598726,
+            "delta": 0.0034203821656051403
+          },
+          {
+            "k": 1,
+            "auroc": 0.5351273885350318,
+            "delta": 0.006783439490445908
+          },
+          {
+            "k": 2,
+            "auroc": 0.5057515923566879,
+            "delta": 0.03615923566878987
+          },
+          {
+            "k": 3,
+            "auroc": 0.5573694267515923,
+            "delta": -0.015458598726114547
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.516420382165605,
+        "scramble_trial_auroc": 0.48759872611464966
+      },
+      "swap_ladder": {
+        "intact": 0.5419108280254777,
+        "noise": 0.5205350318471338,
+        "phase": 0.524,
+        "reversed": 0.5346114649681528,
+        "polarity": 0.4580891719745223,
+        "cross_component": 0.4633375796178344,
+        "null_reference": 0.5205350318471338
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5964458598726116,
+        "off_component_auroc": 0.5437197452229299,
+        "early_baseline_auroc": 0.5194713375796178,
+        "permute_trial_auroc": 0.5368407643312102,
+        "channel_on_component_auroc": 0.6095031847133758,
+        "channel_off_component_auroc": 0.5727643312101911,
+        "channel_early_baseline_auroc": 0.5493503184713376,
+        "channel_permute_trial_auroc": 0.5540636942675159,
+        "contrast_on_component_auroc": 0.6389999999999999,
+        "contrast_off_component_auroc": 0.5955668789808918,
+        "contrast_early_baseline_auroc": 0.5758025477707005,
+        "contrast_permute_trial_auroc": 0.5667197452229299
+      },
+      "combined": {
+        "routing_only_auroc": 0.5419108280254777,
+        "legacy_scalar_mf_proxy_auroc": 0.6043885350318472,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.3729962249524621
+          },
+          {
+            "M": 2,
+            "R2": 0.6008459265709389
+          },
+          {
+            "M": 3,
+            "R2": 0.7578083569018984
+          },
+          {
+            "M": 5,
+            "R2": 0.8747428176169614
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6052547770700636
+      }
+    },
+    {
+      "routing_auroc": 0.5772484076433121,
+      "grounding": {
+        "G_a": 0.0956382006406784,
+        "G_m": 0.09707897901535034,
+        "G_c": 0.19607871770858765,
+        "G_c_null_mean": 0.19220834665000439,
+        "G_c_null_ci95": [
+          0.18930480256676674,
+          0.1950914490967989
+        ],
+        "G_c_above_null": true
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5772484076433121,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5662866242038217,
+            "auroc_random": 0.5823375796178343
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5622929936305733,
+            "auroc_random": 0.5723885350318472
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5333439490445859,
+            "auroc_random": 0.5731783439490447
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5184394904458599,
+            "auroc_random": 0.5805605095541401
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5772484076433121,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5743248407643312,
+            "delta": 0.0029235668789808766
+          },
+          {
+            "k": 1,
+            "auroc": 0.5410127388535033,
+            "delta": 0.03623566878980877
+          },
+          {
+            "k": 2,
+            "auroc": 0.5782866242038217,
+            "delta": -0.0010382165605096194
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5415031847133758,
+        "scramble_trial_auroc": 0.4823375796178344
+      },
+      "swap_ladder": {
+        "intact": 0.5772484076433121,
+        "noise": 0.43536305732484076,
+        "phase": 0.4570828025477707,
+        "reversed": 0.5760573248407643,
+        "polarity": 0.4227515923566879,
+        "cross_component": 0.44426751592356684,
+        "null_reference": 0.43536305732484076
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5775859872611465,
+        "off_component_auroc": 0.5228025477707007,
+        "early_baseline_auroc": 0.5215987261146496,
+        "permute_trial_auroc": 0.5198152866242038,
+        "channel_on_component_auroc": 0.5836305732484077,
+        "channel_off_component_auroc": 0.5792738853503185,
+        "channel_early_baseline_auroc": 0.544312101910828,
+        "channel_permute_trial_auroc": 0.5502993630573249,
+        "contrast_on_component_auroc": 0.628656050955414,
+        "contrast_off_component_auroc": 0.5922929936305732,
+        "contrast_early_baseline_auroc": 0.5663566878980891,
+        "contrast_permute_trial_auroc": 0.5878917197452229
+      },
+      "combined": {
+        "routing_only_auroc": 0.5772484076433121,
+        "legacy_scalar_mf_proxy_auroc": 0.595108280254777,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.1566857736480246
+          },
+          {
+            "M": 2,
+            "R2": 0.5267720387558611
+          },
+          {
+            "M": 3,
+            "R2": 0.7235900073817123
+          },
+          {
+            "M": 5,
+            "R2": 0.8777575009565773
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6705222929936305
+      }
+    },
+    {
+      "routing_auroc": 0.5557643312101911,
+      "grounding": {
+        "G_a": 0.094222791492939,
+        "G_m": 0.07602269947528839,
+        "G_c": 0.17641228437423706,
+        "G_c_null_mean": 0.17937988452613354,
+        "G_c_null_ci95": [
+          0.17688758820295333,
+          0.18168981485068797
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5557643312101911,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5597006369426751,
+            "auroc_random": 0.559656050955414
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5240191082802548,
+            "auroc_random": 0.5635350318471337
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5213885350318471,
+            "auroc_random": 0.55571974522293
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.4829872611464968,
+            "auroc_random": 0.5600254777070064
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5557643312101911,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5614140127388535,
+            "delta": -0.005649681528662409
+          },
+          {
+            "k": 1,
+            "auroc": 0.555687898089172,
+            "delta": 7.643312101912603e-05
+          },
+          {
+            "k": 2,
+            "auroc": 0.5461592356687898,
+            "delta": 0.00960509554140132
+          },
+          {
+            "k": 3,
+            "auroc": 0.5469554140127388,
+            "delta": 0.008808917197452248
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.47663057324840763,
+        "scramble_trial_auroc": 0.46588535031847134
+      },
+      "swap_ladder": {
+        "intact": 0.5557643312101911,
+        "noise": 0.5345031847133758,
+        "phase": 0.4773949044585987,
+        "reversed": 0.5648726114649681,
+        "polarity": 0.4442356687898089,
+        "cross_component": 0.44659235668789815,
+        "null_reference": 0.5345031847133758
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5649394904458598,
+        "off_component_auroc": 0.5944777070063694,
+        "early_baseline_auroc": 0.517420382165605,
+        "permute_trial_auroc": 0.5308216560509553,
+        "channel_on_component_auroc": 0.598656050955414,
+        "channel_off_component_auroc": 0.5993757961783439,
+        "channel_early_baseline_auroc": 0.5853184713375796,
+        "channel_permute_trial_auroc": 0.5653312101910828,
+        "contrast_on_component_auroc": 0.6341337579617835,
+        "contrast_off_component_auroc": 0.6022675159235669,
+        "contrast_early_baseline_auroc": 0.582656050955414,
+        "contrast_permute_trial_auroc": 0.5749745222929936
+      },
+      "combined": {
+        "routing_only_auroc": 0.5557643312101911,
+        "legacy_scalar_mf_proxy_auroc": 0.5793184713375797,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.3585207508989354
+          },
+          {
+            "M": 2,
+            "R2": 0.5907099406818939
+          },
+          {
+            "M": 3,
+            "R2": 0.7143226393403193
+          },
+          {
+            "M": 5,
+            "R2": 0.8481050781657206
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6175668789808917
+      }
+    },
+    {
+      "routing_auroc": 0.55771974522293,
+      "grounding": {
+        "G_a": 0.08438564836978912,
+        "G_m": 0.08653426170349121,
+        "G_c": 0.165119931101799,
+        "G_c_null_mean": 0.1670722273737192,
+        "G_c_null_ci95": [
+          0.16517484597861767,
+          0.1693608894944191
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.55771974522293,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.535203821656051,
+            "auroc_random": 0.5576178343949045
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5250382165605095,
+            "auroc_random": 0.5543248407643313
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5041464968152867,
+            "auroc_random": 0.5554649681528663
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.48098089171974523,
+            "auroc_random": 0.5451592356687898
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.55771974522293,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5672738853503185,
+            "delta": -0.009554140127388533
+          },
+          {
+            "k": 1,
+            "auroc": 0.5195987261146496,
+            "delta": 0.03812101910828036
+          },
+          {
+            "k": 2,
+            "auroc": 0.5607324840764332,
+            "delta": -0.003012738853503172
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5290382165605096,
+        "scramble_trial_auroc": 0.5244012738853503
+      },
+      "swap_ladder": {
+        "intact": 0.55771974522293,
+        "noise": 0.49804458598726115,
+        "phase": 0.5251337579617835,
+        "reversed": 0.5557961783439491,
+        "polarity": 0.44228025477707,
+        "cross_component": 0.47912738853503184,
+        "null_reference": 0.49804458598726115
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5981592356687899,
+        "off_component_auroc": 0.5396751592356688,
+        "early_baseline_auroc": 0.5106751592356689,
+        "permute_trial_auroc": 0.5214522292993631,
+        "channel_on_component_auroc": 0.585687898089172,
+        "channel_off_component_auroc": 0.5901082802547771,
+        "channel_early_baseline_auroc": 0.5955987261146497,
+        "channel_permute_trial_auroc": 0.5515095541401274,
+        "contrast_on_component_auroc": 0.6295796178343949,
+        "contrast_off_component_auroc": 0.5899426751592357,
+        "contrast_early_baseline_auroc": 0.593579617834395,
+        "contrast_permute_trial_auroc": 0.5647006369426751
+      },
+      "combined": {
+        "routing_only_auroc": 0.55771974522293,
+        "legacy_scalar_mf_proxy_auroc": 0.5699426751592356,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.31597852479780797
+          },
+          {
+            "M": 2,
+            "R2": 0.5720620627205981
+          },
+          {
+            "M": 3,
+            "R2": 0.7080173519539147
+          },
+          {
+            "M": 5,
+            "R2": 0.8434268044465869
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5867261146496815
+      }
+    },
+    {
+      "routing_auroc": 0.5400955414012739,
+      "grounding": {
+        "G_a": 0.0999615490436554,
+        "G_m": 0.10482550412416458,
+        "G_c": 0.19433321058750153,
+        "G_c_null_mean": 0.19525360971689223,
+        "G_c_null_ci95": [
+          0.19261072017252445,
+          0.19763233400881292
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5400955414012739,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5398152866242039,
+            "auroc_random": 0.5430382165605095
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5375286624203821,
+            "auroc_random": 0.540312101910828
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5284331210191082,
+            "auroc_random": 0.5456496815286624
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5201273885350319,
+            "auroc_random": 0.5415095541401274
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5400955414012739,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5328343949044585,
+            "delta": 0.007261146496815418
+          },
+          {
+            "k": 1,
+            "auroc": 0.5311528662420382,
+            "delta": 0.008942675159235747
+          },
+          {
+            "k": 2,
+            "auroc": 0.5473630573248407,
+            "delta": -0.007267515923566781
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.48635668789808917,
+        "scramble_trial_auroc": 0.5236815286624203
+      },
+      "swap_ladder": {
+        "intact": 0.5400955414012739,
+        "noise": 0.5081464968152867,
+        "phase": 0.4871337579617834,
+        "reversed": 0.5435796178343949,
+        "polarity": 0.45990445859872614,
+        "cross_component": 0.46396815286624205,
+        "null_reference": 0.5081464968152867
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5988726114649681,
+        "off_component_auroc": 0.546624203821656,
+        "early_baseline_auroc": 0.5518089171974523,
+        "permute_trial_auroc": 0.5276687898089172,
+        "channel_on_component_auroc": 0.5906624203821655,
+        "channel_off_component_auroc": 0.574656050955414,
+        "channel_early_baseline_auroc": 0.558312101910828,
+        "channel_permute_trial_auroc": 0.5785541401273886,
+        "contrast_on_component_auroc": 0.6188343949044586,
+        "contrast_off_component_auroc": 0.6246942675159236,
+        "contrast_early_baseline_auroc": 0.5972547770700637,
+        "contrast_permute_trial_auroc": 0.5760382165605095
+      },
+      "combined": {
+        "routing_only_auroc": 0.5400955414012739,
+        "legacy_scalar_mf_proxy_auroc": 0.6069235668789809,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.5097780734760753
+          },
+          {
+            "M": 2,
+            "R2": 0.7148875931848914
+          },
+          {
+            "M": 3,
+            "R2": 0.8172699309517449
+          },
+          {
+            "M": 5,
+            "R2": 0.9019869492907976
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6062611464968153
+      }
+    },
+    {
+      "routing_auroc": 0.5417388535031848,
+      "grounding": {
+        "G_a": 0.10196125507354736,
+        "G_m": 0.10402988642454147,
+        "G_c": 0.20045976340770721,
+        "G_c_null_mean": 0.20186417736113071,
+        "G_c_null_ci95": [
+          0.19934835322201253,
+          0.2043738603591919
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5417388535031848,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5457515923566879,
+            "auroc_random": 0.5407707006369427
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5358025477707006,
+            "auroc_random": 0.5421847133757962
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5198343949044586,
+            "auroc_random": 0.5307961783439491
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.49670063694267513,
+            "auroc_random": 0.5422165605095541
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5417388535031848,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5339171974522293,
+            "delta": 0.007821656050955528
+          },
+          {
+            "k": 1,
+            "auroc": 0.535859872611465,
+            "delta": 0.005878980891719898
+          },
+          {
+            "k": 2,
+            "auroc": 0.5313503184713376,
+            "delta": 0.010388535031847224
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5084585987261147,
+        "scramble_trial_auroc": 0.49019108280254775
+      },
+      "swap_ladder": {
+        "intact": 0.5417388535031848,
+        "noise": 0.49289171974522294,
+        "phase": 0.5288216560509554,
+        "reversed": 0.539515923566879,
+        "polarity": 0.45826114649681526,
+        "cross_component": 0.48752229299363053,
+        "null_reference": 0.49289171974522294
+      },
+      "amplitude": {
+        "on_component_auroc": 0.547171974522293,
+        "off_component_auroc": 0.5327643312101911,
+        "early_baseline_auroc": 0.5232420382165605,
+        "permute_trial_auroc": 0.5438789808917198,
+        "channel_on_component_auroc": 0.5802229299363058,
+        "channel_off_component_auroc": 0.5650955414012739,
+        "channel_early_baseline_auroc": 0.5396050955414012,
+        "channel_permute_trial_auroc": 0.5444585987261147,
+        "contrast_on_component_auroc": 0.607248407643312,
+        "contrast_off_component_auroc": 0.5868407643312101,
+        "contrast_early_baseline_auroc": 0.5660764331210192,
+        "contrast_permute_trial_auroc": 0.5699872611464969
+      },
+      "combined": {
+        "routing_only_auroc": 0.5417388535031848,
+        "legacy_scalar_mf_proxy_auroc": 0.5499617834394904,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.4109725229093709
+          },
+          {
+            "M": 2,
+            "R2": 0.5915663916658056
+          },
+          {
+            "M": 3,
+            "R2": 0.7164310866219753
+          },
+          {
+            "M": 5,
+            "R2": 0.8504933151079184
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5615987261146497
+      }
+    },
+    {
+      "routing_auroc": 0.5653630573248407,
+      "grounding": {
+        "G_a": 0.09439226239919662,
+        "G_m": 0.09281688928604126,
+        "G_c": 0.19966594874858856,
+        "G_c_null_mean": 0.20092004783451556,
+        "G_c_null_ci95": [
+          0.1983045794069767,
+          0.20361799262464048
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5653630573248407,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.568375796178344,
+            "auroc_random": 0.5607643312101911
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5817133757961783,
+            "auroc_random": 0.576267515923567
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5579554140127388,
+            "auroc_random": 0.5573566878980891
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.4969554140127389,
+            "auroc_random": 0.5709363057324841
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5653630573248407,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.567063694267516,
+            "delta": -0.0017006369426753043
+          },
+          {
+            "k": 1,
+            "auroc": 0.5410254777070063,
+            "delta": 0.02433757961783445
+          },
+          {
+            "k": 2,
+            "auroc": 0.5670764331210191,
+            "delta": -0.0017133757961783624
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5206305732484077,
+        "scramble_trial_auroc": 0.5339235668789809
+      },
+      "swap_ladder": {
+        "intact": 0.5653630573248407,
+        "noise": 0.47817197452229293,
+        "phase": 0.5091146496815286,
+        "reversed": 0.5488152866242039,
+        "polarity": 0.4346369426751593,
+        "cross_component": 0.45980891719745226,
+        "null_reference": 0.47817197452229293
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5628726114649683,
+        "off_component_auroc": 0.521343949044586,
+        "early_baseline_auroc": 0.5558853503184714,
+        "permute_trial_auroc": 0.5162356687898089,
+        "channel_on_component_auroc": 0.5801974522292994,
+        "channel_off_component_auroc": 0.5366305732484076,
+        "channel_early_baseline_auroc": 0.5832547770700637,
+        "channel_permute_trial_auroc": 0.5585796178343949,
+        "contrast_on_component_auroc": 0.5735605095541401,
+        "contrast_off_component_auroc": 0.5641719745222931,
+        "contrast_early_baseline_auroc": 0.5965477707006369,
+        "contrast_permute_trial_auroc": 0.5877006369426752
+      },
+      "combined": {
+        "routing_only_auroc": 0.5653630573248407,
+        "legacy_scalar_mf_proxy_auroc": 0.4902356687898089,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.44327771086018397
+          },
+          {
+            "M": 2,
+            "R2": 0.6528377680859836
+          },
+          {
+            "M": 3,
+            "R2": 0.7659056862850779
+          },
+          {
+            "M": 5,
+            "R2": 0.8893587588354808
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5589108280254778
+      }
+    },
+    {
+      "routing_auroc": 0.5416369426751592,
+      "grounding": {
+        "G_a": 0.09605799615383148,
+        "G_m": 0.09478218108415604,
+        "G_c": 0.1932476907968521,
+        "G_c_null_mean": 0.19392896138131618,
+        "G_c_null_ci95": [
+          0.19180725291371345,
+          0.19611132889986038
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5416369426751592,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5438152866242039,
+            "auroc_random": 0.5399554140127388
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5214713375796178,
+            "auroc_random": 0.5413694267515924
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5024012738853503,
+            "auroc_random": 0.5420636942675159
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.505108280254777,
+            "auroc_random": 0.555312101910828
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5416369426751592,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5383694267515924,
+            "delta": 0.0032675159235667772
+          },
+          {
+            "k": 1,
+            "auroc": 0.5318726114649681,
+            "delta": 0.009764331210191046
+          },
+          {
+            "k": 2,
+            "auroc": 0.5443885350318471,
+            "delta": -0.002751592356687982
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.47173248407643315,
+        "scramble_trial_auroc": 0.5043503184713376
+      },
+      "swap_ladder": {
+        "intact": 0.5416369426751592,
+        "noise": 0.5175286624203822,
+        "phase": 0.5269171974522293,
+        "reversed": 0.5190127388535032,
+        "polarity": 0.45836305732484084,
+        "cross_component": 0.45795541401273887,
+        "null_reference": 0.5175286624203822
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5849044585987262,
+        "off_component_auroc": 0.5477197452229299,
+        "early_baseline_auroc": 0.5215286624203821,
+        "permute_trial_auroc": 0.5321783439490446,
+        "channel_on_component_auroc": 0.5847643312101911,
+        "channel_off_component_auroc": 0.5653057324840765,
+        "channel_early_baseline_auroc": 0.5482611464968152,
+        "channel_permute_trial_auroc": 0.5532611464968152,
+        "contrast_on_component_auroc": 0.6008726114649683,
+        "contrast_off_component_auroc": 0.5755286624203823,
+        "contrast_early_baseline_auroc": 0.5567388535031847,
+        "contrast_permute_trial_auroc": 0.5699171974522294
+      },
+      "combined": {
+        "routing_only_auroc": 0.5416369426751592,
+        "legacy_scalar_mf_proxy_auroc": 0.5717770700636943,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.4432213469912344
+          },
+          {
+            "M": 2,
+            "R2": 0.6543353461846068
+          },
+          {
+            "M": 3,
+            "R2": 0.7708570854602466
+          },
+          {
+            "M": 5,
+            "R2": 0.8917322371884133
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5515796178343949
+      }
+    },
+    {
+      "routing_auroc": 0.5881910828025477,
+      "grounding": {
+        "G_a": 0.09536640346050262,
+        "G_m": 0.07594966888427734,
+        "G_c": 0.18489894270896912,
+        "G_c_null_mean": 0.18475644282996653,
+        "G_c_null_ci95": [
+          0.18247301429510115,
+          0.18772840052843093
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5881910828025477,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5590254777070064,
+            "auroc_random": 0.588828025477707
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.535031847133758,
+            "auroc_random": 0.5874458598726114
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5131974522292994,
+            "auroc_random": 0.5866687898089171
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.4989490445859872,
+            "auroc_random": 0.5847961783439489
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5881910828025477,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5929936305732484,
+            "delta": -0.00480254777070066
+          },
+          {
+            "k": 1,
+            "auroc": 0.589343949044586,
+            "delta": -0.001152866242038253
+          },
+          {
+            "k": 2,
+            "auroc": 0.5637643312101911,
+            "delta": 0.024426751592356633
+          },
+          {
+            "k": 3,
+            "auroc": 0.5775222929936306,
+            "delta": 0.010668789808917167
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5304076433121019,
+        "scramble_trial_auroc": 0.5301464968152867
+      },
+      "swap_ladder": {
+        "intact": 0.5881910828025477,
+        "noise": 0.5264331210191082,
+        "phase": 0.47941401273885353,
+        "reversed": 0.5687452229299363,
+        "polarity": 0.4118089171974522,
+        "cross_component": 0.4494522292993631,
+        "null_reference": 0.5264331210191082
+      },
+      "amplitude": {
+        "on_component_auroc": 0.583796178343949,
+        "off_component_auroc": 0.563891719745223,
+        "early_baseline_auroc": 0.5436433121019109,
+        "permute_trial_auroc": 0.5260191082802548,
+        "channel_on_component_auroc": 0.5915923566878981,
+        "channel_off_component_auroc": 0.5770382165605095,
+        "channel_early_baseline_auroc": 0.5563694267515924,
+        "channel_permute_trial_auroc": 0.5578343949044586,
+        "contrast_on_component_auroc": 0.6155859872611464,
+        "contrast_off_component_auroc": 0.6418343949044585,
+        "contrast_early_baseline_auroc": 0.5893121019108281,
+        "contrast_permute_trial_auroc": 0.5814012738853502
+      },
+      "combined": {
+        "routing_only_auroc": 0.5881910828025477,
+        "legacy_scalar_mf_proxy_auroc": 0.5947070063694267,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.49323599192300815
+          },
+          {
+            "M": 2,
+            "R2": 0.7084908759265007
+          },
+          {
+            "M": 3,
+            "R2": 0.8107571045315703
+          },
+          {
+            "M": 5,
+            "R2": 0.9071563509198959
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6421847133757962
+      }
+    },
+    {
+      "routing_auroc": 0.5721847133757962,
+      "grounding": {
+        "G_a": 0.08654145896434784,
+        "G_m": 0.0708390474319458,
+        "G_c": 0.1711040735244751,
+        "G_c_null_mean": 0.17038085483014584,
+        "G_c_null_ci95": [
+          0.16808241605758667,
+          0.17262746952474117
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5721847133757962,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5337834394904459,
+            "auroc_random": 0.5704585987261147
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5370764331210192,
+            "auroc_random": 0.5685541401273886
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5605668789808917,
+            "auroc_random": 0.5652738853503184
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5154585987261147,
+            "auroc_random": 0.5762356687898089
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5721847133757962,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5776496815286624,
+            "delta": -0.005464968152866123
+          },
+          {
+            "k": 1,
+            "auroc": 0.5593630573248407,
+            "delta": 0.012821656050955532
+          },
+          {
+            "k": 2,
+            "auroc": 0.5581847133757962,
+            "delta": 0.014000000000000012
+          },
+          {
+            "k": 3,
+            "auroc": 0.558203821656051,
+            "delta": 0.013980891719745259
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.4888407643312102,
+        "scramble_trial_auroc": 0.49101273885350316
+      },
+      "swap_ladder": {
+        "intact": 0.5721847133757962,
+        "noise": 0.49071337579617835,
+        "phase": 0.4626050955414013,
+        "reversed": 0.5619363057324841,
+        "polarity": 0.42781528662420376,
+        "cross_component": 0.4617452229299363,
+        "null_reference": 0.49071337579617835
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5833694267515923,
+        "off_component_auroc": 0.5627834394904458,
+        "early_baseline_auroc": 0.5239299363057325,
+        "permute_trial_auroc": 0.5358535031847134,
+        "channel_on_component_auroc": 0.5872802547770701,
+        "channel_off_component_auroc": 0.578108280254777,
+        "channel_early_baseline_auroc": 0.5496496815286624,
+        "channel_permute_trial_auroc": 0.5622229299363057,
+        "contrast_on_component_auroc": 0.63171974522293,
+        "contrast_off_component_auroc": 0.5953757961783441,
+        "contrast_early_baseline_auroc": 0.5617515923566879,
+        "contrast_permute_trial_auroc": 0.5691210191082803
+      },
+      "combined": {
+        "routing_only_auroc": 0.5721847133757962,
+        "legacy_scalar_mf_proxy_auroc": 0.6080573248407644,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.3137689902362477
+          },
+          {
+            "M": 2,
+            "R2": 0.587210055620599
+          },
+          {
+            "M": 3,
+            "R2": 0.7118838445149201
+          },
+          {
+            "M": 5,
+            "R2": 0.8546039981383344
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6370509554140128
+      }
+    },
+    {
+      "routing_auroc": 0.5039872611464968,
+      "grounding": {
+        "G_a": 0.09955765306949615,
+        "G_m": 0.09744816273450851,
+        "G_c": 0.19771000742912292,
+        "G_c_null_mean": 0.19733111381530763,
+        "G_c_null_ci95": [
+          0.19461039789021015,
+          0.19987400583922862
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5039872611464968,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.48319745222929933,
+            "auroc_random": 0.4998980891719745
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.48538853503184715,
+            "auroc_random": 0.5072292993630573
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5117834394904458,
+            "auroc_random": 0.4984394904458599
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5213694267515923,
+            "auroc_random": 0.4929936305732484
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5039872611464968,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.49741401273885355,
+            "delta": 0.006573248407643284
+          },
+          {
+            "k": 1,
+            "auroc": 0.49678343949044584,
+            "delta": 0.0072038216560509905
+          },
+          {
+            "k": 2,
+            "auroc": 0.5150828025477707,
+            "delta": -0.01109554140127389
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.47470063694267517,
+        "scramble_trial_auroc": 0.4753248407643312
+      },
+      "swap_ladder": {
+        "intact": 0.5039872611464968,
+        "noise": 0.4598980891719745,
+        "phase": 0.48466878980891726,
+        "reversed": 0.5042866242038216,
+        "polarity": 0.49601273885350317,
+        "cross_component": 0.45873248407643313,
+        "null_reference": 0.4598980891719745
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5207898089171974,
+        "off_component_auroc": 0.5481974522292994,
+        "early_baseline_auroc": 0.5180764331210191,
+        "permute_trial_auroc": 0.5483439490445859,
+        "channel_on_component_auroc": 0.5794904458598726,
+        "channel_off_component_auroc": 0.5681464968152866,
+        "channel_early_baseline_auroc": 0.5480828025477706,
+        "channel_permute_trial_auroc": 0.5762484076433121,
+        "contrast_on_component_auroc": 0.6041783439490446,
+        "contrast_off_component_auroc": 0.5928980891719744,
+        "contrast_early_baseline_auroc": 0.615063694267516,
+        "contrast_permute_trial_auroc": 0.5833757961783439
+      },
+      "combined": {
+        "routing_only_auroc": 0.5039872611464968,
+        "legacy_scalar_mf_proxy_auroc": 0.4918471337579618,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.4522012907411539
+          },
+          {
+            "M": 2,
+            "R2": 0.672156951869644
+          },
+          {
+            "M": 3,
+            "R2": 0.791945789349587
+          },
+          {
+            "M": 5,
+            "R2": 0.8942540572966158
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5689745222929936
+      }
+    },
+    {
+      "routing_auroc": 0.5311210191082802,
+      "grounding": {
+        "G_a": 0.08620745688676834,
+        "G_m": 0.08647146821022034,
+        "G_c": 0.17707042396068573,
+        "G_c_null_mean": 0.17807819336652755,
+        "G_c_null_ci95": [
+          0.17580447159707546,
+          0.18020366579294206
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5311210191082802,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.512547770700637,
+            "auroc_random": 0.533375796178344
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.518076433121019,
+            "auroc_random": 0.5282929936305732
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5274394904458599,
+            "auroc_random": 0.5274458598726115
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5263375796178343,
+            "auroc_random": 0.531407643312102
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5311210191082802,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5287452229299363,
+            "delta": 0.0023757961783439363
+          },
+          {
+            "k": 1,
+            "auroc": 0.5089617834394904,
+            "delta": 0.022159235668789856
+          },
+          {
+            "k": 2,
+            "auroc": 0.5408726114649681,
+            "delta": -0.009751592356687877
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.49763694267515923,
+        "scramble_trial_auroc": 0.4866050955414013
+      },
+      "swap_ladder": {
+        "intact": 0.5311210191082802,
+        "noise": 0.474687898089172,
+        "phase": 0.49394904458598726,
+        "reversed": 0.5195095541401273,
+        "polarity": 0.46887898089171975,
+        "cross_component": 0.4613312101910828,
+        "null_reference": 0.474687898089172
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5600382165605096,
+        "off_component_auroc": 0.5460764331210191,
+        "early_baseline_auroc": 0.5158407643312102,
+        "permute_trial_auroc": 0.5612229299363057,
+        "channel_on_component_auroc": 0.5732866242038217,
+        "channel_off_component_auroc": 0.5562675159235669,
+        "channel_early_baseline_auroc": 0.5486433121019109,
+        "channel_permute_trial_auroc": 0.5738471337579618,
+        "contrast_on_component_auroc": 0.6007770700636942,
+        "contrast_off_component_auroc": 0.5779872611464968,
+        "contrast_early_baseline_auroc": 0.563611464968153,
+        "contrast_permute_trial_auroc": 0.5663057324840765
+      },
+      "combined": {
+        "routing_only_auroc": 0.5311210191082802,
+        "legacy_scalar_mf_proxy_auroc": 0.5245732484076433,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.4564678250628923
+          },
+          {
+            "M": 2,
+            "R2": 0.6683708641257462
+          },
+          {
+            "M": 3,
+            "R2": 0.7849485413638678
+          },
+          {
+            "M": 5,
+            "R2": 0.8953347111132315
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5820891719745223
+      }
+    },
+    {
+      "routing_auroc": 0.5408152866242038,
+      "grounding": {
+        "G_a": 0.08388973772525787,
+        "G_m": 0.06783219426870346,
+        "G_c": 0.18766289949417114,
+        "G_c_null_mean": 0.1849065190553665,
+        "G_c_null_ci95": [
+          0.18220923878252507,
+          0.18715047650039196
+        ],
+        "G_c_above_null": true
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5408152866242038,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5269044585987261,
+            "auroc_random": 0.5385732484076433
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.520203821656051,
+            "auroc_random": 0.535484076433121
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5195541401273885,
+            "auroc_random": 0.5475668789808917
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5002611464968153,
+            "auroc_random": 0.5345541401273886
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5408152866242038,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5430891719745223,
+            "delta": -0.002273885350318583
+          },
+          {
+            "k": 1,
+            "auroc": 0.5341910828025478,
+            "delta": 0.006624203821655961
+          },
+          {
+            "k": 2,
+            "auroc": 0.5222738853503185,
+            "delta": 0.01854140127388526
+          },
+          {
+            "k": 3,
+            "auroc": 0.5521974522292994,
+            "delta": -0.01138216560509564
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.4877324840764331,
+        "scramble_trial_auroc": 0.4900573248407644
+      },
+      "swap_ladder": {
+        "intact": 0.5408152866242038,
+        "noise": 0.519063694267516,
+        "phase": 0.4834649681528662,
+        "reversed": 0.5241656050955414,
+        "polarity": 0.45918471337579614,
+        "cross_component": 0.47903184713375796,
+        "null_reference": 0.519063694267516
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5605350318471338,
+        "off_component_auroc": 0.5256050955414012,
+        "early_baseline_auroc": 0.5368980891719746,
+        "permute_trial_auroc": 0.5186369426751593,
+        "channel_on_component_auroc": 0.575140127388535,
+        "channel_off_component_auroc": 0.598579617834395,
+        "channel_early_baseline_auroc": 0.576108280254777,
+        "channel_permute_trial_auroc": 0.551031847133758,
+        "contrast_on_component_auroc": 0.6263375796178343,
+        "contrast_off_component_auroc": 0.6279426751592356,
+        "contrast_early_baseline_auroc": 0.6045414012738853,
+        "contrast_permute_trial_auroc": 0.5734777070063694
+      },
+      "combined": {
+        "routing_only_auroc": 0.5408152866242038,
+        "legacy_scalar_mf_proxy_auroc": 0.5566114649681528,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.4421453629695524
+          },
+          {
+            "M": 2,
+            "R2": 0.6439562988822398
+          },
+          {
+            "M": 3,
+            "R2": 0.7602558271761527
+          },
+          {
+            "M": 5,
+            "R2": 0.8939951882154983
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6008152866242038
+      }
+    },
+    {
+      "routing_auroc": 0.6101401273885351,
+      "grounding": {
+        "G_a": 0.0853087455034256,
+        "G_m": 0.08897621184587479,
+        "G_c": 0.19065435230731964,
+        "G_c_null_mean": 0.18865925699472427,
+        "G_c_null_ci95": [
+          0.18611130006611348,
+          0.1912657141685486
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.6101401273885351,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5904203821656051,
+            "auroc_random": 0.607140127388535
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5932292993630573,
+            "auroc_random": 0.6034904458598727
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.563687898089172,
+            "auroc_random": 0.6029363057324841
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5433694267515924,
+            "auroc_random": 0.6002547770700636
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.6101401273885351,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.6110700636942676,
+            "delta": -0.0009299363057325705
+          },
+          {
+            "k": 1,
+            "auroc": 0.5610127388535032,
+            "delta": 0.049127388535031846
+          },
+          {
+            "k": 2,
+            "auroc": 0.6155159235668789,
+            "delta": -0.005375796178343828
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5191019108280255,
+        "scramble_trial_auroc": 0.4866942675159236
+      },
+      "swap_ladder": {
+        "intact": 0.6101401273885351,
+        "noise": 0.517547770700637,
+        "phase": 0.46210828025477707,
+        "reversed": 0.5992675159235669,
+        "polarity": 0.38985987261146493,
+        "cross_component": 0.3771464968152866,
+        "null_reference": 0.517547770700637
+      },
+      "amplitude": {
+        "on_component_auroc": 0.6160191082802547,
+        "off_component_auroc": 0.5532675159235669,
+        "early_baseline_auroc": 0.5179936305732484,
+        "permute_trial_auroc": 0.5132738853503185,
+        "channel_on_component_auroc": 0.6615477707006369,
+        "channel_off_component_auroc": 0.5883630573248407,
+        "channel_early_baseline_auroc": 0.5597133757961783,
+        "channel_permute_trial_auroc": 0.5521273885350318,
+        "contrast_on_component_auroc": 0.6731592356687898,
+        "contrast_off_component_auroc": 0.5947770700636943,
+        "contrast_early_baseline_auroc": 0.5857388535031848,
+        "contrast_permute_trial_auroc": 0.5696433121019108
+      },
+      "combined": {
+        "routing_only_auroc": 0.6101401273885351,
+        "legacy_scalar_mf_proxy_auroc": 0.6222675159235669,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.4556645458972287
+          },
+          {
+            "M": 2,
+            "R2": 0.6725427613963424
+          },
+          {
+            "M": 3,
+            "R2": 0.7693703999630234
+          },
+          {
+            "M": 5,
+            "R2": 0.8855856333073624
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6757643312101911
+      }
+    },
+    {
+      "routing_auroc": 0.557796178343949,
+      "grounding": {
+        "G_a": 0.10403911769390106,
+        "G_m": 0.10448271036148071,
+        "G_c": 0.20392069220542908,
+        "G_c_null_mean": 0.2024654158204794,
+        "G_c_null_ci95": [
+          0.19985912293195723,
+          0.20520381331443788
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.557796178343949,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5466305732484076,
+            "auroc_random": 0.5552420382165606
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5528471337579617,
+            "auroc_random": 0.5521210191082803
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5474012738853504,
+            "auroc_random": 0.5584394904458598
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5187070063694267,
+            "auroc_random": 0.5737070063694267
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.557796178343949,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.564,
+            "delta": -0.006203821656050934
+          },
+          {
+            "k": 1,
+            "auroc": 0.5313821656050955,
+            "delta": 0.026414012738853465
+          },
+          {
+            "k": 2,
+            "auroc": 0.5637452229299363,
+            "delta": -0.005949044585987329
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5211910828025477,
+        "scramble_trial_auroc": 0.5288853503184714
+      },
+      "swap_ladder": {
+        "intact": 0.557796178343949,
+        "noise": 0.5297834394904458,
+        "phase": 0.5117070063694267,
+        "reversed": 0.5428025477707007,
+        "polarity": 0.442203821656051,
+        "cross_component": 0.49419745222929934,
+        "null_reference": 0.5297834394904458
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5394140127388534,
+        "off_component_auroc": 0.5336369426751592,
+        "early_baseline_auroc": 0.5148407643312102,
+        "permute_trial_auroc": 0.5190445859872612,
+        "channel_on_component_auroc": 0.5941401273885349,
+        "channel_off_component_auroc": 0.5651337579617834,
+        "channel_early_baseline_auroc": 0.5518853503184713,
+        "channel_permute_trial_auroc": 0.5529171974522293,
+        "contrast_on_component_auroc": 0.5961656050955414,
+        "contrast_off_component_auroc": 0.5768343949044585,
+        "contrast_early_baseline_auroc": 0.5772611464968153,
+        "contrast_permute_trial_auroc": 0.568891719745223
+      },
+      "combined": {
+        "routing_only_auroc": 0.557796178343949,
+        "legacy_scalar_mf_proxy_auroc": 0.5279363057324841,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.4311924012306185
+          },
+          {
+            "M": 2,
+            "R2": 0.6222909540680465
+          },
+          {
+            "M": 3,
+            "R2": 0.7512094728283106
+          },
+          {
+            "M": 5,
+            "R2": 0.8744608456788845
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5998343949044586
+      }
+    },
+    {
+      "routing_auroc": 0.5869108280254777,
+      "grounding": {
+        "G_a": 0.09496192634105682,
+        "G_m": 0.07492867112159729,
+        "G_c": 0.18162675201892853,
+        "G_c_null_mean": 0.18083318814635277,
+        "G_c_null_ci95": [
+          0.17854614816606046,
+          0.18362088054418563
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5869108280254777,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5631273885350319,
+            "auroc_random": 0.5898726114649682
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.566375796178344,
+            "auroc_random": 0.5887070063694267
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5411910828025478,
+            "auroc_random": 0.578828025477707
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.525,
+            "auroc_random": 0.5772292993630573
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5869108280254777,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5861273885350318,
+            "delta": 0.000783439490445903
+          },
+          {
+            "k": 1,
+            "auroc": 0.5779681528662419,
+            "delta": 0.008942675159235747
+          },
+          {
+            "k": 2,
+            "auroc": 0.5441273885350318,
+            "delta": 0.04278343949044583
+          },
+          {
+            "k": 3,
+            "auroc": 0.603203821656051,
+            "delta": -0.01629299363057335
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5435796178343949,
+        "scramble_trial_auroc": 0.5190636942675159
+      },
+      "swap_ladder": {
+        "intact": 0.5869108280254777,
+        "noise": 0.5339554140127389,
+        "phase": 0.5066815286624204,
+        "reversed": 0.5950891719745224,
+        "polarity": 0.41308917197452233,
+        "cross_component": 0.444515923566879,
+        "null_reference": 0.5339554140127389
+      },
+      "amplitude": {
+        "on_component_auroc": 0.6224713375796178,
+        "off_component_auroc": 0.6492165605095542,
+        "early_baseline_auroc": 0.5453630573248408,
+        "permute_trial_auroc": 0.5324904458598726,
+        "channel_on_component_auroc": 0.639828025477707,
+        "channel_off_component_auroc": 0.643592356687898,
+        "channel_early_baseline_auroc": 0.5651337579617834,
+        "channel_permute_trial_auroc": 0.5737133757961783,
+        "contrast_on_component_auroc": 0.6461273885350319,
+        "contrast_off_component_auroc": 0.6949745222929935,
+        "contrast_early_baseline_auroc": 0.5833184713375796,
+        "contrast_permute_trial_auroc": 0.5955095541401272
+      },
+      "combined": {
+        "routing_only_auroc": 0.5869108280254777,
+        "legacy_scalar_mf_proxy_auroc": 0.6164968152866241,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.4543468272044511
+          },
+          {
+            "M": 2,
+            "R2": 0.6554942584168884
+          },
+          {
+            "M": 3,
+            "R2": 0.7624053447081105
+          },
+          {
+            "M": 5,
+            "R2": 0.8786157257754589
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6015286624203822
+      }
+    },
+    {
+      "routing_auroc": 0.5687006369426751,
+      "grounding": {
+        "G_a": 0.0921459048986435,
+        "G_m": 0.09197235852479935,
+        "G_c": 0.1705116480588913,
+        "G_c_null_mean": 0.17279451876878738,
+        "G_c_null_ci95": [
+          0.17059380300343036,
+          0.1752403352409601
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5687006369426751,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5510764331210192,
+            "auroc_random": 0.563171974522293
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5289235668789809,
+            "auroc_random": 0.5807324840764331
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5496815286624204,
+            "auroc_random": 0.5668980891719746
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5354331210191083,
+            "auroc_random": 0.5594522292993631
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5687006369426751,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5554331210191082,
+            "delta": 0.013267515923566897
+          },
+          {
+            "k": 1,
+            "auroc": 0.5508089171974523,
+            "delta": 0.017891719745222856
+          },
+          {
+            "k": 2,
+            "auroc": 0.5844585987261146,
+            "delta": -0.015757961783439467
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.49563694267515923,
+        "scramble_trial_auroc": 0.5234267515923566
+      },
+      "swap_ladder": {
+        "intact": 0.5687006369426751,
+        "noise": 0.49866242038216557,
+        "phase": 0.4975605095541401,
+        "reversed": 0.551,
+        "polarity": 0.4312993630573248,
+        "cross_component": 0.45721656050955417,
+        "null_reference": 0.49866242038216557
+      },
+      "amplitude": {
+        "on_component_auroc": 0.537656050955414,
+        "off_component_auroc": 0.5378853503184713,
+        "early_baseline_auroc": 0.537171974522293,
+        "permute_trial_auroc": 0.5206496815286624,
+        "channel_on_component_auroc": 0.6500254777070064,
+        "channel_off_component_auroc": 0.5832738853503184,
+        "channel_early_baseline_auroc": 0.565388535031847,
+        "channel_permute_trial_auroc": 0.5396624203821656,
+        "contrast_on_component_auroc": 0.6423057324840764,
+        "contrast_off_component_auroc": 0.6327388535031847,
+        "contrast_early_baseline_auroc": 0.6026178343949045,
+        "contrast_permute_trial_auroc": 0.5782929936305732
+      },
+      "combined": {
+        "routing_only_auroc": 0.5687006369426751,
+        "legacy_scalar_mf_proxy_auroc": 0.5446560509554139,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.43744822902827196
+          },
+          {
+            "M": 2,
+            "R2": 0.6516940246064217
+          },
+          {
+            "M": 3,
+            "R2": 0.7528831681457427
+          },
+          {
+            "M": 5,
+            "R2": 0.8591698551963906
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6484331210191083
+      }
+    },
+    {
+      "routing_auroc": 0.5725477707006369,
+      "grounding": {
+        "G_a": 0.10271507501602173,
+        "G_m": 0.10213083773851395,
+        "G_c": 0.2152387797832489,
+        "G_c_null_mean": 0.21194514766335487,
+        "G_c_null_ci95": [
+          0.20908231548964978,
+          0.21474632918834685
+        ],
+        "G_c_above_null": true
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5725477707006369,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5576687898089172,
+            "auroc_random": 0.5690636942675159
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.540127388535032,
+            "auroc_random": 0.5738343949044586
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5308789808917198,
+            "auroc_random": 0.5679554140127389
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5124076433121019,
+            "auroc_random": 0.5620955414012739
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5725477707006369,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5810828025477707,
+            "delta": -0.008535031847133778
+          },
+          {
+            "k": 1,
+            "auroc": 0.542624203821656,
+            "delta": 0.0299235668789809
+          },
+          {
+            "k": 2,
+            "auroc": 0.5744140127388535,
+            "delta": -0.0018662420382166145
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.512547770700637,
+        "scramble_trial_auroc": 0.46900636942675156
+      },
+      "swap_ladder": {
+        "intact": 0.5725477707006369,
+        "noise": 0.5046815286624203,
+        "phase": 0.4934713375796178,
+        "reversed": 0.5832229299363058,
+        "polarity": 0.42745222929936305,
+        "cross_component": 0.45077707006369433,
+        "null_reference": 0.5046815286624203
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5713057324840765,
+        "off_component_auroc": 0.5418853503184713,
+        "early_baseline_auroc": 0.537579617834395,
+        "permute_trial_auroc": 0.5344458598726114,
+        "channel_on_component_auroc": 0.5912101910828025,
+        "channel_off_component_auroc": 0.5673503184713375,
+        "channel_early_baseline_auroc": 0.5682866242038217,
+        "channel_permute_trial_auroc": 0.5500891719745223,
+        "contrast_on_component_auroc": 0.6109363057324841,
+        "contrast_off_component_auroc": 0.6044968152866241,
+        "contrast_early_baseline_auroc": 0.5758535031847134,
+        "contrast_permute_trial_auroc": 0.5720382165605096
+      },
+      "combined": {
+        "routing_only_auroc": 0.5725477707006369,
+        "legacy_scalar_mf_proxy_auroc": 0.5606687898089171,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.5186558556568326
+          },
+          {
+            "M": 2,
+            "R2": 0.7380822818851466
+          },
+          {
+            "M": 3,
+            "R2": 0.8500561705747016
+          },
+          {
+            "M": 5,
+            "R2": 0.9404194675971542
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6107324840764332
+      }
+    },
+    {
+      "routing_auroc": 0.536312101910828,
+      "grounding": {
+        "G_a": 0.07536424696445465,
+        "G_m": 0.06336462497711182,
+        "G_c": 0.14530611038208008,
+        "G_c_null_mean": 0.14973385624587535,
+        "G_c_null_ci95": [
+          0.1477126579731703,
+          0.15172456279397012
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.536312101910828,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5305031847133758,
+            "auroc_random": 0.5372929936305733
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5215605095541401,
+            "auroc_random": 0.535203821656051
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5106305732484075,
+            "auroc_random": 0.5426433121019107
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5088726114649682,
+            "auroc_random": 0.5403375796178344
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.536312101910828,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5359363057324842,
+            "delta": 0.0003757961783438235
+          },
+          {
+            "k": 1,
+            "auroc": 0.5315031847133758,
+            "delta": 0.004808917197452245
+          },
+          {
+            "k": 2,
+            "auroc": 0.5395732484076433,
+            "delta": -0.0032611464968153037
+          },
+          {
+            "k": 3,
+            "auroc": 0.537547770700637,
+            "delta": -0.0012356687898089636
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5616050955414013,
+        "scramble_trial_auroc": 0.5048980891719745
+      },
+      "swap_ladder": {
+        "intact": 0.536312101910828,
+        "noise": 0.4926496815286624,
+        "phase": 0.4773503184713376,
+        "reversed": 0.538796178343949,
+        "polarity": 0.463687898089172,
+        "cross_component": 0.48073248407643315,
+        "null_reference": 0.4926496815286624
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5577261146496815,
+        "off_component_auroc": 0.5498726114649681,
+        "early_baseline_auroc": 0.5152484076433121,
+        "permute_trial_auroc": 0.5374076433121019,
+        "channel_on_component_auroc": 0.6066751592356688,
+        "channel_off_component_auroc": 0.5635286624203821,
+        "channel_early_baseline_auroc": 0.5682802547770701,
+        "channel_permute_trial_auroc": 0.5551082802547771,
+        "contrast_on_component_auroc": 0.6122547770700637,
+        "contrast_off_component_auroc": 0.5762738853503184,
+        "contrast_early_baseline_auroc": 0.5706624203821656,
+        "contrast_permute_trial_auroc": 0.5651847133757961
+      },
+      "combined": {
+        "routing_only_auroc": 0.536312101910828,
+        "legacy_scalar_mf_proxy_auroc": 0.5759108280254777,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.2990935264629613
+          },
+          {
+            "M": 2,
+            "R2": 0.5345103181676505
+          },
+          {
+            "M": 3,
+            "R2": 0.6820452076324509
+          },
+          {
+            "M": 5,
+            "R2": 0.826242644407849
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5978471337579618
+      }
+    },
+    {
+      "routing_auroc": 0.6113439490445859,
+      "grounding": {
+        "G_a": 0.09452363103628159,
+        "G_m": 0.0923309177160263,
+        "G_c": 0.1882379651069641,
+        "G_c_null_mean": 0.18946263268589975,
+        "G_c_null_ci95": [
+          0.18718294687569142,
+          0.192009087651968
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.6113439490445859,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5829745222929936,
+            "auroc_random": 0.6061082802547771
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5783375796178344,
+            "auroc_random": 0.613171974522293
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5716624203821656,
+            "auroc_random": 0.6126496815286624
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5515541401273886,
+            "auroc_random": 0.611515923566879
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.6113439490445859,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.6031592356687897,
+            "delta": 0.008184713375796182
+          },
+          {
+            "k": 1,
+            "auroc": 0.6094012738853504,
+            "delta": 0.0019426751592355185
+          },
+          {
+            "k": 2,
+            "auroc": 0.597452229299363,
+            "delta": 0.013891719745222852
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.45049044585987263,
+        "scramble_trial_auroc": 0.46391082802547773
+      },
+      "swap_ladder": {
+        "intact": 0.6113439490445859,
+        "noise": 0.49857961783439486,
+        "phase": 0.47647133757961785,
+        "reversed": 0.5831273885350319,
+        "polarity": 0.388656050955414,
+        "cross_component": 0.44430573248407645,
+        "null_reference": 0.49857961783439486
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5812993630573249,
+        "off_component_auroc": 0.5485350318471338,
+        "early_baseline_auroc": 0.5050318471337579,
+        "permute_trial_auroc": 0.5363503184713376,
+        "channel_on_component_auroc": 0.5840955414012738,
+        "channel_off_component_auroc": 0.5618025477707007,
+        "channel_early_baseline_auroc": 0.5840000000000001,
+        "channel_permute_trial_auroc": 0.561,
+        "contrast_on_component_auroc": 0.6338726114649682,
+        "contrast_off_component_auroc": 0.5980382165605096,
+        "contrast_early_baseline_auroc": 0.5928789808917198,
+        "contrast_permute_trial_auroc": 0.5662611464968154
+      },
+      "combined": {
+        "routing_only_auroc": 0.6113439490445859,
+        "legacy_scalar_mf_proxy_auroc": 0.6105350318471339,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.45855818701497353
+          },
+          {
+            "M": 2,
+            "R2": 0.65650505875362
+          },
+          {
+            "M": 3,
+            "R2": 0.7614386254553385
+          },
+          {
+            "M": 5,
+            "R2": 0.8853027796260933
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6752229299363057
+      }
+    },
+    {
+      "routing_auroc": 0.5892866242038217,
+      "grounding": {
+        "G_a": 0.09187427908182144,
+        "G_m": 0.07383570820093155,
+        "G_c": 0.19770678877830505,
+        "G_c_null_mean": 0.19770119450986384,
+        "G_c_null_ci95": [
+          0.19493339732289314,
+          0.20049239546060563
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5892866242038217,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5711783439490445,
+            "auroc_random": 0.5918216560509554
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5558407643312102,
+            "auroc_random": 0.5842738853503184
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.539656050955414,
+            "auroc_random": 0.5975350318471337
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5037770700636943,
+            "auroc_random": 0.5834585987261146
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5892866242038217,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5922738853503184,
+            "delta": -0.0029872611464967225
+          },
+          {
+            "k": 1,
+            "auroc": 0.5908535031847134,
+            "delta": -0.001566878980891695
+          },
+          {
+            "k": 2,
+            "auroc": 0.5794585987261146,
+            "delta": 0.009828025477707114
+          },
+          {
+            "k": 3,
+            "auroc": 0.5788853503184713,
+            "delta": 0.010401273885350393
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.46485350318471336,
+        "scramble_trial_auroc": 0.4747770700636943
+      },
+      "swap_ladder": {
+        "intact": 0.5892866242038217,
+        "noise": 0.5206815286624205,
+        "phase": 0.49846496815286623,
+        "reversed": 0.5928343949044587,
+        "polarity": 0.41071337579617834,
+        "cross_component": 0.4117452229299363,
+        "null_reference": 0.5206815286624205
+      },
+      "amplitude": {
+        "on_component_auroc": 0.6147133757961782,
+        "off_component_auroc": 0.6129108280254777,
+        "early_baseline_auroc": 0.5378343949044586,
+        "permute_trial_auroc": 0.5340445859872611,
+        "channel_on_component_auroc": 0.6243821656050955,
+        "channel_off_component_auroc": 0.6258726114649681,
+        "channel_early_baseline_auroc": 0.5698535031847134,
+        "channel_permute_trial_auroc": 0.5516751592356688,
+        "contrast_on_component_auroc": 0.6263184713375797,
+        "contrast_off_component_auroc": 0.6172229299363057,
+        "contrast_early_baseline_auroc": 0.5746751592356687,
+        "contrast_permute_trial_auroc": 0.5628917197452229
+      },
+      "combined": {
+        "routing_only_auroc": 0.5892866242038217,
+        "legacy_scalar_mf_proxy_auroc": 0.6389171974522293,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.4660324135659708
+          },
+          {
+            "M": 2,
+            "R2": 0.6956500315291975
+          },
+          {
+            "M": 3,
+            "R2": 0.8157942309448339
+          },
+          {
+            "M": 5,
+            "R2": 0.924083023944679
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6098089171974522
+      }
+    },
+    {
+      "routing_auroc": 0.5177133757961784,
+      "grounding": {
+        "G_a": 0.09864936769008636,
+        "G_m": 0.0767631083726883,
+        "G_c": 0.20472849905490875,
+        "G_c_null_mean": 0.20197277024388313,
+        "G_c_null_ci95": [
+          0.1994449857622385,
+          0.20462076552212238
+        ],
+        "G_c_above_null": true
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5177133757961784,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5157133757961783,
+            "auroc_random": 0.5146242038216561
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.49611464968152863,
+            "auroc_random": 0.5255222929936305
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5285987261146496,
+            "auroc_random": 0.5083821656050955
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5236178343949045,
+            "auroc_random": 0.5133375796178343
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5177133757961784,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5171528662420382,
+            "delta": 0.0005605095541402205
+          },
+          {
+            "k": 1,
+            "auroc": 0.5157515923566879,
+            "delta": 0.0019617834394904943
+          },
+          {
+            "k": 2,
+            "auroc": 0.5086050955414012,
+            "delta": 0.009108280254777168
+          },
+          {
+            "k": 3,
+            "auroc": 0.5182292993630573,
+            "delta": -0.0005159235668789064
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5117515923566879,
+        "scramble_trial_auroc": 0.5022547770700637
+      },
+      "swap_ladder": {
+        "intact": 0.5177133757961784,
+        "noise": 0.4869490445859872,
+        "phase": 0.46296178343949046,
+        "reversed": 0.5161464968152867,
+        "polarity": 0.4822866242038216,
+        "cross_component": 0.5100891719745223,
+        "null_reference": 0.4869490445859872
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5619617834394904,
+        "off_component_auroc": 0.5660191082802548,
+        "early_baseline_auroc": 0.5437770700636944,
+        "permute_trial_auroc": 0.5268089171974522,
+        "channel_on_component_auroc": 0.5756687898089172,
+        "channel_off_component_auroc": 0.5738471337579618,
+        "channel_early_baseline_auroc": 0.5628089171974522,
+        "channel_permute_trial_auroc": 0.5551273885350319,
+        "contrast_on_component_auroc": 0.5889299363057325,
+        "contrast_off_component_auroc": 0.5792292993630572,
+        "contrast_early_baseline_auroc": 0.5778789808917197,
+        "contrast_permute_trial_auroc": 0.5801464968152866
+      },
+      "combined": {
+        "routing_only_auroc": 0.5177133757961784,
+        "legacy_scalar_mf_proxy_auroc": 0.57328025477707,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.32002495618718485
+          },
+          {
+            "M": 2,
+            "R2": 0.6201573219559051
+          },
+          {
+            "M": 3,
+            "R2": 0.7687321330172411
+          },
+          {
+            "M": 5,
+            "R2": 0.9057873961982332
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5498726114649681
+      }
+    },
+    {
+      "routing_auroc": 0.5319108280254777,
+      "grounding": {
+        "G_a": 0.0946047231554985,
+        "G_m": 0.09386249631643295,
+        "G_c": 0.18406371772289276,
+        "G_c_null_mean": 0.18852610670030118,
+        "G_c_null_ci95": [
+          0.1862260539084673,
+          0.19057923108339309
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5319108280254777,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5088471337579618,
+            "auroc_random": 0.5322229299363057
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5105987261146497,
+            "auroc_random": 0.53756050955414
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.4962547770700637,
+            "auroc_random": 0.5328471337579618
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.47731847133757965,
+            "auroc_random": 0.5256369426751593
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5319108280254777,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.531312101910828,
+            "delta": 0.000598726114649728
+          },
+          {
+            "k": 1,
+            "auroc": 0.496484076433121,
+            "delta": 0.03542675159235675
+          },
+          {
+            "k": 2,
+            "auroc": 0.548140127388535,
+            "delta": -0.01622929936305728
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5262993630573248,
+        "scramble_trial_auroc": 0.4831783439490446
+      },
+      "swap_ladder": {
+        "intact": 0.5319108280254777,
+        "noise": 0.500859872611465,
+        "phase": 0.5377261146496815,
+        "reversed": 0.5304267515923566,
+        "polarity": 0.4680891719745223,
+        "cross_component": 0.465,
+        "null_reference": 0.500859872611465
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5574585987261147,
+        "off_component_auroc": 0.5773184713375796,
+        "early_baseline_auroc": 0.5745859872611465,
+        "permute_trial_auroc": 0.5213312101910828,
+        "channel_on_component_auroc": 0.5801210191082802,
+        "channel_off_component_auroc": 0.5858343949044587,
+        "channel_early_baseline_auroc": 0.5788216560509554,
+        "channel_permute_trial_auroc": 0.5458471337579618,
+        "contrast_on_component_auroc": 0.5821847133757962,
+        "contrast_off_component_auroc": 0.5942165605095542,
+        "contrast_early_baseline_auroc": 0.5983630573248409,
+        "contrast_permute_trial_auroc": 0.561859872611465
+      },
+      "combined": {
+        "routing_only_auroc": 0.5319108280254777,
+        "legacy_scalar_mf_proxy_auroc": 0.5574458598726115,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.41376268862982013
+          },
+          {
+            "M": 2,
+            "R2": 0.6323678445416537
+          },
+          {
+            "M": 3,
+            "R2": 0.7542744991245187
+          },
+          {
+            "M": 5,
+            "R2": 0.8844350989825094
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6005414012738853
+      }
+    },
+    {
+      "routing_auroc": 0.5482165605095541,
+      "grounding": {
+        "G_a": 0.08517102152109146,
+        "G_m": 0.07216406613588333,
+        "G_c": 0.17465180158615112,
+        "G_c_null_mean": 0.17490603104233743,
+        "G_c_null_ci95": [
+          0.1721542775630951,
+          0.1773815479129553
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5482165605095541,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5330318471337578,
+            "auroc_random": 0.5473566878980891
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5199235668789809,
+            "auroc_random": 0.5486496815286623
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5236496815286624,
+            "auroc_random": 0.5529554140127388
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5318726114649681,
+            "auroc_random": 0.5646751592356688
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5482165605095541,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5427898089171974,
+            "delta": 0.005426751592356727
+          },
+          {
+            "k": 1,
+            "auroc": 0.5486687898089172,
+            "delta": -0.00045222929936306056
+          },
+          {
+            "k": 2,
+            "auroc": 0.5370955414012739,
+            "delta": 0.011121019108280228
+          },
+          {
+            "k": 3,
+            "auroc": 0.5537388535031847,
+            "delta": -0.0055222929936306064
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.49092356687898087,
+        "scramble_trial_auroc": 0.4760445859872612
+      },
+      "swap_ladder": {
+        "intact": 0.5482165605095541,
+        "noise": 0.49756050955414016,
+        "phase": 0.5055477707006368,
+        "reversed": 0.5316369426751593,
+        "polarity": 0.45178343949044586,
+        "cross_component": 0.4803248407643312,
+        "null_reference": 0.49756050955414016
+      },
+      "amplitude": {
+        "on_component_auroc": 0.530859872611465,
+        "off_component_auroc": 0.5291528662420383,
+        "early_baseline_auroc": 0.5142292993630573,
+        "permute_trial_auroc": 0.5444777070063694,
+        "channel_on_component_auroc": 0.5532738853503184,
+        "channel_off_component_auroc": 0.5439554140127388,
+        "channel_early_baseline_auroc": 0.5577197452229299,
+        "channel_permute_trial_auroc": 0.5618407643312102,
+        "contrast_on_component_auroc": 0.5954012738853502,
+        "contrast_off_component_auroc": 0.5805605095541402,
+        "contrast_early_baseline_auroc": 0.5797834394904459,
+        "contrast_permute_trial_auroc": 0.5782420382165605
+      },
+      "combined": {
+        "routing_only_auroc": 0.5482165605095541,
+        "legacy_scalar_mf_proxy_auroc": 0.5472484076433122,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.37620949452092667
+          },
+          {
+            "M": 2,
+            "R2": 0.5724611733347053
+          },
+          {
+            "M": 3,
+            "R2": 0.7248553707352257
+          },
+          {
+            "M": 5,
+            "R2": 0.8429060806625898
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5497261146496815
+      }
+    },
+    {
+      "routing_auroc": 0.6432101910828026,
+      "grounding": {
+        "G_a": 0.09798566997051239,
+        "G_m": 0.09739426523447037,
+        "G_c": 0.2107737958431244,
+        "G_c_null_mean": 0.20648427985608578,
+        "G_c_null_ci95": [
+          0.20361869558691978,
+          0.2090597853064537
+        ],
+        "G_c_above_null": true
+      },
+      "occlusion": {
+        "baseline_auroc": 0.6432101910828026,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5757324840764331,
+            "auroc_random": 0.6459936305732484
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5940636942675159,
+            "auroc_random": 0.6383248407643312
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5749872611464968,
+            "auroc_random": 0.6442420382165605
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5658025477707006,
+            "auroc_random": 0.6505414012738854
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.6432101910828026,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.6383248407643312,
+            "delta": 0.004885350318471482
+          },
+          {
+            "k": 1,
+            "auroc": 0.596624203821656,
+            "delta": 0.0465859872611466
+          },
+          {
+            "k": 2,
+            "auroc": 0.6427070063694268,
+            "delta": 0.0005031847133758482
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5529363057324841,
+        "scramble_trial_auroc": 0.4914522292993631
+      },
+      "swap_ladder": {
+        "intact": 0.6432101910828026,
+        "noise": 0.481624203821656,
+        "phase": 0.5226815286624205,
+        "reversed": 0.6158789808917198,
+        "polarity": 0.3567898089171974,
+        "cross_component": 0.39629299363057324,
+        "null_reference": 0.481624203821656
+      },
+      "amplitude": {
+        "on_component_auroc": 0.599363057324841,
+        "off_component_auroc": 0.5266369426751593,
+        "early_baseline_auroc": 0.5436305732484076,
+        "permute_trial_auroc": 0.5139808917197453,
+        "channel_on_component_auroc": 0.6484012738853503,
+        "channel_off_component_auroc": 0.5889808917197452,
+        "channel_early_baseline_auroc": 0.5737070063694267,
+        "channel_permute_trial_auroc": 0.5635668789808916,
+        "contrast_on_component_auroc": 0.6725031847133758,
+        "contrast_off_component_auroc": 0.6015286624203822,
+        "contrast_early_baseline_auroc": 0.5788089171974523,
+        "contrast_permute_trial_auroc": 0.5870254777070063
+      },
+      "combined": {
+        "routing_only_auroc": 0.6432101910828026,
+        "legacy_scalar_mf_proxy_auroc": 0.5971910828025477,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.3809469609897035
+          },
+          {
+            "M": 2,
+            "R2": 0.6379820676058662
+          },
+          {
+            "M": 3,
+            "R2": 0.7715343110769842
+          },
+          {
+            "M": 5,
+            "R2": 0.9040611541684725
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6873885350318472
+      }
+    },
+    {
+      "routing_auroc": 0.5592611464968154,
+      "grounding": {
+        "G_a": 0.1067686602473259,
+        "G_m": 0.10243090242147446,
+        "G_c": 0.21409811079502106,
+        "G_c_null_mean": 0.21344637878239156,
+        "G_c_null_ci95": [
+          0.21124268174171448,
+          0.21607242561876774
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5592611464968154,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5467133757961784,
+            "auroc_random": 0.5617898089171975
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5419808917197452,
+            "auroc_random": 0.5483694267515924
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.531828025477707,
+            "auroc_random": 0.5600509554140127
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5124522292993631,
+            "auroc_random": 0.5611974522292994
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5592611464968154,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5627770700636943,
+            "delta": -0.003515923566878909
+          },
+          {
+            "k": 1,
+            "auroc": 0.5407261146496816,
+            "delta": 0.018535031847133787
+          },
+          {
+            "k": 2,
+            "auroc": 0.5400891719745223,
+            "delta": 0.019171974522293023
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.4949936305732484,
+        "scramble_trial_auroc": 0.4911847133757962
+      },
+      "swap_ladder": {
+        "intact": 0.5592611464968154,
+        "noise": 0.5049490445859872,
+        "phase": 0.4819617834394905,
+        "reversed": 0.535936305732484,
+        "polarity": 0.4407388535031847,
+        "cross_component": 0.4439171974522293,
+        "null_reference": 0.5049490445859872
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5776050955414013,
+        "off_component_auroc": 0.565171974522293,
+        "early_baseline_auroc": 0.5030955414012739,
+        "permute_trial_auroc": 0.5192420382165606,
+        "channel_on_component_auroc": 0.5896496815286625,
+        "channel_off_component_auroc": 0.5830700636942675,
+        "channel_early_baseline_auroc": 0.5520445859872611,
+        "channel_permute_trial_auroc": 0.5445987261146497,
+        "contrast_on_component_auroc": 0.6127834394904459,
+        "contrast_off_component_auroc": 0.6053949044585988,
+        "contrast_early_baseline_auroc": 0.5789299363057325,
+        "contrast_permute_trial_auroc": 0.5744458598726115
+      },
+      "combined": {
+        "routing_only_auroc": 0.5592611464968154,
+        "legacy_scalar_mf_proxy_auroc": 0.5801974522292994,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.44769295305650525
+          },
+          {
+            "M": 2,
+            "R2": 0.6675108255580071
+          },
+          {
+            "M": 3,
+            "R2": 0.8021622956572214
+          },
+          {
+            "M": 5,
+            "R2": 0.915545208450526
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6074203821656051
+      }
+    },
+    {
+      "routing_auroc": 0.5924713375796178,
+      "grounding": {
+        "G_a": 0.09366879612207413,
+        "G_m": 0.09700907766819,
+        "G_c": 0.20126758515834808,
+        "G_c_null_mean": 0.1950662198662758,
+        "G_c_null_ci95": [
+          0.1924865297973156,
+          0.19808942899107934
+        ],
+        "G_c_above_null": true
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5924713375796178,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5552738853503185,
+            "auroc_random": 0.594579617834395
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5219235668789809,
+            "auroc_random": 0.5915286624203822
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5104522292993631,
+            "auroc_random": 0.5953184713375796
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5132101910828025,
+            "auroc_random": 0.5756305732484077
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5924713375796178,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5732866242038216,
+            "delta": 0.019184713375796192
+          },
+          {
+            "k": 1,
+            "auroc": 0.5689490445859873,
+            "delta": 0.02352229299363051
+          },
+          {
+            "k": 2,
+            "auroc": 0.5992484076433122,
+            "delta": -0.006777070063694435
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.4660382165605096,
+        "scramble_trial_auroc": 0.4886433121019108
+      },
+      "swap_ladder": {
+        "intact": 0.5924713375796178,
+        "noise": 0.47870700636942676,
+        "phase": 0.45091719745222925,
+        "reversed": 0.5981974522292993,
+        "polarity": 0.4075286624203821,
+        "cross_component": 0.35925477707006365,
+        "null_reference": 0.47870700636942676
+      },
+      "amplitude": {
+        "on_component_auroc": 0.6355923566878982,
+        "off_component_auroc": 0.5463057324840764,
+        "early_baseline_auroc": 0.5377133757961783,
+        "permute_trial_auroc": 0.5377070063694268,
+        "channel_on_component_auroc": 0.624484076433121,
+        "channel_off_component_auroc": 0.5819299363057325,
+        "channel_early_baseline_auroc": 0.5618216560509554,
+        "channel_permute_trial_auroc": 0.557343949044586,
+        "contrast_on_component_auroc": 0.7006751592356688,
+        "contrast_off_component_auroc": 0.609859872611465,
+        "contrast_early_baseline_auroc": 0.592828025477707,
+        "contrast_permute_trial_auroc": 0.577420382165605
+      },
+      "combined": {
+        "routing_only_auroc": 0.5924713375796178,
+        "legacy_scalar_mf_proxy_auroc": 0.6523375796178345,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.13276288814452064
+          },
+          {
+            "M": 2,
+            "R2": 0.5146724245032293
+          },
+          {
+            "M": 3,
+            "R2": 0.6724293789840137
+          },
+          {
+            "M": 5,
+            "R2": 0.8462109521432628
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.7124331210191083
+      }
+    },
+    {
+      "routing_auroc": 0.5346433121019109,
+      "grounding": {
+        "G_a": 0.08542383462190628,
+        "G_m": 0.06891541182994843,
+        "G_c": 0.17966628074645996,
+        "G_c_null_mean": 0.17613793678581716,
+        "G_c_null_ci95": [
+          0.1737253837287426,
+          0.17839422523975373
+        ],
+        "G_c_above_null": true
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5346433121019109,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5158853503184714,
+            "auroc_random": 0.5330063694267516
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5094458598726115,
+            "auroc_random": 0.5254331210191083
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.512343949044586,
+            "auroc_random": 0.5269808917197453
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.523828025477707,
+            "auroc_random": 0.543828025477707
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5346433121019109,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5387070063694268,
+            "delta": -0.00406369426751596
+          },
+          {
+            "k": 1,
+            "auroc": 0.5364394904458598,
+            "delta": -0.001796178343948962
+          },
+          {
+            "k": 2,
+            "auroc": 0.5203821656050955,
+            "delta": 0.014261146496815313
+          },
+          {
+            "k": 3,
+            "auroc": 0.5262420382165606,
+            "delta": 0.00840127388535028
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.4840955414012739,
+        "scramble_trial_auroc": 0.48218471337579616
+      },
+      "swap_ladder": {
+        "intact": 0.5346433121019109,
+        "noise": 0.5009299363057326,
+        "phase": 0.49802547770700634,
+        "reversed": 0.536656050955414,
+        "polarity": 0.46535668789808915,
+        "cross_component": 0.45648407643312106,
+        "null_reference": 0.5009299363057326
+      },
+      "amplitude": {
+        "on_component_auroc": 0.551388535031847,
+        "off_component_auroc": 0.5795222929936306,
+        "early_baseline_auroc": 0.5109426751592356,
+        "permute_trial_auroc": 0.5110254777070063,
+        "channel_on_component_auroc": 0.5710636942675159,
+        "channel_off_component_auroc": 0.5852484076433121,
+        "channel_early_baseline_auroc": 0.5427643312101911,
+        "channel_permute_trial_auroc": 0.5444140127388536,
+        "contrast_on_component_auroc": 0.5835796178343948,
+        "contrast_off_component_auroc": 0.6042165605095542,
+        "contrast_early_baseline_auroc": 0.5695222929936306,
+        "contrast_permute_trial_auroc": 0.5672484076433121
+      },
+      "combined": {
+        "routing_only_auroc": 0.5346433121019109,
+        "legacy_scalar_mf_proxy_auroc": 0.5220828025477707,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.4702300269840457
+          },
+          {
+            "M": 2,
+            "R2": 0.6689621150132328
+          },
+          {
+            "M": 3,
+            "R2": 0.7793493127936694
+          },
+          {
+            "M": 5,
+            "R2": 0.8858860345635758
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5835859872611465
+      }
+    },
+    {
+      "routing_auroc": 0.5845605095541402,
+      "grounding": {
+        "G_a": 0.11503874510526657,
+        "G_m": 0.11024688929319382,
+        "G_c": 0.22463874518871307,
+        "G_c_null_mean": 0.22455765843391418,
+        "G_c_null_ci95": [
+          0.22149198353290558,
+          0.22795044668018818
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5845605095541402,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5542866242038217,
+            "auroc_random": 0.58528025477707
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5449490445859873,
+            "auroc_random": 0.5890445859872612
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5550573248407643,
+            "auroc_random": 0.5959617834394905
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5309363057324841,
+            "auroc_random": 0.5709426751592356
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5845605095541402,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5848343949044585,
+            "delta": -0.00027388535031835914
+          },
+          {
+            "k": 1,
+            "auroc": 0.5562420382165605,
+            "delta": 0.028318471337579698
+          },
+          {
+            "k": 2,
+            "auroc": 0.577968152866242,
+            "delta": 0.006592356687898149
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.46510191082802543,
+        "scramble_trial_auroc": 0.520547770700637
+      },
+      "swap_ladder": {
+        "intact": 0.5845605095541402,
+        "noise": 0.47577707006369424,
+        "phase": 0.519891719745223,
+        "reversed": 0.5771019108280254,
+        "polarity": 0.4154394904458599,
+        "cross_component": 0.4558917197452229,
+        "null_reference": 0.47577707006369424
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5550382165605096,
+        "off_component_auroc": 0.5335796178343948,
+        "early_baseline_auroc": 0.5152929936305732,
+        "permute_trial_auroc": 0.521828025477707,
+        "channel_on_component_auroc": 0.5793375796178344,
+        "channel_off_component_auroc": 0.5679171974522293,
+        "channel_early_baseline_auroc": 0.5429044585987262,
+        "channel_permute_trial_auroc": 0.5531910828025478,
+        "contrast_on_component_auroc": 0.6092929936305733,
+        "contrast_off_component_auroc": 0.5877898089171976,
+        "contrast_early_baseline_auroc": 0.5702611464968153,
+        "contrast_permute_trial_auroc": 0.5694968152866242
+      },
+      "combined": {
+        "routing_only_auroc": 0.5845605095541402,
+        "legacy_scalar_mf_proxy_auroc": 0.574375796178344,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.5417526909223764
+          },
+          {
+            "M": 2,
+            "R2": 0.7310671478173041
+          },
+          {
+            "M": 3,
+            "R2": 0.826045752728058
+          },
+          {
+            "M": 5,
+            "R2": 0.9333109176173239
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5923630573248407
+      }
+    },
+    {
+      "routing_auroc": 0.5152229299363058,
+      "grounding": {
+        "G_a": 0.10068532824516296,
+        "G_m": 0.09757722914218903,
+        "G_c": 0.20156076550483704,
+        "G_c_null_mean": 0.19772317573428155,
+        "G_c_null_ci95": [
+          0.1946512319147587,
+          0.20037568360567093
+        ],
+        "G_c_above_null": true
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5152229299363058,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5227006369426752,
+            "auroc_random": 0.5140445859872612
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5135031847133757,
+            "auroc_random": 0.5164331210191082
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.517203821656051,
+            "auroc_random": 0.5218025477707007
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.49119108280254775,
+            "auroc_random": 0.49584076433121016
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5152229299363058,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5111337579617834,
+            "delta": 0.00408917197452241
+          },
+          {
+            "k": 1,
+            "auroc": 0.5144076433121019,
+            "delta": 0.0008152866242039369
+          },
+          {
+            "k": 2,
+            "auroc": 0.5168216560509555,
+            "delta": -0.001598726114649729
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.4773694267515924,
+        "scramble_trial_auroc": 0.45286624203821657
+      },
+      "swap_ladder": {
+        "intact": 0.5152229299363058,
+        "noise": 0.44647770700636935,
+        "phase": 0.491484076433121,
+        "reversed": 0.5131847133757962,
+        "polarity": 0.4847770700636943,
+        "cross_component": 0.5086050955414013,
+        "null_reference": 0.44647770700636935
+      },
+      "amplitude": {
+        "on_component_auroc": 0.538547770700637,
+        "off_component_auroc": 0.5723949044585988,
+        "early_baseline_auroc": 0.5073885350318471,
+        "permute_trial_auroc": 0.5276369426751593,
+        "channel_on_component_auroc": 0.5658407643312102,
+        "channel_off_component_auroc": 0.5951910828025477,
+        "channel_early_baseline_auroc": 0.5500573248407643,
+        "channel_permute_trial_auroc": 0.5468535031847134,
+        "contrast_on_component_auroc": 0.5839936305732484,
+        "contrast_off_component_auroc": 0.6020509554140127,
+        "contrast_early_baseline_auroc": 0.5657707006369426,
+        "contrast_permute_trial_auroc": 0.5651847133757962
+      },
+      "combined": {
+        "routing_only_auroc": 0.5152229299363058,
+        "legacy_scalar_mf_proxy_auroc": 0.5136942675159236,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.4267599487885747
+          },
+          {
+            "M": 2,
+            "R2": 0.674645294061921
+          },
+          {
+            "M": 3,
+            "R2": 0.8006002579469895
+          },
+          {
+            "M": 5,
+            "R2": 0.9133727643652552
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5516050955414012
+      }
+    },
+    {
+      "routing_auroc": 0.611828025477707,
+      "grounding": {
+        "G_a": 0.08754801750183105,
+        "G_m": 0.08938153833150864,
+        "G_c": 0.18212471902370453,
+        "G_c_null_mean": 0.1851082929223776,
+        "G_c_null_ci95": [
+          0.18279563263058662,
+          0.18753980547189714
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.611828025477707,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5971783439490446,
+            "auroc_random": 0.612063694267516
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.6060573248407644,
+            "auroc_random": 0.6130573248407643
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5938152866242038,
+            "auroc_random": 0.6091974522292993
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5448025477707006,
+            "auroc_random": 0.6249872611464968
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.611828025477707,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.6126369426751592,
+            "delta": -0.0008089171974522413
+          },
+          {
+            "k": 1,
+            "auroc": 0.6130636942675161,
+            "delta": -0.0012356687898090746
+          },
+          {
+            "k": 2,
+            "auroc": 0.591796178343949,
+            "delta": 0.02003184713375794
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5023184713375797,
+        "scramble_trial_auroc": 0.4957707006369427
+      },
+      "swap_ladder": {
+        "intact": 0.611828025477707,
+        "noise": 0.538828025477707,
+        "phase": 0.4768089171974522,
+        "reversed": 0.5913885350318471,
+        "polarity": 0.38817197452229296,
+        "cross_component": 0.450484076433121,
+        "null_reference": 0.538828025477707
+      },
+      "amplitude": {
+        "on_component_auroc": 0.6006942675159236,
+        "off_component_auroc": 0.5468152866242038,
+        "early_baseline_auroc": 0.524171974522293,
+        "permute_trial_auroc": 0.5234331210191082,
+        "channel_on_component_auroc": 0.6195286624203822,
+        "channel_off_component_auroc": 0.564687898089172,
+        "channel_early_baseline_auroc": 0.5706751592356688,
+        "channel_permute_trial_auroc": 0.5591464968152866,
+        "contrast_on_component_auroc": 0.6484394904458599,
+        "contrast_off_component_auroc": 0.5887643312101911,
+        "contrast_early_baseline_auroc": 0.5828471337579618,
+        "contrast_permute_trial_auroc": 0.5696687898089172
+      },
+      "combined": {
+        "routing_only_auroc": 0.611828025477707,
+        "legacy_scalar_mf_proxy_auroc": 0.6235923566878981,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.43047023422954134
+          },
+          {
+            "M": 2,
+            "R2": 0.6550860333925743
+          },
+          {
+            "M": 3,
+            "R2": 0.7913512218817751
+          },
+          {
+            "M": 5,
+            "R2": 0.9041925863562628
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6468726114649681
+      }
+    },
+    {
+      "routing_auroc": 0.5829617834394905,
+      "grounding": {
+        "G_a": 0.08163641393184662,
+        "G_m": 0.08451513200998306,
+        "G_c": 0.1626313328742981,
+        "G_c_null_mean": 0.16187895081937312,
+        "G_c_null_ci95": [
+          0.15992873311042785,
+          0.16387328431010245
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5829617834394905,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5592738853503185,
+            "auroc_random": 0.578515923566879
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5455477707006369,
+            "auroc_random": 0.5800382165605096
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5171656050955414,
+            "auroc_random": 0.5731847133757961
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5201019108280255,
+            "auroc_random": 0.5712547770700638
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5829617834394905,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5763503184713377,
+            "delta": 0.0066114649681527915
+          },
+          {
+            "k": 1,
+            "auroc": 0.5454777070063694,
+            "delta": 0.037484076433121016
+          },
+          {
+            "k": 2,
+            "auroc": 0.5926751592356687,
+            "delta": -0.009713375796178259
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.4749299363057325,
+        "scramble_trial_auroc": 0.5004394904458599
+      },
+      "swap_ladder": {
+        "intact": 0.5829617834394905,
+        "noise": 0.5227133757961783,
+        "phase": 0.5206369426751593,
+        "reversed": 0.5884394904458599,
+        "polarity": 0.41703821656050954,
+        "cross_component": 0.41161783439490446,
+        "null_reference": 0.5227133757961783
+      },
+      "amplitude": {
+        "on_component_auroc": 0.6057579617834397,
+        "off_component_auroc": 0.5563630573248408,
+        "early_baseline_auroc": 0.5241401273885351,
+        "permute_trial_auroc": 0.5593757961783439,
+        "channel_on_component_auroc": 0.6464394904458599,
+        "channel_off_component_auroc": 0.6047388535031848,
+        "channel_early_baseline_auroc": 0.5527133757961783,
+        "channel_permute_trial_auroc": 0.5822738853503184,
+        "contrast_on_component_auroc": 0.6729745222929937,
+        "contrast_off_component_auroc": 0.6321528662420381,
+        "contrast_early_baseline_auroc": 0.5689108280254778,
+        "contrast_permute_trial_auroc": 0.5757515923566878
+      },
+      "combined": {
+        "routing_only_auroc": 0.5829617834394905,
+        "legacy_scalar_mf_proxy_auroc": 0.5984585987261146,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.40402108583522456
+          },
+          {
+            "M": 2,
+            "R2": 0.6109979136826483
+          },
+          {
+            "M": 3,
+            "R2": 0.7178475078539008
+          },
+          {
+            "M": 5,
+            "R2": 0.8410678420780324
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.6577006369426752
+      }
+    },
+    {
+      "routing_auroc": 0.6045095541401274,
+      "grounding": {
+        "G_a": 0.08022747933864594,
+        "G_m": 0.08182278275489807,
+        "G_c": 0.15202395617961884,
+        "G_c_null_mean": 0.15384223714470863,
+        "G_c_null_ci95": [
+          0.15175800770521164,
+          0.15583413913846017
+        ],
+        "G_c_above_null": false
+      },
+      "occlusion": {
+        "baseline_auroc": 0.6045095541401274,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.5879745222929937,
+            "auroc_random": 0.6036433121019108
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5828535031847134,
+            "auroc_random": 0.5983312101910828
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5689426751592357,
+            "auroc_random": 0.6057452229299363
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.5665923566878981,
+            "auroc_random": 0.606968152866242
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.6045095541401274,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5990891719745224,
+            "delta": 0.005420382165605031
+          },
+          {
+            "k": 1,
+            "auroc": 0.5938280254777071,
+            "delta": 0.010681528662420336
+          },
+          {
+            "k": 2,
+            "auroc": 0.6039426751592356,
+            "delta": 0.0005668789808918051
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.4949617834394905,
+        "scramble_trial_auroc": 0.5146751592356689
+      },
+      "swap_ladder": {
+        "intact": 0.6045095541401274,
+        "noise": 0.5182292993630574,
+        "phase": 0.5004140127388536,
+        "reversed": 0.5963885350318471,
+        "polarity": 0.3954904458598726,
+        "cross_component": 0.4119044585987261,
+        "null_reference": 0.5182292993630574
+      },
+      "amplitude": {
+        "on_component_auroc": 0.643980891719745,
+        "off_component_auroc": 0.590859872611465,
+        "early_baseline_auroc": 0.5292866242038217,
+        "permute_trial_auroc": 0.5546178343949045,
+        "channel_on_component_auroc": 0.6562292993630573,
+        "channel_off_component_auroc": 0.6051337579617835,
+        "channel_early_baseline_auroc": 0.5497324840764332,
+        "channel_permute_trial_auroc": 0.5617133757961784,
+        "contrast_on_component_auroc": 0.6903248407643312,
+        "contrast_off_component_auroc": 0.6349681528662421,
+        "contrast_early_baseline_auroc": 0.6135796178343949,
+        "contrast_permute_trial_auroc": 0.574031847133758
+      },
+      "combined": {
+        "routing_only_auroc": 0.6045095541401274,
+        "legacy_scalar_mf_proxy_auroc": 0.678828025477707,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.28751622264142296
+          },
+          {
+            "M": 2,
+            "R2": 0.5245839146672115
+          },
+          {
+            "M": 3,
+            "R2": 0.6831099399660309
+          },
+          {
+            "M": 5,
+            "R2": 0.8431252799983897
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.7155541401273886
+      }
+    },
+    {
+      "routing_auroc": 0.5326564495530013,
+      "grounding": {
+        "G_a": 0.08961671590805054,
+        "G_m": 0.09161346405744553,
+        "G_c": 0.17456424236297607,
+        "G_c_null_mean": 0.17216311827301978,
+        "G_c_null_ci95": [
+          0.17000723928213118,
+          0.1744118981063366
+        ],
+        "G_c_above_null": true
+      },
+      "occlusion": {
+        "baseline_auroc": 0.5326564495530013,
+        "sweep": [
+          {
+            "M": 1,
+            "auroc_top": 0.4983716475095785,
+            "auroc_random": 0.5277011494252873
+          },
+          {
+            "M": 2,
+            "auroc_top": 0.5072477650063857,
+            "auroc_random": 0.5207982120051086
+          },
+          {
+            "M": 3,
+            "auroc_top": 0.5011430395913155,
+            "auroc_random": 0.5274712643678161
+          },
+          {
+            "M": 5,
+            "auroc_top": 0.49712643678160917,
+            "auroc_random": 0.5215006385696042
+          }
+        ]
+      },
+      "proto_drop": {
+        "baseline_auroc": 0.5326564495530013,
+        "per_component": [
+          {
+            "k": 0,
+            "auroc": 0.5441698595146871,
+            "delta": -0.011513409961685817
+          },
+          {
+            "k": 1,
+            "auroc": 0.4865581098339719,
+            "delta": 0.04609833971902938
+          },
+          {
+            "k": 2,
+            "auroc": 0.5352809706257982,
+            "delta": -0.0026245210727968704
+          }
+        ]
+      },
+      "carrier": {
+        "scramble_peak_proto_auroc": 0.5115964240102171,
+        "scramble_trial_auroc": 0.4891890166028098
+      },
+      "swap_ladder": {
+        "intact": 0.5326564495530013,
+        "noise": 0.5168326947637293,
+        "phase": 0.49605363984674333,
+        "reversed": 0.5380842911877395,
+        "polarity": 0.46734355044699877,
+        "cross_component": 0.46307151979565764,
+        "null_reference": 0.5168326947637293
+      },
+      "amplitude": {
+        "on_component_auroc": 0.5470689655172414,
+        "off_component_auroc": 0.5383588761174968,
+        "early_baseline_auroc": 0.5297190293742018,
+        "permute_trial_auroc": 0.5249553001277139,
+        "channel_on_component_auroc": 0.5513409961685825,
+        "channel_off_component_auroc": 0.5625287356321839,
+        "channel_early_baseline_auroc": 0.5570178799489145,
+        "channel_permute_trial_auroc": 0.5563026819923371,
+        "contrast_on_component_auroc": 0.5744508301404854,
+        "contrast_off_component_auroc": 0.581845466155811,
+        "contrast_early_baseline_auroc": 0.5721583652618134,
+        "contrast_permute_trial_auroc": 0.5650830140485313
+      },
+      "combined": {
+        "routing_only_auroc": 0.5326564495530013,
+        "legacy_scalar_mf_proxy_auroc": 0.5651021711366538,
+        "topM_routing_R2": [
+          {
+            "M": 1,
+            "R2": 0.4544076864961173
+          },
+          {
+            "M": 2,
+            "R2": 0.6730143462469786
+          },
+          {
+            "M": 3,
+            "R2": 0.7861825150132772
+          },
+          {
+            "M": 5,
+            "R2": 0.8846743557118273
+          }
+        ],
+        "two_factor_feature_vector": "routing_channel_contrast_v2",
+        "two_factor_auroc": 0.5782950191570881
+      }
+    }
+  ]
+}
