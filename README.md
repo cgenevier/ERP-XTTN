@@ -9,8 +9,8 @@ ERP-XTTN is a neurophysiologically-grounded, prototype-guided cross-attention mo
 ## Versions
 
 - **v3.0.0** *(current code)* — Grounded peak-unit routing, two-factor fusion, groundedness interventions, EEG-Deformer and EPMN baselines, full-montage experiments, and expanded ablations.
-  - Zenodo concept DOI: [10.5281/zenodo.20087550](https://doi.org/10.5281/zenodo.20087550)
-  - The version-specific DOI will be assigned when the v3.0.0 Zenodo deposit is published.
+  - Paper: The final paper citation and DOI will be added upon publication.
+  - Archived on Zenodo: [10.5281/zenodo.21810709](https://doi.org/10.5281/zenodo.21810709)
 - **[v2.0.0](https://github.com/cgenevier/ERP-XTTN/releases/tag/v2.0.0)** — ERP CORE extension using the earlier patch-grid/automatic-prototype architecture.
   - Paper: [arXiv:2606.02939](https://arxiv.org/abs/2606.02939)
   - Archived on Zenodo: [10.5281/zenodo.20497891](https://doi.org/10.5281/zenodo.20497891)
