@@ -4,7 +4,7 @@ Run Manager for ERP-XTTN experiments (multi-seed revision sweep).
 
 Enumerates the full experiment matrix — {EEGNet, EEG-Deformer, EPMN, ERP-XTTN}
 across 9 datasets x {3-channel, full} x 5 seeds, plus the deterministic
-xDAWN+RG (1 seed), plus the ERP-XTTN ablation grid on HRI/P300/N400 (3-channel)
+xDAWN+RG (1 seed), plus the ERP-XTTN ablation grid on HRI/ERN/P300/N400 (3-channel)
 — checks status, and launches runs up to MAX_GPU_JOBS.
 
 Usage:
