@@ -9,7 +9,7 @@ ERP-XTTN is a neurophysiologically-grounded, prototype-guided cross-attention mo
 ## Versions
 
 - **v3.0.0** *(current code)* — Grounded peak-unit routing, two-factor fusion, groundedness interventions, EEG-Deformer and EPMN baselines, full-montage experiments, and expanded ablations.
-  - Paper: The final paper citation and DOI will be added upon publication.
+  - Paper: [Journal of Neural Engineering](https://doi.org/10.1088/1741-2552/ae9f95)
   - Archived on Zenodo: [10.5281/zenodo.21810709](https://doi.org/10.5281/zenodo.21810709)
 - **[v2.0.0](https://github.com/cgenevier/ERP-XTTN/releases/tag/v2.0.0)** — ERP CORE extension using the earlier patch-grid/automatic-prototype architecture.
   - Paper: [arXiv:2606.02939](https://arxiv.org/abs/2606.02939)
@@ -310,8 +310,18 @@ This project is licensed under the MIT License; see [LICENSE](LICENSE).
 
 ## Citation
 
-If you use v3.0.0, cite the software below. The article citation will be added after publication.
+If you use this code, please cite both the paper and the archived software:
 ```bibtex
+@article{wyman2026erpxttn,
+  author={Wyman, Charlotte Genevier and Hirshfield, Leanne},
+  title={ERP-XTTN: Interpretable Prototype-Guided Cross-Attention
+         for Cross-Subject ERP Classification},
+  journal={Journal of Neural Engineering},
+  year={2026},
+  doi={10.1088/1741-2552/ae9f95},
+  url={https://doi.org/10.1088/1741-2552/ae9f95}
+}
+
 @software{wyman2026erpxttn_code,
   author={Wyman, Charlotte Genevier},
   title={ERP-XTTN: Interpretable Cross-Attention ERP Classifier},
@@ -333,7 +343,8 @@ The earlier **v2.0.0 extension release** is archived separately and available vi
   eprint={2606.02939},
   archivePrefix={arXiv},
   primaryClass={eess.SP},
-  note={Preprint. Full publication metadata will be added upon acceptance.}
+  note={Preprint of the paper published in Journal of Neural Engineering,
+        \url{https://doi.org/10.1088/1741-2552/ae9f95}.}
 }
 
 @software{wyman2026erpxttn_code_v2,
